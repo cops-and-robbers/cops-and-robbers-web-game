@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>경찰과 도둑 시제품</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root { --ink:#1D232B; --sub:#545E6E; --police:#2A9BEF; --robber:#35C26B; --danger:#E2574C; --team:var(--police); }
+  body[data-role=robber] { --team:var(--robber); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#1D232B; color:var(--ink); font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif; user-select:none; -webkit-user-select:none; }
+  #stage { position:fixed; inset:0; overflow:hidden; touch-action:none; }
+  #world { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; width:3200px; height:2400px; }
+  #map { position:absolute; left:0; top:0; }
+  .bush { position:absolute; }
+  .char { position:absolute; left:0; top:0; will-change:transform; transform-origin:0 0; }
+  .char svg { position:absolute; left:0; bottom:0; display:none; overflow:visible; }
+  .char svg.on { display:block; }
+  .char .shadow { position:absolute; left:0; bottom:-14px; width:96px; height:26px; margin-left:-48px; border-radius:50%; background:rgba(29,35,43,.16); }
+  .tag { position:absolute; left:0; transform:translateX(-50%); white-space:nowrap; font-size:30px; font-weight:800; padding:3px 16px; border-radius:999px; background:#fff; color:var(--ink); box-shadow:0 2px 0 rgba(29,35,43,.12); }
+  .tag.me { background:var(--team); color:#fff; }
+  #fog { position:absolute; inset:0; pointer-events:none; z-index:5; }
+  #fx { position:absolute; inset:0; pointer-events:none; z-index:4; }
+  #bigCount { position:absolute; left:50%; top:46%; transform:translate(-50%,-50%); font-size:120px; font-weight:900; color:#fff; opacity:0; font-variant-numeric:tabular-nums; text-shadow:0 6px 0 rgba(0,0,0,.25); }
+  #bigCount.show { opacity:.95; }
+  #sound { position:absolute; left:12px; top:max(12px,env(safe-area-inset-top)); pointer-events:auto; font:inherit; font-size:12px; font-weight:800; border:0; border-radius:10px; padding:8px 11px; background:rgba(255,255,255,.92); color:var(--ink); cursor:pointer; }
+  #sound.off { color:var(--sub); }
+  #hud { position:absolute; inset:0; z-index:10; pointer-events:none; opacity:0; }
+  #hud.show { opacity:1; }
+  #top { position:absolute; left:50%; top:max(12px,env(safe-area-inset-top)); transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; width:min(70vw,460px); }
+  #clock { background:#fff; border-radius:16px; padding:6px 16px 8px; text-align:center; box-shadow:0 3px 0 rgba(29,35,43,.16); }
+  #timerLabel { font-size:11px; font-weight:700; color:var(--sub); }
+  #timer { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.05; }
+  #pips { display:flex; gap:5px; justify-content:center; margin-top:4px; }
+  #pips i { width:22px; height:20px; background-size:contain; background-repeat:no-repeat; background-position:center; transition:filter .2s,opacity .2s,transform .2s; }
+  #pips i.out { filter:grayscale(1); opacity:.28; transform:scale(.82); }
+  #status { background:rgba(29,35,43,.82); color:#fff; font-size:14px; font-weight:700; padding:6px 14px; border-radius:999px; text-align:center; }
+  #status.hot { background:var(--danger); }
+  #mini { position:absolute; right:12px; top:max(12px,env(safe-area-inset-top)); width:168px; height:126px; border-radius:12px; border:3px solid #fff; box-shadow:0 3px 0 rgba(29,35,43,.16); }
+  #stam { position:absolute; left:50%; bottom:max(20px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(44vw,260px); height:12px; border-radius:99px; background:rgba(29,35,43,.5); overflow:hidden; border:2px solid #fff; }
+  #stamFill { height:100%; background:var(--team); border-radius:99px; }
+  #stamFill.tired { background:var(--danger); }
+  #hint { position:absolute; left:14px; bottom:18px; color:#fff; font-size:13px; font-weight:600; background:rgba(29,35,43,.6); padding:7px 12px; border-radius:10px; }
+  #toast { position:absolute; left:50%; top:128px; max-width:calc(100vw - 24px); transform:translateX(-50%) translateY(-6px); background:#fff; color:var(--ink); font-size:16px; font-weight:800; padding:9px 18px; border-radius:14px; opacity:0; transition:opacity .15s,transform .15s; white-space:nowrap; box-shadow:0 3px 0 rgba(29,35,43,.16); }
+  #toast.show { opacity:1; transform:translateX(-50%); }
+  #toast.bad { background:var(--danger); color:#fff; } #toast.good { background:var(--team); color:#fff; }
+  #banner { position:absolute; left:0; right:0; top:19%; padding:14px 0 18px; text-align:center; color:#fff; background:var(--team); transform:translateX(-105%) scaleY(.2); opacity:0; }
+  #banner.show { opacity:1; animation:stripe .38s cubic-bezier(.12,.9,.3,1) both; }
+  @keyframes stripe { 0% { transform:translateX(-105%) scaleY(.2); } 70% { transform:translateX(2%) scaleY(1.08); } 100% { transform:none; } }
+  #bannerLead { font-size:16px; font-weight:700; } #bannerMain { font-size:44px; font-weight:900; line-height:1.1; }
+  #mission { position:absolute; left:50%; top:66%; transform:translateX(-50%); background:rgba(29,35,43,.86); color:#fff; font-size:19px; font-weight:800; padding:12px 22px; border-radius:16px; opacity:0; transition:opacity .25s; white-space:nowrap; }
+  #mission.show { opacity:1; }
+  #lock { position:absolute; left:50%; top:46%; transform:translateX(-50%); background:var(--danger); color:#fff; font-size:18px; font-weight:800; padding:12px 20px; border-radius:14px; display:none; white-space:nowrap; }
+  #lock.show { display:block; }
+  #pad,#btnRun,#btnCatch { pointer-events:auto; display:none; touch-action:none; }
+  #pad { position:absolute; left:18px; bottom:calc(18px + env(safe-area-inset-bottom)); width:132px; height:132px; border-radius:50%; background:rgba(255,255,255,.55); }
+  #knob { position:absolute; left:50%; top:50%; width:54px; height:54px; margin:-27px 0 0 -27px; border-radius:50%; background:rgba(29,35,43,.75); }
+  #btnRun,#btnCatch { position:absolute; border:0; border-radius:50%; font:inherit; font-weight:800; color:#fff; width:84px; height:84px; font-size:17px; }
+  #btnRun { right:18px; bottom:calc(18px + env(safe-area-inset-bottom)); background:rgba(29,35,43,.75); }
+  #btnCatch { right:110px; bottom:calc(46px + env(safe-area-inset-bottom)); background:var(--police); }
+  #btnCatch.off { opacity:.45; }
+  @media (max-width:640px) {
+    #top { left:12px; transform:none; align-items:flex-start; width:calc(100vw - 150px); }
+    #status { font-size:12px; padding:5px 10px; text-align:left; border-radius:12px; }
+    #mini { width:112px; height:84px; }
+    #toast { top:124px; font-size:14px; white-space:normal; width:max-content; text-align:center; }
+    #mission { font-size:15px; }
+    #hint { display:none; }
+    #stam { bottom:calc(150px + env(safe-area-inset-bottom)); }
+    .card { padding:20px 16px; } .pick span { font-size:12px; }
+  }
+  @media (max-height:460px) {
+    .sheet { padding:8px; } .card { padding:14px 16px; width:min(94vw,620px); } .rules { display:none; } .card h1 { font-size:20px; }
+    #banner { top:8%; } #stam { bottom:12px; } #mission { top:60%; }
+    #top { top:max(8px,env(safe-area-inset-top)); flex-direction:row; width:auto; align-items:center; }
+    #clock { padding:4px 12px 5px; } #timerLabel { display:none; } #timer { font-size:20px; } #pips i { width:9px; height:9px; }
+    #status { white-space:nowrap; font-size:13px; }
+    #toast { top:66px; font-size:14px; padding:7px 14px; }
+    #mini { width:112px; height:84px; top:8px; }
+    #pad { width:112px; height:112px; left:calc(14px + env(safe-area-inset-left)); bottom:12px; } #knob { width:46px; height:46px; margin:-23px 0 0 -23px; }
+    #btnRun { width:72px; height:72px; right:calc(14px + env(safe-area-inset-right)); bottom:12px; font-size:15px; } #btnCatch { width:72px; height:72px; right:calc(94px + env(safe-area-inset-right)); bottom:30px; font-size:15px; }
+  }
+  @media (pointer:coarse) { #pad,#btnRun { display:block; } #btnCatch { display:block; } #hint { display:none; } #mini { width:112px; height:84px; } #toast { top:112px; font-size:14px; } }
+  .sheet { position:absolute; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(18,23,32,.55); }
+  .sheet.show { display:flex; overflow-y:auto; }
+  .sheet .card { margin:auto; }
+  @media (max-height:620px) { .pick img { height:44px; margin-bottom:4px; } .pick { padding:10px; } .card { padding:16px 20px; } .rules { margin-top:10px; font-size:12px; line-height:1.55; } .opts { margin-top:10px; } .picks { margin-top:12px; } }
+  .card { background:#fff; border-radius:24px; padding:24px; width:min(92vw,520px); text-align:center; }
+  .card h1 { margin:0; font-size:26px; font-weight:900; } .card p { margin:8px 0 0; font-size:14px; color:var(--sub); line-height:1.55; }
+  .picks { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+  .pick { font:inherit; border:0; border-radius:16px; padding:16px 10px; cursor:pointer; color:#fff; }
+  .pick img { display:block; height:64px; margin:0 auto 8px; transition:transform .18s cubic-bezier(.22,1,.36,1); }
+  .pick:hover img { transform:translateY(-4px) scale(1.06); }
+  .pick b { display:block; font-size:19px; font-weight:900; } .pick span { display:block; font-size:13px; font-weight:600; margin-top:5px; line-height:1.4; opacity:.95; }
+  .pick.p { background:var(--police); } .pick.r { background:#2D3440; }
+  .opts { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .seg { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .seg span { font-size:13px; font-weight:800; color:var(--sub); width:46px; text-align:left; }
+  .seg button { font:inherit; font-size:13px; font-weight:700; border:0; border-radius:9px; padding:7px 10px; background:#EDF0F4; color:var(--sub); cursor:pointer; }
+  .seg button.on { background:var(--ink); color:#fff; }
+  .rules { text-align:left; margin-top:16px; font-size:13px; color:var(--sub); line-height:1.7; }
+  .rules b { color:var(--ink); }
+  #rotate { background:rgba(18,23,32,.86); z-index:30; }
+  #rotate .card { width:min(84vw,320px); }
+  #rotate .phone { width:44px; height:72px; margin:0 auto 14px; border:5px solid var(--ink); border-radius:10px; animation:turn 1.8s ease-in-out infinite; }
+  @keyframes turn { 0%,25% { transform:none; } 60%,100% { transform:rotate(90deg); } }
+  #rotateSkip { font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; padding:12px; margin-top:14px; width:100%; background:#E9ECF1; color:var(--ink); }
+  #endHero { height:92px; display:block; margin:0 auto 8px; }
+  #endHero.won { animation:pop .7s cubic-bezier(.22,1.5,.36,1) both; }
+  #endHero.lost { filter:saturate(.6); }
+  @keyframes pop { from { transform:scale(0); } to { transform:none; } }
+  #endBadge { display:inline-block; margin-top:12px; font-size:18px; font-weight:900; padding:8px 16px; border-radius:12px; background:var(--team); color:#fff; }
+  #endWin { font-size:15px; font-weight:800; margin-top:8px; }
+  #endStats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
+  #endStats div { background:#F3F5F8; border-radius:12px; padding:10px 4px; } #endStats span { display:block; font-size:12px; color:var(--sub); font-weight:600; } #endStats b { font-size:18px; }
+  .acts { display:flex; gap:8px; margin-top:16px; }
+  .acts button { flex:1; font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; padding:13px; cursor:pointer; }
+  #again { background:var(--team); color:#fff; } #swap { background:#E9ECF1; color:var(--ink); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="world"><canvas id="map"></canvas></div>
+  <canvas id="fx"></canvas>
+  <canvas id="fog"></canvas>
+  <div id="hud">
+    <div id="top">
+      <div id="clock"><div id="timerLabel"></div><div id="timer"></div><div id="pips"></div></div>
+      <div id="status"></div>
+    </div>
+    <canvas id="mini" width="336" height="252"></canvas>
+    <div id="stam"><div id="stamFill"></div></div>
+    <div id="hint">이동 WASD · 달리기 Shift · 잡기 Space</div>
+    <div id="toast"></div>
+    <div id="mission"></div>
+    <div id="banner"><div id="bannerLead"></div><div id="bannerMain"></div></div>
+    <div id="lock">구역 안으로 돌아와요</div>
+    <div id="bigCount"></div>
+    <button id="sound">소리 켜짐</button>
+    <div id="pad"><div id="knob"></div></div>
+    <button id="btnRun">달리기</button>
+    <button id="btnCatch">잡기</button>
+  </div>
+  <div id="start" class="sheet show"><div class="card">
+    <h1>경찰과 도둑</h1>
+    <p>넓은 동네에서 숨고, 들키면 도망치고, 쫓아서 잡아요.</p>
+    <div class="picks">
+      <button class="pick p" data-role-pick="police"><img id="imgPolice" alt=""><b>경찰 냥파</b><span>도둑 4명을 모두 체포해요</span></button>
+      <button class="pick r" data-role-pick="robber"><img id="imgRobber" alt=""><b>도둑 도둥이</b><span>3분 동안 잡히지 않고 버텨요</span></button>
+    </div>
+    <div class="opts">
+      <div class="seg"><span>난이도</span><button data-diff="easy">쉬움</button><button data-diff="normal" class="on">보통</button><button data-diff="hard">어려움</button></div>
+      <div class="seg wrap"><span>테마</span><button data-theme-pick="random" class="on">랜덤</button><button data-theme-pick="town">동네</button><button data-theme-pick="night">밤 골목</button><button data-theme-pick="park">공원</button><button data-theme-pick="city">도심</button><button data-theme-pick="snow">눈 마을</button></div>
+    </div>
+    <div class="rules">
+      <b>시야</b> 바라보는 쪽만 멀리 보여요. 내가 보는 상대도 나를 볼 수 있어요.<br>
+      <b>위치 공개</b> 도둑 위치가 주기적으로 경찰에게 공개돼요. 공개되면 바로 자리를 옮겨요.<br>
+      <b>숨을 곳</b> 덤불에 숨으면 멀리서 안 보여요. 달리면 흔들려 들켜요. 나무와 쓰레기통 뒤도 시야를 가려요.<br>
+      <b>달리기</b> 체력이 다 떨어지면 잠깐 못 달려요. 골목을 돌면 따돌릴 수 있어요.<br>
+      <b>감옥</b> 동료가 감옥 앞에 서 있으면 문이 열려요. 밖에서 3초 동안 안 잡히면 탈옥해요.
+    </div>
+  </div></div>
+  <div id="rotate" class="sheet"><div class="card">
+    <div class="phone"></div>
+    <h1>가로로 돌려 주세요</h1>
+    <p>가로로 하면 더 넓게 보여요. 돌리면 바로 시작해요.</p>
+    <button id="rotateSkip">세로로 할게요</button>
+  </div></div>
+  <div id="end" class="sheet"><div class="card">
+    <img id="endHero" alt="">
+    <h1 id="endTitle"></h1>
+    <p id="endReason"></p>
+    <div id="endWin"></div>
+    <div id="endBadge"></div>
+    <div id="endStats"></div>
+    <div class="acts"><button id="again">한 판 더</button><button id="swap">역할 바꾸기</button></div>
+  </div></div>
+</div>
+<script>/*ENGINE*/</script>
+<script>/*SVGS*/</script>
+<script>/*LOGIC*/</script>
+<script>/*GAME*/</script>
+</body>
+</html>

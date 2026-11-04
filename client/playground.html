@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캐릭터 모션 시험장</title>
+<style>
+  :root { --ink:#1D232B; --sub:#545E6E; --ground:#F3EEE4; --path:#E7DFD0; --line:#D9DEE6; --police:#57BFFF; --robber:#7D828E; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #F6F8FB; color: var(--ink); font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 14px; color: var(--sub); font-size: 14px; }
+  #stage { position: relative; width: 100%; aspect-ratio: 16/9; background: var(--ground); border-radius: 20px; overflow: hidden; touch-action: none; }
+  #stage .road { position: absolute; background: var(--path); }
+  .char { position: absolute; left: 0; top: 0; will-change: transform; transform-origin: 0 0; }
+  .char svg { position: absolute; left: 0; bottom: 0; display: none; overflow: visible; }
+  .char svg.on { display: block; }
+  .char .shadow { position: absolute; left: 50%; bottom: -6px; width: 70%; height: 16px; transform: translateX(-50%); border-radius: 50%; background: rgba(29,35,43,.09); }
+  .tag { position: absolute; left: 50%; top: -22px; transform: translateX(-50%); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fff; white-space: nowrap; }
+  #label { position: absolute; left: 16px; top: 14px; font-size: 18px; font-weight: 700; background: #fff; padding: 6px 12px; border-radius: 12px; display: none; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  button { font: inherit; font-size: 14px; font-weight: 700; padding: 10px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .hint { font-size: 13px; color: var(--sub); }
+  #pad { position: absolute; right: 16px; bottom: 16px; width: 132px; height: 132px; border-radius: 50%; background: rgba(255,255,255,.7); }
+  #knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(29,35,43,.75); }
+  .rules { margin-top: 18px; font-size: 14px; color: var(--sub); line-height: 1.7; }
+  .rules b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>캐릭터 모션 시험장</h1>
+  <p class="lead">원본 SVG 조각에 관절만 달아 움직여요. 방향키나 WASD(휴대폰은 오른쪽 아래 원)로 움직이고, 아래 버튼으로 동작을 눌러 보세요.</p>
+  <div id="stage">
+    <div class="road" style="left:0;right:0;top:58%;height:13%"></div>
+    <div class="road" style="top:0;bottom:0;left:40%;width:9%"></div>
+    <div id="label"></div>
+    <div id="pad"><div id="knob"></div></div>
+  </div>
+  <div class="bar">
+    <span class="hint">조종:</span>
+    <button id="selP" class="on">냥파</button><button id="selR">도둥이</button>
+    <span class="hint" style="margin-left:8px">동작:</span>
+    <button id="actCatch">잡기 (냥파)</button>
+    <button id="actSniff">킁킁 (냥파)</button>
+    <button id="actHide">숨기 (도둥이)</button>
+    <button id="actJail">잡힘 → 수감 (도둥이)</button>
+    <button id="actEscape">탈옥 (도둥이)</button>
+  </div>
+  <div class="rules">
+    <b>방향 규칙</b><br>
+    좌우로 움직이면 옆모습 달리기, 방향이 바뀌면 몸을 가로로 접었다 펴며 돌아서요.<br>
+    아래(화면 쪽)로 움직이면 정면 달리기. 위(멀어지는 쪽)는 뒷모습이 아직 없어서 마지막 좌우 방향의 옆모습으로 달려요.<br>
+    대각선은 좌우 성분이 35% 넘으면 옆모습. 멈추면 정면 대기로 돌아와요.
+  </div>
+</div>
+<script>// 경찰과 도둑 캐릭터 관절 엔진
+// 원본 SVG 조각을 그대로 쓰고, 부위마다 g 로 감싸 변환만 준다. 새로 그리는 도형은 없다.
+// 몸통에 붙은 발·팔은 잘라 내서(clipPath) 따로 움직인다. 잘린 면은 몸 뒤에 숨는다.
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const TAU = Math.PI * 2;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const smooth = x => x * x * (3 - 2 * x);
+  const piv = (x, y, r = 0, sx = 1, sy = 1, tx = 0, ty = 0) =>
+    `translate(${tx.toFixed(2)},${ty.toFixed(2)}) translate(${x},${y}) rotate(${r.toFixed(2)}) scale(${sx.toFixed(4)},${sy.toFixed(4)}) translate(${-x},${-y})`;
+
+  // 부위 정의: 숫자는 원본 SVG 최상위 조각의 순서(마스크, defs 제외)
+  const DEFS = {
+    "police-side": {
+      // 몸과 발(손)을 잇는 팔다리: 엉덩이(어깨)에서 발(손)까지 둥근 막대. 서 있을 땐 몸 뒤에 숨는다
+      limbs: [{ from: ["body", 64, 178], to: ["backFoot", 59, 184], w: 10, color: "#9FD6FF", before: "backFoot" }, { from: ["body", 104, 174], to: ["frontFoot", 110, 180], w: 10, color: "#9FD6FF", before: "frontFoot" }],
+      w: 158, h: 202, ground: 188, cx: 80,
+      groups: { shadow: [0], hat: [1, 2, 3], frontArm: [4], head: [5, 6, 16, 17, 18, 19, 20, 21, 22, 25], body: [7, 10], earR: [8, 11], earL: [9, 15], baton: [12, 13, 14, 23, 24], badge: [26] },
+      // 발 덩어리의 뿌리선(앞 두 점) 아래만 잘라 낸다. 사각형으로 자르면 몸 가장자리까지 떨어져 나와 틈이 보인다
+      splits: [{ from: [7], cuts: { backFoot: [[52.5, 177], [67, 184.4], [67, 192], [52.5, 192]], frontFoot: [[105.6, 177.8], [117.5, 175.5], [117.5, 192], [105.6, 192]] } }],
+    },
+    "police-front": {
+      limbs: [{ from: ["body", 58, 186], to: ["footL", 53, 195], w: 13, color: "#9FD6FF", before: "footL" }, { from: ["body", 122, 186], to: ["footR", 127, 195], w: 13, color: "#9FD6FF", before: "footR" }],
+      w: 180, h: 200, ground: 200, cx: 90,
+      groups: { body: [0, 1, 2, 3, 4, 9], earIn: [5, 6], cheeks: [7, 8], hat: [10, 19, 20, 21, 22], face: [11, 12, 13, 16, 17, 18], eyes: [14, 15] },
+      splits: [{ from: [0, 4], pieceFrom: [4], cuts: { footL: [[46.7, 185.7], [63.4, 192.3], [63.4, 203], [42, 203]], footR: [[116.6, 192.3], [132.4, 185.7], [137, 203], [116.6, 203]] },
+        // 떼어 낸 발 조각은 바깥 모서리를 몸 안쪽으로 살짝 들인다. 발이 기울 때 윗부분이 몸 밖으로 삐져나오지 않게
+        pieces: { footL: [[47.8, 185.2], [63.4, 190.9], [63.4, 203], [42, 203]], footR: [[116.6, 190.9], [131.3, 185.2], [137, 203], [116.6, 203]] } }],
+    },
+    // 뒷모습: 정면 그림에서 등 뒤로 가면 안 보이는 부위(얼굴, 볼, 배, 귀 안쪽, 배지)를 뺀다
+    "police-back": {
+      limbs: [{ from: ["body", 58, 186], to: ["footL", 53, 195], w: 13, color: "#9FD6FF", before: "footL" }, { from: ["body", 122, 186], to: ["footR", 127, 195], w: 13, color: "#9FD6FF", before: "footR" }],
+      src: "police-front", w: 180, h: 200, ground: 200, cx: 90,
+      groups: { body: [0, 1, 2, 3, 4, 7, 8], hat: [10, 19, 20, 21] },
+      // 원본은 볼이 몸 윤곽 밖으로 튀어나와 있다. 빼면 옆구리가 움푹 패니 몸 색으로 칠해 남긴다
+      recolor: { 7: "#9FD6FF", 8: "#9FD6FF" },
+      hide: [5, 6, 9, 11, 12, 13, 14, 15, 16, 17, 18, 22],
+      splits: [{ from: [0, 4], pieceFrom: [4], cuts: { footL: [[46.7, 185.7], [63.4, 192.3], [63.4, 203], [42, 203]], footR: [[116.6, 192.3], [132.4, 185.7], [137, 203], [116.6, 203]] },
+        // 떼어 낸 발 조각은 바깥 모서리를 몸 안쪽으로 살짝 들인다. 발이 기울 때 윗부분이 몸 밖으로 삐져나오지 않게
+        pieces: { footL: [[47.8, 185.2], [63.4, 190.9], [63.4, 203], [42, 203]], footR: [[116.6, 190.9], [131.3, 185.2], [137, 203], [116.6, 203]] } }],
+    },
+    "robber-back": {
+      limbs: [{ from: ["body", 64, 128], to: ["footL", 61, 139], w: 8, color: "#7D828E", before: "footL" }, { from: ["body", 96, 128], to: ["footR", 99, 139], w: 8, color: "#7D828E", before: "footR" },
+              { from: ["body", 48, 106], to: ["handL", 41, 113], w: 13, color: "#A5AAB7", before: "handL" }, { from: ["body", 112, 106], to: ["handR", 119, 113], w: 13, color: "#A5AAB7", before: "handR" }],
+      src: "robber-front", w: 160, h: 145, ground: 145, cx: 80,
+      groups: { footR: [0], footL: [1], body: [2, 3, 5, 6], handR: [4, 18], handL: [7, 17], beanie: [19, 20] },
+      // 원본 몸통은 귀 안쪽과 배 무늬 자리가 뚫려 있다. 빼면 구멍이 보이니 몸 색으로 칠해 메운다
+      recolor: { 3: "#A5AAB7", 5: "#A5AAB7", 6: "#A5AAB7" },
+      hide: [8, 9, 10, 11, 12, 13, 14, 15, 16],
+    },
+    "robber-side": {
+      limbs: [{ from: ["body", 80, 128], to: ["backFoot", 71, 136], w: 8, color: "#7D808C", before: "backFoot" }, { from: ["body", 108, 126], to: ["frontFoot", 117, 132], w: 8, color: "#7D808C", before: "frontFoot" },
+              { from: ["body", 110, 108], to: ["frontHand", 124, 104], w: 7, color: "#A3A8B5", before: "frontHand" }],
+      w: 144, h: 164, ground: 141, cx: 93,
+      groups: { shadow: [0], sack: [1], backFoot: [2], frontHand: [3, 4], head: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18], earR: [15, 16], body: [19, 26, 27], backArm: [20, 21, 22], frontFoot: [23], earL: [24, 25] },
+      moveBefore: [["frontFoot", "body"]],
+    },
+    "robber-front": {
+      limbs: [{ from: ["body", 64, 128], to: ["footL", 61, 139], w: 8, color: "#7D828E", before: "footL" }, { from: ["body", 96, 128], to: ["footR", 99, 139], w: 8, color: "#7D828E", before: "footR" },
+              { from: ["body", 48, 106], to: ["handL", 41, 113], w: 13, color: "#A5AAB7", before: "handL" }, { from: ["body", 112, 106], to: ["handR", 119, 113], w: 13, color: "#A5AAB7", before: "handR" }],
+      w: 160, h: 145, ground: 145, cx: 80,
+      groups: { footR: [0], footL: [1], body: [2, 3, 5, 6, 8], handR: [4, 18], handL: [7, 17], face: [9, 10, 11, 12], eyes: [13, 14, 15, 16], beanie: [19, 20] },
+    },
+    "robber-jailed": {
+      w: 140, h: 116, ground: 107, cx: 70,
+      groups: { feet: [0, 1], body: [2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16], tearR: [6], tearL: [7], drop: [17, 18], barsR: [19, 20, 21, 22], barsL: [23, 24, 25, 26], barsT: [27, 28, 29, 30], handL: [31, 32], handR: [33, 34] },
+    },
+  };
+
+  let uid = 0;
+  function mount(svgText, name) {
+    const def = { ...DEFS[name], name };
+    const holder = document.createElement("div");
+    holder.innerHTML = svgText.trim();
+    const svg = holder.firstElementChild;
+    svg.removeAttribute("width"); svg.removeAttribute("height");
+    svg.setAttribute("overflow", "visible");
+    // 마스크 id 가 그림끼리 겹치지 않게 바꾼다
+    const tag = "r" + (uid++);
+    svg.querySelectorAll("[id]").forEach(n => { const old = n.id; n.id = old + tag; svg.querySelectorAll(`[mask="url(#${old})"]`).forEach(m => m.setAttribute("mask", `url(#${old + tag})`)); svg.querySelectorAll(`[clip-path="url(#${old})"]`).forEach(m => m.setAttribute("clip-path", `url(#${old + tag})`)); });
+    let defs = svg.querySelector("defs"); if (!defs) { defs = document.createElementNS(NS, "defs"); svg.prepend(defs); }
+    const kids = [...svg.children].filter(n => !["defs", "mask", "clipPath", "style"].includes(n.tagName));
+    const parts = {};
+    const wrap = (n, part) => { const g = document.createElementNS(NS, "g"); n.replaceWith(g); g.append(n); (parts[part] ||= []).push(g); return g; };
+    const owner = {};
+    for (const [part, idx] of Object.entries(def.groups)) for (const i of idx) owner[i] = part;
+    const wrappers = kids.map((n, i) => wrap(n, owner[i] || "rest"));
+    for (const i of def.hide || []) wrappers[i].style.display = "none";
+    // 같은 색 테두리를 살짝 둘러 메운 자리의 가는 경계선까지 지운다
+    for (const [i, col] of Object.entries(def.recolor || {})) wrappers[i].querySelectorAll("[fill]").forEach(n => { if (n.getAttribute("fill") !== "none") { n.setAttribute("fill", col); n.setAttribute("stroke", col); n.setAttribute("stroke-width", "1.4"); } });
+    // 몸통에서 발·팔 잘라 내기
+    for (const sp of def.splits || []) {
+      const rects = Object.entries(sp.cuts);
+      for (const i of sp.from) {
+        const src = wrappers[i];
+        // 몸통 쪽: 잘라 낼 사각형을 뺀 나머지만 보이게
+        const cpBody = document.createElementNS(NS, "clipPath"); cpBody.id = `cb${tag}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+        const pb = document.createElementNS(NS, "path"); pb.setAttribute("clip-rule", "evenodd");
+        const poly = (pts, grow = 0) => "M" + pts.map(([x, y], k) => `${x} ${k < 2 ? y - grow : y}`).join("L") + "Z";
+        pb.setAttribute("d", `M-500 -500H900V900H-500Z ` + rects.map(([, pts]) => poly(pts)).join(" "));
+        cpBody.append(pb); defs.append(cpBody);
+        const inner = document.createElementNS(NS, "g"); inner.setAttribute("clip-path", `url(#${cpBody.id})`);
+        while (src.firstChild) inner.append(src.firstChild); src.append(inner);
+        // 밑에 깔린 밝은 층에서는 조각을 떼지 않는다(발에 밝은 선이 생긴다). 잘라 내기만 한다
+        if (sp.pieceFrom && !sp.pieceFrom.includes(i)) continue;
+        for (const [part, pts] of rects) {
+          const cp = document.createElementNS(NS, "clipPath"); cp.id = `cp${tag}_${part}_${i}`;
+          // 조각은 뿌리선보다 1.5 위까지 잡아 몸 뒤로 겹친다. 그래야 잘린 선이 보이지 않는다
+          const r = document.createElementNS(NS, "path"); r.setAttribute("d", sp.pieces && sp.pieces[part] ? poly(sp.pieces[part]) : poly(pts, 1.5));
+          cp.append(r); defs.append(cp);
+          const g = document.createElementNS(NS, "g"); const ig = document.createElementNS(NS, "g"); ig.setAttribute("clip-path", `url(#${cp.id})`);
+          ig.append(inner.firstChild.cloneNode(true)); g.append(ig);
+          src.parentNode.insertBefore(g, src); // 잘린 조각은 몸 뒤에
+          (parts[part] ||= []).push(g);
+        }
+      }
+    }
+    for (const [a, b] of def.moveBefore || []) { const A = parts[a][0], B = parts[b][0]; B.parentNode.insertBefore(A, B); }
+    const limbs = (def.limbs || []).map(L => {
+      const ln = document.createElementNS(NS, "line");
+      ln.setAttribute("stroke", L.color); ln.setAttribute("stroke-width", L.w); ln.setAttribute("stroke-linecap", "round");
+      const ref = parts[L.before][0]; ref.parentNode.insertBefore(ln, ref);   // 발(손) 바로 뒤, 몸보다 뒤
+      return { ...L, el: ln };
+    });
+    // 부위 g 의 변환을 점에 적용해, 움직인 뒤의 위치를 구한다
+    const at = (part, x, y) => { const g = parts[part] && parts[part][0]; const t = g && g.transform.baseVal.consolidate(); if (!t) return [x, y]; const m = t.matrix; return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]; };
+    const updateLimbs = () => { for (const L of limbs) { const a = at(...L.from), b = at(...L.to); L.el.setAttribute("x1", a[0]); L.el.setAttribute("y1", a[1]); L.el.setAttribute("x2", b[0]); L.el.setAttribute("y2", b[1]); } };
+    // 전체를 감싸는 g (기울기·찌그러짐·뒤집기)
+    const all = document.createElementNS(NS, "g");
+    [...svg.children].filter(n => !["defs", "mask", "clipPath", "style"].includes(n.tagName)).forEach(n => all.append(n));
+    svg.append(all);
+    const flip = document.createElementNS(NS, "g"); svg.append(flip); flip.append(all);
+    updateLimbs(); // 처음부터 제자리에 둔다. 안 그러면 첫 장면에 왼쪽 위 모서리에 점이 찍힌다
+    return {
+      svg, def, parts, all, flip,
+      set(part, tf) { (parts[part] || []).forEach(g => g.setAttribute("transform", tf)); },
+      updateLimbs,
+      reset() { Object.values(parts).flat().forEach(g => { g.removeAttribute("transform"); g.style.opacity = ""; }); all.removeAttribute("transform"); updateLimbs(); },
+    };
+  }
+
+  // 용수철: 목표를 조금 늦게, 살짝 넘치게 따라간다
+  class Spring { constructor(k, c) { this.k = k; this.c = c; this.x = 0; this.v = 0; }
+    step(target, dt) { const n = Math.max(1, Math.ceil(dt / 0.002)); const h = dt / n; for (let i = 0; i < n; i++) { const a = this.k * (target - this.x) - this.c * this.v; this.v += a * h; this.x += this.v * h; } return this.x; } }
+
+  // 걸음 주기 안의 발 위치: 땅에 닿은 동안 뒤로 밀고, 나머지 동안 들려서 앞으로
+  function footCycle(u, stride = 11, lift = 6, stance = 0.55) {
+    u = ((u % 1) + 1) % 1;
+    if (u < stance) { const k = u / stance; return { x: stride - 2 * stride * k, y: 0, r: -6 + 16 * k }; }
+    const k = (u - stance) / (1 - stance); const e = smooth(k);
+    return { x: -stride + 2 * stride * e, y: -lift * Math.sin(Math.PI * k), r: 10 - 16 * e };
+  }
+
+  // 몸 움직임 계산기: 몸 높이와 가속도를 내고, 부위 용수철을 돌린다
+  function makeBody() {
+    return { y: 0, v: 0, a: 0, last: null,
+      update(y, dt) { if (this.last === null) { this.last = y; } const v = (y - this.last) / Math.max(dt, 1e-4); this.a = (v - this.v) / Math.max(dt, 1e-4); this.v = v; this.last = y; this.y = y; } };
+  }
+
+  // ───────── 모션 ─────────
+  // 각 모션은 make(rig) → { update(dt, ctx) } 형태. ctx.speed(0..1) 로 걸음 빠르기를 바꾼다
+  const MOTIONS = {};
+
+  // 정면 대기: 숨쉬기, 깜빡임, 모자·얼굴이 반 박자 늦게
+  MOTIONS.idleFront = (rig) => {
+    const d = rig.def, B = makeBody(); let t = 0;
+    const face = new Spring(320, 16), hat = new Spring(140, 9), hatR = new Spring(90, 6), arm = new Spring(60, 6);
+    return { update(dt) {
+      t += dt; const br = 0.5 - 0.5 * Math.cos(TAU * t / 1.8);
+      const y = 2.2 * br; B.update(y, dt);
+      const sy = 1 - 0.022 * br, sx = 1 + 0.012 * br;
+      rig.set("body", piv(d.cx, d.ground, 0, sx, sy, 0, 0));
+      const fy = face.step(y * 0.9, dt);
+      ["face", "cheeks", "earIn"].forEach(p => rig.set(p, piv(d.cx, d.ground, 0, 1, 1, 0, fy)));
+      const hy = hat.step(y, dt), hr = hatR.step(-B.v * 0.25, dt);
+      // 모자는 머리 위로 들뜨지 않게, 눌리는 쪽으로만 늦게 따라온다. 들뜨면 모자 밑에 틈이 보인다
+      const hyc = y + clamp(hy - y, -0.2, 2.2), hrc = clamp(hr, -2.5, 2.5);
+      rig.set("hat", piv(d.cx, 40, hrc, 1, 1, 0, hyc)); rig.set("beanie", piv(d.cx, 45, hrc, 1, 1, 0, hyc));
+      const blinkT = t % 3.2; const bl = blinkT > 2.9 && blinkT < 3.05 ? 0.12 : 1;
+      rig.set("eyes", piv(d.cx, d.name.startsWith("robber") ? 71 : 84, 0, 1, bl, 0, fy));
+      const ar = arm.step(Math.sin(TAU * t / 1.8) * 4, dt);
+      rig.set("armL", piv(42, 170, ar, 1, 1, 0, y * 0.6)); rig.set("armR", piv(138, 170, -ar, 1, 1, 0, y * 0.6));
+      rig.set("handL", piv(46, 108, ar * 1.0, 1, 1, 0, y * 0.8)); rig.set("handR", piv(114, 108, -ar * 1.0, 1, 1, 0, y * 0.8));
+    } };
+  };
+
+  // 옆으로 달리기: 두 걸음에 한 바퀴. 몸 들썩임, 발 굴리기, 머리·귀·자루·팔 용수철
+  MOTIONS.runSide = (rig, opts = {}) => {
+    const d = rig.def, B = makeBody(); let ph = 0;
+    const head = new Spring(900, 38), earA = new Spring(260, 9), earB = new Spring(220, 8), sack = new Spring(160, 9), sackR = new Spring(120, 7), hand = new Spring(500, 26), hatR = new Spring(200, 10);
+    const crouch = opts.crouch || 0;
+    return { update(dt, ctx = {}) {
+      const speed = ctx.speed ?? 1, T = (opts.period || 0.44) / (0.55 + 0.45 * speed);
+      ph = ctx.phase !== undefined ? ctx.phase : (ph + dt / T) % 1;
+      const s = (ph * 2) % 1; const amp = (opts.bob ?? 7) * (0.6 + 0.4 * speed);
+      const y = -amp * (0.5 - 0.5 * Math.cos(TAU * (s - 0.12))) + crouch * 10;
+      B.update(y, dt);
+      const sq = clamp(-B.a * 0.00003, -0.045, 0.035), sy = (1 + sq) * (1 - crouch * 0.12), sx = 1 / Math.sqrt(1 + sq) * (1 + crouch * 0.06);
+      rig.all.setAttribute("transform", piv(d.cx, d.ground, 4 * speed + crouch * 4 + 1.2 * Math.sin(ph * TAU * 2), 1, 1));
+      const hy = head.step(y, dt), ea = earA.step(-B.a * 0.0016, dt), eb = earB.step(-B.a * 0.0013, dt);
+      const ff = footCycle(ph, 14 * (0.7 + 0.3 * speed), 9 * (1 - crouch * 0.6)), bf = footCycle(ph + 0.5, 14 * (0.7 + 0.3 * speed), 9 * (1 - crouch * 0.6));
+      if (d.name === "robber-side") {
+        rig.set("body", piv(93, 141, 0, sx, sy, 0, y));
+        rig.set("head", piv(95, 112, 1.5 * Math.sin(ph * TAU * 2 - 1.2), sx, sy, 0, hy));
+        rig.set("earL", piv(58, 74, ea, 1, 1, 0, hy)); rig.set("earR", piv(106, 42, -eb * 0.9, 1, 1, 0, hy));
+        rig.set("sack", piv(62, 70, sackR.step(B.a * 0.0011, dt), 1, 1, 0, sack.step(y, dt)));
+        rig.set("backArm", piv(72, 106, 10 * Math.sin(ph * TAU + 1.0), 1, 1, 0, y));
+        rig.set("frontHand", piv(121, 104, -6 * Math.sin(ph * TAU + 1.0), 1, 1, -3 * Math.cos(ph * TAU), hand.step(y, dt)));
+        rig.set("frontFoot", piv(117, 132, ff.r, 1, 1, ff.x * 0.8, ff.y));
+        rig.set("backFoot", piv(71, 136, bf.r, 1, 1, bf.x * 0.8, bf.y));
+        const lift = -y / 7; rig.set("shadow", piv(76, 150, 0, 1 - 0.12 * lift, 1 - 0.12 * lift));
+      } else { // police-side
+        rig.set("body", piv(80, 188, 0, sx, sy, 0, y));
+        rig.set("head", piv(85, 140, 1.5 * Math.sin(ph * TAU * 2 - 1.2), sx, sy, 0, hy));
+        rig.set("earL", piv(48, 78, ea * 0.9, 1, 1, 0, hy)); rig.set("earR", piv(112, 50, -eb * 0.8, 1, 1, 0, hy));
+        const hr = hatR.step(B.a * 0.0012, dt);
+        rig.set("hat", piv(52, 52, hr, 1, 1, 0, hy)); rig.set("badge", piv(52, 52, hr, 1, 1, 0, hy));
+        rig.set("baton", piv(50, 150, (opts.batonSwing ?? 12) * Math.sin(ph * TAU + 1.0), 1, 1, 0, hand.step(y, dt)));
+        rig.set("frontArm", piv(120, 145, -8 * Math.sin(ph * TAU + 1.0), 1, 1, 0, y));
+        rig.set("frontFoot", piv(110, 180, ff.r, 1, 1, ff.x * 0.7, ff.y * 0.8));
+        rig.set("backFoot", piv(59, 184, bf.r, 1, 1, bf.x * 0.7, bf.y * 0.8));
+        const lift = -y / 7; rig.set("shadow", piv(80, 185, 0, 1 - 0.12 * lift, 1 - 0.12 * lift));
+      }
+    } };
+  };
+
+  // 앞으로(화면 아래, 카메라 쪽으로) 달리기: 제자리에서 발을 번갈아 들고, 몸이 좌우로 살짝 흔들린다
+  MOTIONS.runFront = (rig) => {
+    const d = rig.def, B = makeBody(); let ph = 0;
+    const face = new Spring(700, 30), hat = new Spring(260, 11), hatR = new Spring(160, 8);
+    return { update(dt, ctx = {}) {
+      const speed = ctx.speed ?? 1, T = 0.44 / (0.55 + 0.45 * speed);
+      ph = ctx.phase !== undefined ? ctx.phase : (ph + dt / T) % 1;
+      const s = (ph * 2) % 1;
+      const y = -6 * (0.5 - 0.5 * Math.cos(TAU * (s - 0.12)));
+      B.update(y, dt);
+      const sq = clamp(-B.a * 0.00003, -0.045, 0.035), sy = 1 + sq, sx = 1 / Math.sqrt(sy);
+      const sway = 2.2 * Math.sin(ph * TAU);
+      rig.all.setAttribute("transform", piv(d.cx, d.ground, sway, sx, sy, 0, y));
+      const fy = face.step(0, dt) * 0, hy = hat.step(y, dt) - y, hr = hatR.step(-sway * 1.2, dt) + sway * 0.0;
+      ["face", "cheeks", "earIn", "eyes"].forEach(p => rig.set(p, piv(d.cx, d.ground, 0, 1, 1, sway * 0.6, 0)));
+      const hyc = clamp(hy, -0.2, 2.2), hrc = clamp(hr - sway, -2.5, 2.5);
+      rig.set("hat", piv(d.cx, 40, hrc, 1, 1, sway * 0.3, hyc)); rig.set("beanie", piv(d.cx, 45, hrc, 1, 1, sway * 0.3, hyc));
+      // 발: 한쪽이 들리면 다른 쪽은 땅에. 들린 발은 살짝 안쪽·위로
+      const L = Math.max(0, Math.sin(ph * TAU)), R = Math.max(0, -Math.sin(ph * TAU));
+      const fl = d.name.startsWith("robber") ? [[61, 140], [99, 140]] : [[52, 196], [126, 196]];
+      const tilt = d.name.startsWith("robber") ? 8 : 3;
+      rig.set("footL", piv(fl[0][0], fl[0][1], -tilt * L, 1, 1, 2 * L, -10 * L - y));
+      rig.set("footR", piv(fl[1][0], fl[1][1], tilt * R, 1, 1, -2 * R, -10 * R - y));
+      // 팔: 발과 반대로
+      const a = Math.sin(ph * TAU);
+      rig.set("armL", piv(42, 170, 10 * a, 1, 1, 0, 0)); rig.set("armR", piv(138, 170, 10 * a, 1, 1, 0, 0));
+      rig.set("handL", piv(46, 108, 7 * a, 1, 1, 0, -2 * a)); rig.set("handR", piv(114, 108, 7 * a, 1, 1, 0, 2 * a));
+    } };
+  };
+
+  // 냥파 잡기 (옆모습): 움츠렸다가 앞으로 뛰어들며 곤봉을 휘두른다. 0.6초
+  MOTIONS.catchSide = (rig) => {
+    const d = rig.def; let t = 0; const head = new Spring(600, 24), earA = new Spring(260, 9), hatR = new Spring(200, 10); const B = makeBody();
+    // t, 앞뒤 이동, 기울기(+ 앞으로), 세로 찌그러짐, 높이, 곤봉 회전(+ 앞으로 내리침)
+    const key = [[0, 0, 0, 1, 0, 0], [0.14, -8, -6, 0.92, 2, -35], [0.27, 30, 10, 1.06, -8, 95], [0.4, 28, 6, 0.98, -2, 80], [0.6, 0, 0, 1, 0, 0]];
+    const at = (tt) => { for (let i = 1; i < key.length; i++) if (tt <= key[i][0]) { const a = key[i - 1], b = key[i], k = smooth((tt - a[0]) / (b[0] - a[0])); return a.map((v, j) => v + (b[j] - v) * k); } return key[key.length - 1]; };
+    return { done: false, update(dt) {
+      t += dt; const [, x, r, sy, y, bat] = at(Math.min(t, 0.6)); B.update(y, dt);
+      rig.all.setAttribute("transform", piv(80, 188, r, 1 / Math.sqrt(sy), sy, x, y));
+      const hy = head.step(0, dt); rig.set("head", piv(85, 140, 0, 1, 1, 0, hy));
+      const ea = earA.step(-B.a * 0.002, dt); rig.set("earL", piv(48, 78, ea, 1, 1, 0, 0)); rig.set("earR", piv(112, 50, -ea, 1, 1, 0, 0));
+      const hr = hatR.step(B.a * 0.0015, dt); rig.set("hat", piv(52, 52, hr)); rig.set("badge", piv(52, 52, hr));
+      rig.set("baton", piv(50, 150, bat));
+      this.done = t >= 0.6; this.t = t;
+    } };
+  };
+
+  // 도둥이 수감: 훌쩍이며 두 번 들썩이고, 눈물이 길어졌다 줄었다, 창살을 쥔 손이 꼼지락
+  MOTIONS.jailed = (rig) => {
+    let t = 0; const B = makeBody(); const tear = new Spring(120, 8);
+    return { update(dt) {
+      t += dt; const c = t % 1.6; const sob = c < 0.5 ? Math.max(0, Math.sin(c / 0.25 * Math.PI)) : 0;
+      const y = -3 * sob; B.update(y, dt);
+      rig.set("body", piv(70, 107, 0, 1 - 0.015 * sob, 1 + 0.03 * sob, 0, y));
+      const ts = 1 + 0.25 * tear.step(sob, dt);
+      rig.set("tearL", piv(56, 58, 0, 1, ts, 0, y)); rig.set("tearR", piv(84, 58, 0, 1, ts, 0, y));
+      rig.set("drop", piv(74, 56, 0, 1, 1, 0, y));
+      rig.set("handL", piv(47, 81, 0, 1, 1, 0, -1.5 * sob)); rig.set("handR", piv(93, 81, 0, 1, 1, 0, -1.5 * sob));
+      rig.set("feet", piv(70, 107, 0, 1, 1, 0, 0));
+    } };
+  };
+
+  // 탈옥: 창살이 양옆으로 튕겨 나가며 사라진다. 도둥이 몸은 정면 그림이 대신 뛰어나온다
+  MOTIONS.breakout = (rig) => {
+    let t = 0;
+    return { update(dt) {
+      t += dt; const k = Math.min(1, t / 0.4), e = 1 - (1 - k) * (1 - k);
+      ["body", "feet", "tearL", "tearR", "drop", "handL", "handR"].forEach(p => (rig.parts[p] || []).forEach(g => g.style.opacity = 0));
+      rig.set("barsL", piv(26, 60, -18 * e, 1, 1, -34 * e, 10 * e * e)); rig.set("barsR", piv(110, 60, 18 * e, 1, 1, 34 * e, 10 * e * e));
+      rig.set("barsT", piv(70, 58, 0, 1 + 0.15 * e, 1, 0, -6 * e));
+      ["barsL", "barsR", "barsT"].forEach(p => (rig.parts[p] || []).forEach(g => g.style.opacity = 1 - e));
+    } };
+  };
+
+  // 냥파 킁킁 (정면): 고개를 갸웃하며 코를 실룩, 얼굴이 냄새 쪽으로
+  MOTIONS.sniff = (rig) => {
+    const d = rig.def; let t = 0; const face = new Spring(400, 18), hatR = new Spring(140, 8);
+    return { update(dt) {
+      t += dt; const c = t % 1.4; const dir = c < 0.7 ? -1 : 1; const k = (c % 0.7) / 0.7;
+      const tilt = dir * 5 * smooth(Math.min(1, k * 3)) * (k > 0.85 ? (1 - (k - 0.85) / 0.15) : 1);
+      const twitch = Math.sin(t * TAU * 7) * 0.5 + 0.5;
+      rig.all.setAttribute("transform", piv(d.cx, d.ground, tilt * 0.6, 1, 1, 0, 0));
+      const fx = face.step(dir * 6 * smooth(Math.min(1, k * 3)), dt);
+      ["face", "cheeks", "earIn"].forEach(p => rig.set(p, piv(d.cx, 95, 0, 1, 1, fx, -1.5 * twitch * (k > 0.2 && k < 0.8 ? 1 : 0))));
+      rig.set("eyes", piv(d.cx, 84, 0, 1, 1, fx * 1.1, 0));
+      rig.set("hat", piv(d.cx, 40, hatR.step(-tilt * 1.4, dt), 1, 1, 0, 0));
+      rig.set("armL", piv(42, 170, -6 * twitch, 1, 1, 0, 0)); rig.set("armR", piv(138, 170, 6 * twitch, 1, 1, 0, 0));
+    } };
+  };
+
+  window.CharRig = { mount, MOTIONS, DEFS, piv, Spring, smooth, clamp, footCycle };
+})();
+</script>
+<script>
+const SVGS = {"police-front":"<svg width=\"180\" height=\"200\" viewBox=\"0 0 180 200\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M36.656 149.312C33.0063 162.135 37.2128 177.018 46.9437 185.694C46.9437 185.694 46.958 185.704 46.9675 185.714C44.6787 193.823 46.387 198.955 50.5744 199.831C56.8746 201.15 60.3435 194.291 62.4086 192.354C62.8464 191.941 66.3486 192.832 67.0243 192.912C68.6564 193.106 70.2838 193.29 71.916 193.464C75.1803 193.808 78.4493 194.101 81.7231 194.296C84.345 194.45 86.9574 194.505 89.565 194.485C92.1726 194.51 94.785 194.455 97.4069 194.296C100.681 194.101 103.95 193.808 107.214 193.464C108.846 193.29 110.478 193.106 112.106 192.912C112.781 192.832 116.284 191.941 116.721 192.354C118.786 194.296 122.255 201.15 128.556 199.831C132.743 198.955 134.451 193.823 132.162 185.714C132.172 185.704 132.186 185.694 132.186 185.694C141.917 177.013 146.124 162.13 142.474 149.312\" fill=\"#B3DCFF\"/>\n<path d=\"M143.911 54.8624C151.377 58.8893 158.762 64.5539 164.62 70.8506C165.143 71.4131 166.005 71.224 166.342 70.5271C171.729 59.3174 168.227 50.3725 165.928 48.4711C162.707 45.7981 151.977 48.9888 143.892 53.5881C143.402 53.8669 143.416 54.5986 143.911 54.8624Z\" fill=\"#B3DCFF\"/>\n<path d=\"M36.3702 164.306C33.382 165.212 29.5705 164.64 26.8582 162.908C19.0734 157.935 20.9482 146.173 27.1246 140.304C27.6052 139.846 27.4577 139.015 26.8534 138.761C19.8775 135.824 13.0111 132.385 7.97195 126.63C2.8614 120.792 0.0777151 112.872 0.0015802 104.953C-0.0745546 97.0332 2.60444 88.8101 7.17729 82.2794C-1.63056 70.6765 -2.16826 53.0904 5.74976 40.8453C6.6491 39.4566 7.66741 38.1076 8.99977 37.1668C12.1023 34.9817 16.1993 35.4097 19.8823 36.0867C30.1462 37.9732 40.2008 41.1291 49.7605 45.4696C62.3227 39.6806 75.5702 37.5252 89.9977 37.4108C105.144 37.0623 117.673 39.6806 130.235 45.4696C139.795 41.1291 149.849 37.9732 160.113 36.0867C163.796 35.4097 167.898 34.9817 170.996 37.1668C172.328 38.1076 173.346 39.4516 174.246 40.8453C182.164 53.0904 181.626 70.6765 172.818 82.2794C177.391 88.8151 180.07 96.854 179.994 104.953C179.918 112.867 177.139 120.792 172.024 126.63C166.984 132.385 160.118 135.824 153.142 138.761C152.538 139.015 152.39 139.846 152.871 140.304C159.047 146.173 160.922 157.935 153.137 162.908C150.425 164.64 146.614 165.212 143.625 164.306\" fill=\"#B3DCFF\"/>\n<path d=\"M36.0848 54.8624C28.6189 58.8893 21.2338 64.5539 15.3762 70.8506C14.8527 71.4131 13.9915 71.224 13.6536 70.5271C8.26708 59.3174 11.7693 50.3725 14.0676 48.4711C17.2891 45.7981 28.0193 48.9888 36.1039 53.5881C36.594 53.8669 36.5797 54.5986 36.0848 54.8624Z\" fill=\"#B3DCFF\"/>\n<path d=\"M172.818 82.2794C181.626 70.6765 182.164 53.0904 174.246 40.8453C173.346 39.4566 172.328 38.1076 170.996 37.1668C167.893 34.9817 163.796 35.4097 160.113 36.0867C149.849 37.9732 139.795 41.1291 130.235 45.4696C117.673 39.6806 105.144 37.0573 89.9977 37.4108C75.5702 37.5252 62.3227 39.6806 49.7605 45.4696C40.2008 41.1291 30.1462 37.9732 19.8823 36.0867C16.1993 35.4097 12.0975 34.9817 8.99977 37.1668C7.66741 38.1076 6.6491 39.4516 5.74976 40.8453C-2.16827 53.0904 -1.63056 70.6765 7.17729 82.2794C2.6092 88.8151 -0.0745573 96.854 0.00157751 104.953C0.0777124 112.867 2.85663 120.792 7.97194 126.63C13.3442 132.768 20.8007 136.272 28.2476 139.343C21.2004 144.779 18.6165 157.651 26.8581 162.913C29.3991 164.535 32.9014 165.138 35.7897 164.466C37.0364 172.609 40.9336 180.334 46.9435 185.69C46.9435 185.69 46.9577 185.7 46.9673 185.71C44.6785 193.819 46.3867 198.951 50.5742 199.827C56.8743 201.146 60.3432 194.287 62.4084 192.35C62.8461 191.937 66.3483 192.828 67.024 192.908C68.6562 193.102 70.2836 193.286 71.9157 193.46C75.18 193.804 78.449 194.098 81.7228 194.292C84.3447 194.446 86.9571 194.501 89.5647 194.481C92.1723 194.506 94.7847 194.451 97.4066 194.292C100.68 194.098 103.949 193.804 107.214 193.46C108.846 193.286 110.478 193.102 112.105 192.908C112.781 192.828 116.283 191.937 116.721 192.35C118.786 194.292 122.255 201.146 128.555 199.827C132.743 198.951 134.451 193.819 132.162 185.71C132.172 185.7 132.186 185.69 132.186 185.69C138.234 180.295 142.145 172.509 143.364 164.306H143.625C146.614 165.212 150.425 164.64 153.137 162.908C161.374 157.646 158.795 144.774 151.748 139.338C159.2 136.267 166.651 132.763 172.024 126.625C177.134 120.787 179.918 112.867 179.994 104.948C180.07 96.849 177.391 88.8051 172.818 82.2744V82.2794Z\" fill=\"#9FD6FF\"/>\n<path d=\"M165.929 48.464C168.227 50.3654 171.729 59.3103 166.343 70.52C166.01 71.2218 165.148 71.406 164.625 70.8435C158.762 64.5468 151.377 58.8822 143.911 54.8553C143.416 54.5915 143.407 53.8598 143.892 53.581C151.977 48.9767 162.712 45.791 165.929 48.464Z\" fill=\"#57BFFF\"/>\n<path d=\"M36.1039 53.581C36.594 53.8598 36.5797 54.5915 36.0848 54.8553C28.6189 58.8822 21.2338 64.5468 15.3762 70.8435C14.8527 71.406 13.9915 71.2218 13.6536 70.52C8.26708 59.3103 11.7693 50.3654 14.0676 48.464C17.2891 45.791 28.0193 48.9767 36.1039 53.581Z\" fill=\"#57BFFF\"/>\n<path d=\"M49.7367 108.457C49.7367 93.7131 37.6265 81.7617 22.685 81.7617C14.8336 81.7617 7.76736 85.0669 2.82335 90.3382C0.967564 94.9575 -0.0459814 99.9451 0.00160284 104.953C0.0777377 112.867 2.85666 120.792 7.97197 126.63C10.9793 130.065 14.6385 132.673 18.5833 134.844C19.9204 135.043 21.2861 135.147 22.6803 135.147C37.6217 135.147 49.7319 123.196 49.7319 108.452L49.7367 108.457Z\" fill=\"#57BFFF\"/>\n<path d=\"M130.226 108.457C130.226 123.201 142.336 135.152 157.277 135.152C158.686 135.152 160.075 135.043 161.427 134.839C165.367 132.668 169.021 130.06 172.028 126.63C177.139 120.792 179.923 112.872 179.999 104.953C180.046 99.965 179.047 95.0023 177.201 90.398C172.257 85.0918 165.162 81.7617 157.282 81.7617C142.341 81.7617 130.23 93.7131 130.23 108.457H130.226Z\" fill=\"#57BFFF\"/>\n<path d=\"M89.8842 180.571C100.459 180.571 109.032 174.204 109.032 166.35C109.032 158.496 100.459 152.129 89.8842 152.129C79.3091 152.129 70.7363 158.496 70.7363 166.35C70.7363 174.204 79.3091 180.571 89.8842 180.571Z\" fill=\"#57BFFF\"/>\n<path d=\"M130.844 42.5267C135.079 40.0876 140.984 36.7476 140.042 30.6101C140.009 30.3911 139.966 30.1721 139.923 29.9531C138.867 25.0302 135.041 21.4114 131.524 18.3701C120.984 9.25099 108.018 2.32208 94.5751 0.350925C91.3822 -0.116975 88.1417 -0.116975 84.9488 0.350925C71.5063 2.3171 58.5395 9.25099 47.9996 18.3701C44.4831 21.4114 40.6574 25.0302 39.601 29.9531C39.5534 30.1721 39.5153 30.3911 39.482 30.6101C38.5399 36.7476 44.4451 40.0876 48.6801 42.5267C57.8258 39.0672 72.4865 34.8212 90.835 34.9905C108.094 35.1498 121.941 39.1568 130.844 42.5267Z\" fill=\"#0B4692\"/>\n<path d=\"M89.9978 94.685C87.2522 87.4773 70.9879 88.1692 70.1742 97.6716C69.1892 109.165 83.8547 110.897 89.9978 104.227C96.141 110.897 110.806 109.165 109.821 97.6716C109.003 88.1692 92.7387 87.4773 89.9978 94.685Z\" fill=\"white\"/>\n<path d=\"M92.3525 78.5312L92.462 83.3048\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M86.9473 78.7031L86.8379 83.4767\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M72.3774 82.0545C73.4671 83.7619 73.7669 86.1014 72.3393 87.5499C70.8595 89.0581 68.5564 88.2368 67.3525 86.7634C66.377 85.5638 65.7917 83.7768 66.2533 82.2288C66.7101 80.7006 68.1614 79.7698 69.6794 79.9888C70.8785 80.163 71.735 81.0491 72.3774 82.0595V82.0545Z\" fill=\"#00719E\"/>\n<path d=\"M106.919 82.0545C105.829 83.7619 105.529 86.1014 106.957 87.5499C108.437 89.0581 110.74 88.2368 111.944 86.7634C112.919 85.5638 113.504 83.7768 113.043 82.2288C112.586 80.7006 111.135 79.7698 109.617 79.9888C108.418 80.163 107.561 81.0491 106.919 82.0595V82.0545Z\" fill=\"#00719E\"/>\n<path d=\"M89.9167 96.4024C92.4816 96.4024 94.5609 94.7042 94.5609 92.6094C94.5609 90.5146 92.4816 88.8164 89.9167 88.8164C87.3518 88.8164 85.2725 90.5146 85.2725 92.6094C85.2725 94.7042 87.3518 96.4024 89.9167 96.4024Z\" fill=\"#FF6692\"/>\n<path d=\"M89.9167 96.4024C92.4816 96.4024 94.5609 94.7042 94.5609 92.6094C94.5609 90.5146 92.4816 88.8164 89.9167 88.8164C87.3518 88.8164 85.2725 90.5146 85.2725 92.6094C85.2725 94.7042 87.3518 96.4024 89.9167 96.4024Z\" fill=\"#FF6692\"/>\n<path d=\"M96.9828 144.207C94.8558 144.56 92.3434 144.829 89.5311 144.839C86.5809 144.849 83.959 144.575 81.7559 144.207\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M48.6801 42.5267C44.4451 40.0876 38.5399 36.7476 39.482 30.6101C39.5153 30.3911 39.5582 30.1721 39.601 29.9531C40.6574 25.0302 44.4831 21.4114 47.9996 18.3701C58.5395 9.25099 71.5015 2.3171 84.9488 0.350925C88.1417 -0.116975 91.3822 -0.116975 94.5751 0.350925C108.018 2.3171 120.984 9.25099 131.524 18.3701C135.041 21.4114 138.867 25.0302 139.923 29.9531C139.971 30.1721 140.009 30.3911 140.042 30.6101C140.984 36.7476 135.079 40.0876 130.844 42.5267C121.936 39.1568 108.089 35.1547 90.835 34.9905C72.4912 34.8212 57.8305 39.0622 48.6801 42.5267Z\" fill=\"#0B4692\"/>\n<path d=\"M49.0467 46.2902C48.2759 46.2902 47.5526 45.7974 47.2623 44.996C46.8912 43.9656 47.3908 42.8208 48.3758 42.4325C61.9373 37.1114 76.1412 34.4633 90.6211 34.5778C104.501 34.6823 118.134 37.3254 131.144 42.4325C132.129 42.8208 132.629 43.9656 132.257 44.996C131.886 46.0264 130.792 46.5491 129.807 46.1608C117.216 41.218 104.021 38.6595 90.5926 38.5599C76.5885 38.4504 62.8367 41.0089 49.7129 46.1608C49.494 46.2454 49.2656 46.2902 49.0467 46.2902Z\" fill=\"#FFE500\"/>\n<path d=\"M49.0467 46.2902C48.2759 46.2902 47.5526 45.7974 47.2623 44.996C46.8912 43.9656 47.3908 42.8208 48.3758 42.4325C61.9373 37.1114 76.1412 34.4633 90.6211 34.5778C104.501 34.6823 118.134 37.3254 131.144 42.4325C132.129 42.8208 132.629 43.9656 132.257 44.996C131.886 46.0264 130.792 46.5491 129.807 46.1608C117.216 41.218 104.021 38.6595 90.5926 38.5599C76.5885 38.4504 62.8367 41.0089 49.7129 46.1608C49.494 46.2454 49.2656 46.2902 49.0467 46.2902Z\" fill=\"#FFB600\"/>\n<path d=\"M89.7598 23.4381C90.9345 23.4381 91.8868 22.2146 91.8868 20.7054C91.8868 19.1961 90.9345 17.9727 89.7598 17.9727C88.5851 17.9727 87.6328 19.1961 87.6328 20.7054C87.6328 22.2146 88.5851 23.4381 89.7598 23.4381Z\" fill=\"#FFB600\"/>\n</svg>\n","police-side":"<svg width=\"158\" height=\"202\" viewBox=\"0 0 158 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<ellipse cx=\"78.8949\" cy=\"185.197\" rx=\"46.3158\" ry=\"16.8027\" fill=\"#E7E9ED\" fill-opacity=\"0.3\"/>\n<path d=\"M22.3092 71.5159C17.9136 70.4281 8.44023 67.795 4.23433 66.0554C3.04764 65.5634 1.81655 65.0022 1.03349 63.9317C0.181818 62.7749 0.0082537 61.2123 0.000180961 59.7404C-0.0200009 54.5605 1.65106 49.5533 3.43917 44.7361C5.90135 38.1016 8.61783 31.5793 11.5886 25.1865C14.9388 18.4699 18.7289 12.0038 22.9187 5.8484C23.4596 5.05415 24.0085 4.26423 24.6705 3.58653C27.5484 0.651286 31.9238 0.387977 35.9037 0.29733C35.9037 0.29733 38.4789 0.236899 40.5939 0.189417C52.6223 -0.514179 64.7516 0.74625 76.4288 3.90596C78.9959 4.60092 81.8214 5.61962 83.0283 8.14479C84.3159 10.834 82.774 15.0685 81.2886 17.6369C81.2886 17.6369 42.3054 28.2124 36.166 57.936L22.3092 71.5202V71.5159Z\" fill=\"#0B4690\"/>\n<path d=\"M34.4873 45.9771C43.1412 32.4836 57.8538 21.5196 72.6915 17.57C77.4423 17.0563 82.2738 17.4535 86.8995 18.7096C88.5544 19.1585 90.2981 19.806 91.3072 21.2779C95.4486 27.3124 91.5333 35.38 87.9207 40.4433L34.9474 61.4649C34.3137 60.6361 31.7345 59.5786 31.6174 55.4778C31.5004 51.3944 33.902 46.8448 34.4832 45.9728L34.4873 45.9771Z\" fill=\"#FDB403\"/>\n<path d=\"M44.8643 53.205C52.0974 39.2798 67.028 27.9144 79.69 22.3892C82.7375 21.0597 86.9434 20.2957 89.345 22.7086C93.5065 26.8914 88.6185 36.3748 84.6871 40.605C79.7748 42.6338 73.7283 44.6755 66.6889 46.1172C59.1893 47.6539 50.3739 53.2093 44.8643 53.2093V53.205Z\" fill=\"#DD7C00\"/>\n<path d=\"M120.622 151.143C124.554 150.53 128.199 146.158 128.715 141.785L119.064 144.181L120.622 151.143Z\" fill=\"#85CFFF\"/>\n<path d=\"M22.023 71.7238C3.55262 94.6359 5.41339 131.663 32.3118 147.38C32.3118 147.38 60.5421 164.918 110.872 149.076C134.351 141.686 157.358 127.493 157.988 98.141C158.751 62.5641 123.945 43.0447 94.9441 41.1195C80.0701 40.131 64.6108 43.0317 50.8387 49.1526\" fill=\"#9FD6FF\"/>\n<mask id=\"mask0_5056_10998\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"9\" y=\"40\" width=\"149\" height=\"116\">\n<path d=\"M22.023 71.7238C3.55262 94.6359 5.41339 131.663 32.3118 147.38C32.3118 147.38 60.5421 164.918 110.872 149.076C134.351 141.686 157.358 127.493 157.988 98.141C158.751 62.5641 123.945 43.0447 94.9441 41.1195C80.0701 40.131 64.6108 43.0317 50.8387 49.1526\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask0_5056_10998)\">\n<path d=\"M158.61 97.9984C158.839 86.5032 154.955 77.0918 149.936 76.9775C144.917 76.8632 140.663 86.0893 140.434 97.5845C140.205 109.08 144.088 118.491 149.107 118.605C154.126 118.72 158.381 109.494 158.61 97.9984Z\" fill=\"#57BFFF\"/>\n<path d=\"M68.8841 144.013C81.5609 140.76 89.548 127.918 86.7238 115.328C83.8995 102.738 71.3334 95.1678 58.6566 98.42C45.9797 101.672 37.9926 114.515 40.8169 127.105C43.6411 139.695 56.2072 147.265 68.8841 144.013Z\" fill=\"#57BFFF\"/>\n</g>\n<path d=\"M38.3218 149.643C37.0786 167.716 53.8215 177.895 53.8215 177.895C53.8215 177.895 53.8457 180.856 54.0071 182.008C54.5036 185.565 56.4492 189.687 61.6843 186.303C63.424 185.177 66.6127 182.828 66.7298 182.708C66.8872 182.548 83.5574 185.79 99.8805 180.062C103.743 178.706 106.064 177.342 106.137 177.381C109.741 179.561 112.385 180.89 113.826 177.748C114.916 175.374 113.883 172.292 112.345 170.967C118.791 165.614 121.85 154.227 120.518 145.633\" fill=\"#9FD6FF\"/>\n<path d=\"M99.8643 41.678C105.455 36.5457 111.772 32.3198 118.537 29.1903C121.136 27.986 124.107 26.9414 126.734 28.068C130.129 29.5183 131.453 33.8867 131.844 37.7716C132.333 42.6579 132.002 47.6348 130.868 52.396C128.635 53.1859 121.386 55.4219 112.954 52.2147C105.443 49.3571 101.301 43.8147 99.8643 41.678Z\" fill=\"#9FD6FF\"/>\n<path d=\"M61.5949 53.4714C53.4576 49.88 44.848 47.5146 36.1012 46.4657C31.8307 45.952 27.0032 45.9434 23.875 49.0944C21.8932 51.0887 20.9769 54.0239 20.6177 56.9074C19.1081 69.0627 26.1071 80.3634 32.7792 90.3389\" fill=\"#9FD6FF\"/>\n<path d=\"M97.2727 157.078C99.3071 156.375 101.414 156.09 103.452 156.47C107.069 157.148 109.81 160.195 109.628 164.214C109.45 168.137 106.12 171.953 103.174 173.865C99.7672 176.076 95.9649 177.396 91.8963 177.396C88.8367 177.396 86.1001 175.238 85.3009 172.053C84.3765 168.353 86.5279 164.818 88.9901 162.409C91.2182 160.23 94.1566 158.162 97.2687 157.078H97.2727Z\" fill=\"#57BFFF\"/>\n<path d=\"M114.528 45.3885C117.039 41.9828 119.824 38.8101 122.843 35.918C123.533 35.2533 124.385 34.5627 125.297 34.7612C126.367 34.9943 126.868 36.3022 127.106 37.4461C127.994 41.7281 127.659 46.2864 126.181 50.3784C124.894 49.3986 123.198 48.2979 121.108 47.3526C118.585 46.213 116.296 45.6648 114.536 45.3928L114.528 45.3885Z\" fill=\"#57BFFF\"/>\n<path d=\"M68.0861 156.088C69.4302 158.346 68.2879 161.691 65.5351 163.565C62.7823 165.438 59.4604 165.127 58.1203 162.87L58.0194 162.719L30.9717 118.375C32.445 120.848 36.0817 121.189 39.1009 119.135C42.1201 117.084 43.3714 113.411 41.9022 110.938L67.9973 155.929L68.0861 156.088Z\" fill=\"#FF444F\"/>\n<path d=\"M59.7187 141.66C62.4755 146.417 65.2364 151.174 67.9932 155.931L68.082 156.09C69.4261 158.348 68.2838 161.693 65.531 163.567C62.7782 165.44 59.4563 165.129 58.1162 162.872L58.0153 162.721C55.2302 158.158 52.4492 153.591 49.6641 149.028C50.209 149.132 53.6237 149.706 56.5945 147.198C58.9961 145.17 59.5814 142.416 59.7187 141.664V141.66Z\" fill=\"#383838\"/>\n<path d=\"M41.9021 110.939C43.3713 113.412 42.12 117.086 39.1008 119.136C36.0816 121.191 32.4449 120.85 30.9716 118.376C29.4983 115.903 30.7536 112.234 33.7728 110.179C36.788 108.124 40.4288 108.465 41.9021 110.939Z\" fill=\"#FF7176\"/>\n<path d=\"M36.392 70.7247C37.6553 74.4801 39.6574 77.9549 42.2447 80.834C45.1065 74.1779 49.1711 68.1175 54.1479 63.0844C52.2226 60.9046 49.599 59.6355 46.9995 58.5305C44.1055 57.3046 40.6584 56.2729 38.0388 58.0686C36.4767 59.1391 35.5443 61.0643 35.2779 63.0283C35.0075 64.9923 35.3344 66.9995 35.8471 68.9074C36.0125 69.5204 36.1942 70.1247 36.396 70.7247H36.392Z\" fill=\"#57BFFF\"/>\n<path d=\"M95.7347 88.0834C97.2564 89.4302 97.5833 91.7956 96.6227 93.0431C95.658 94.2906 93.4097 94.2992 91.888 92.9524C90.3663 91.6057 90.1443 89.4129 91.105 88.1654C92.0697 86.9179 94.213 86.7366 95.7347 88.0791V88.0834Z\" fill=\"#007ECA\"/>\n<path d=\"M108.069 106.499C108.437 111.687 107.823 116.884 107.145 122.043C107.008 123.092 107.884 123.968 108.852 123.752C110.988 123.277 113.107 122.716 115.202 122.081C115.65 121.943 116.122 121.792 116.437 121.425C116.715 121.106 116.84 120.67 116.949 120.251C118.532 114.234 119.238 107.949 119.036 101.699L114.419 97.6758L108.065 106.499H108.069Z\" fill=\"#57BFFF\"/>\n<path d=\"M123.255 80.3643C122.593 82.1729 123.231 84.1974 124.437 84.7067C125.644 85.2118 127.372 84.111 128.038 82.3024C128.7 80.4938 128.05 78.6549 126.843 78.1499C125.636 77.6449 123.921 78.5557 123.259 80.3686L123.255 80.3643Z\" fill=\"#007ECA\"/>\n<path d=\"M111.347 103.988C109.595 105.408 107.569 106.444 105.426 106.984C102.447 107.735 98.8465 107.303 97.0584 104.644C96.5417 103.88 96.2188 102.978 96.0372 102.054C95.4156 98.903 96.5538 95.4282 98.8707 93.3778C101.555 91.0037 105.369 90.6627 108.808 91.2368C110.608 91.539 112.485 92.1217 113.571 93.7879C114.487 89.6742 118.568 86.8641 122.391 87.4685C125.458 87.9519 128.138 90.6972 128.578 93.9778C129.018 97.2584 127.069 100.776 124.118 101.791C121.067 102.844 117.773 101.337 114.859 100.047C113.898 101.553 112.703 102.883 111.343 103.984L111.347 103.988Z\" fill=\"white\"/>\n<path d=\"M109.701 83.0469C109.972 84.1001 110.286 85.1404 110.65 86.1634\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M113.096 82.0117L113.879 85.1326\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M114.469 95.2077C116.516 94.4196 117.709 92.3951 117.134 90.6859C116.558 88.9767 114.432 88.2301 112.385 89.0182C110.338 89.8064 109.145 91.8309 109.721 93.5401C110.296 95.2492 112.422 95.9959 114.469 95.2077Z\" fill=\"#FD6690\"/>\n<path d=\"M54.6721 159.531C59.0388 157.372 60.7732 151.445 58.546 146.293C56.3188 141.141 50.9734 138.714 46.6067 140.873C42.2401 143.031 40.5057 148.958 42.7329 154.11C44.9601 159.263 50.3055 161.689 54.6721 159.531Z\" fill=\"#9FD6FF\"/>\n<path d=\"M43.1533 147.021C43.1049 145.843 43.23 144.694 43.5045 143.594C41.5711 146.408 41.1553 150.448 42.7376 154.105C44.6912 158.624 49.0464 161.046 53.0343 160.113C47.3875 158.792 43.4197 153.332 43.1573 147.021H43.1533Z\" fill=\"#6CBFFF\"/>\n<path d=\"M114.42 143.801C111.388 145.057 107.497 146.343 102.884 147.116C100.317 147.548 97.9109 147.755 95.707 147.815\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M48.2081 12.521C48.7941 11.5864 48.3805 10.1916 47.2843 9.4057C46.1882 8.61978 44.8246 8.74032 44.2387 9.67493C43.6527 10.6095 44.0663 12.0043 45.1625 12.7902C46.2586 13.5761 47.6222 13.4556 48.2081 12.521Z\" fill=\"#FDB403\"/>\n</svg>\n","robber-front":"<svg width=\"160\" height=\"145\" viewBox=\"0 0 160 145\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M104.31 134.451C108.44 139.231 106.04 145.381 100.36 144.971C96.8401 144.721 93.0101 141.521 92.3701 138.001C94.3601 137.601 96.5201 137.071 98.8101 136.381C100.8 135.781 102.64 135.121 104.31 134.441V134.451Z\" fill=\"#7D828E\"/>\n<path d=\"M67.9805 138.011C67.3405 141.531 63.5105 144.731 59.9905 144.981C54.3105 145.391 52.1305 139.341 56.5605 134.461C57.1705 134.711 57.8005 134.961 58.4505 135.211C59.2505 135.531 60.0805 135.821 60.9205 136.081C61.2305 136.191 61.5505 136.291 61.8705 136.391C64.0305 137.071 66.0705 137.601 67.9605 138.011H67.9805Z\" fill=\"#7D828E\"/>\n<path d=\"M160 33.738C160 50.0171 148.55 63.6063 133.32 66.7761C136.13 73.5057 137.1 80.9553 134.51 87.7049C130.71 97.5743 122.4 100.244 117.49 101.214C117.06 101.304 116.97 101.874 117.35 102.104C119.9 103.574 123.63 107.174 123.99 112.313C123.93 111.753 123.83 111.173 123.67 110.554C123.67 110.554 119.48 114.593 113.59 114.973C113.59 114.973 113.91 117.223 113.98 121.593H113.68C112.23 136.012 95.46 139.232 80.08 139.372C73.51 139.312 66.7 138.692 60.93 136.872C60.07 136.592 59.25 136.302 58.46 136.002C51.93 133.382 47.19 128.902 46.49 121.473H46.32C46.39 117.183 46.7 114.973 46.7 114.973C40.82 114.593 36.62 110.554 36.62 110.554C36.15 112.353 36.17 113.913 36.44 115.233C36.29 114.673 36.21 114.093 36.19 113.513C36.05 108.894 38.69 104.384 42.66 102.104C43.04 101.884 42.95 101.304 42.52 101.214C37.62 100.244 29.3 97.5843 25.5 87.7049C22.9 80.9553 23.88 73.5057 26.69 66.7761C11.45 63.6063 0 50.0171 0 33.738C0 15.1091 14.99 0 33.49 0C51.99 0 66.99 15.1091 66.99 33.738C66.99 35.5279 66.85 37.2778 66.59 38.9977L66.06 39.3677C70.63 38.7277 75.29 38.4977 80.01 38.5777C84.75 38.6777 89.52 38.9177 94.22 39.5477L93.42 38.9877C93.15 37.2778 93.02 35.5179 93.02 33.728C93.01 15.1091 108.01 0 126.5 0C144.99 0 160 15.1091 160 33.738ZM128.14 58.0266C138.97 56.5567 147.33 47.1972 147.33 35.8779C147.33 23.5286 137.39 13.5192 125.14 13.5192C112.89 13.5192 102.94 23.5286 102.94 35.8779C102.94 37.8378 103.2 39.7477 103.67 41.5576C107.32 42.4875 112.98 44.4274 118.78 48.6871C123.15 51.897 126.18 55.3668 128.14 58.0266ZM92.15 118.193C92.15 112.803 86.67 108.444 79.9 108.444C73.13 108.444 67.65 112.803 67.65 118.193C67.65 123.583 73.13 127.942 79.9 127.942C86.67 127.942 92.15 123.583 92.15 118.193ZM56.33 41.5676C56.8 39.7577 57.05 37.8478 57.05 35.8879C57.05 23.5386 47.11 13.5292 34.86 13.5292C22.61 13.5292 12.67 23.5386 12.67 35.8879C12.67 47.2072 21.02 56.5667 31.86 58.0366C33.77 55.4468 36.63 52.1669 40.68 49.0971C46.66 44.5674 52.56 42.5375 56.33 41.5676Z\" fill=\"#A5AAB7\"/>\n<path d=\"M147.33 35.8782C147.33 47.1976 138.97 56.557 128.14 58.0269C126.17 55.3671 123.15 51.8973 118.78 48.6875C112.97 44.4277 107.32 42.4878 103.67 41.5579C103.2 39.748 102.94 37.8381 102.94 35.8782C102.94 23.5289 112.88 13.5195 125.14 13.5195C137.4 13.5195 147.33 23.5289 147.33 35.8782Z\" fill=\"#7D828E\"/>\n<path d=\"M124 112.345C124.07 113.355 124.01 114.415 123.79 115.545C123.79 115.555 123.79 115.575 123.79 115.585C123.38 117.275 122.57 118.525 121.96 119.275C121.93 119.315 121.9 119.355 121.86 119.385C120.04 121.385 117.21 122.485 114.17 121.595H114C113.93 117.215 113.61 114.975 113.61 114.975C119.49 114.595 123.69 110.555 123.69 110.555C123.85 111.165 123.95 111.755 124.01 112.315C124.01 112.315 124.01 112.335 124.01 112.345H124Z\" fill=\"#7D828E\"/>\n<path d=\"M79.9004 108.445C86.6704 108.445 92.1504 112.805 92.1504 118.195C92.1504 123.584 86.6704 127.944 79.9004 127.944C73.1304 127.944 67.6504 123.584 67.6504 118.195C67.6504 112.805 73.1304 108.445 79.9004 108.445Z\" fill=\"#7D828E\"/>\n<path d=\"M57.0597 35.8782C57.0597 37.8381 56.8097 39.748 56.3397 41.5579C52.5597 42.5178 46.6697 44.5577 40.6897 49.0874C36.6397 52.1573 33.7797 55.4371 31.8697 58.0269C21.0297 56.557 12.6797 47.1976 12.6797 35.8782C12.6797 23.5289 22.6197 13.5195 34.8697 13.5195C47.1197 13.5195 57.0597 23.5289 57.0597 35.8782Z\" fill=\"#7D828E\"/>\n<path d=\"M46.6898 114.973C46.6898 114.973 46.3798 117.183 46.3098 121.473H46.1298C41.8098 122.733 37.5298 119.423 36.4498 115.283C36.4498 115.263 36.4498 115.253 36.4398 115.223C36.1698 113.903 36.1498 112.343 36.6198 110.543C36.6198 110.543 40.8098 114.583 46.6998 114.963L46.6898 114.973Z\" fill=\"#7D828E\"/>\n<path d=\"M91.2098 103.572C83.7398 104.082 76.2298 104.032 68.7598 103.512\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M83.08 74.6854C83.08 76.2154 81.57 76.8354 80.09 76.8254C78.61 76.8154 77.21 76.2154 77.21 74.6854C77.21 71.6554 83.08 71.5754 83.08 74.6854Z\" fill=\"#FF555D\"/>\n<path d=\"M85.7202 63.9375C85.7202 63.9375 85.3102 65.3975 83.6602 66.4975\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M74.4697 63.9375C74.4697 63.9375 74.8797 65.3975 76.5297 66.4975\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M69.8204 79.4766C68.5904 79.5666 67.7504 81.0066 68.0204 82.2166C68.2904 83.4266 69.3904 84.3166 70.5804 84.6466C71.8304 84.9866 73.1604 84.8166 74.4304 84.5666C75.2704 84.4066 76.1104 84.1866 76.9404 83.9666C77.8604 83.7166 78.8104 83.5366 79.7304 83.4866C79.9604 83.4766 80.2004 83.4766 80.4304 83.4866C81.4504 83.5666 82.4104 83.7366 83.3804 84.0066C84.1704 84.2266 84.9804 84.4266 85.7804 84.5766C87.0304 84.8166 88.3404 84.9866 89.5804 84.6466C90.8204 84.3066 91.8804 83.4266 92.1404 82.2166C92.4004 81.0066 91.5704 79.5666 90.3404 79.4766\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M61.72 68.4453C65.56 68.4453 68.94 69.1553 68.94 71.2153C68.94 73.2753 65.56 73.9853 61.72 73.9853C57.88 73.9853 54.5 73.3753 54.5 71.2153C54.5 69.0553 57.88 68.4453 61.72 68.4453Z\" fill=\"white\"/>\n<mask id=\"mask0_4927_13399\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"54\" y=\"68\" width=\"15\" height=\"6\">\n<path d=\"M61.72 68.4453C65.56 68.4453 68.94 69.1553 68.94 71.2153C68.94 73.2753 65.56 73.9853 61.72 73.9853C57.88 73.9853 54.5 73.3753 54.5 71.2153C54.5 69.0553 57.88 68.4453 61.72 68.4453Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask0_4927_13399)\">\n<path d=\"M57.8604 71.2245C57.8604 68.4945 59.4804 67.5545 61.4504 67.4145V67.3945C61.5404 67.3945 61.6304 67.3945 61.7204 67.3945C61.8104 67.3945 61.9004 67.3945 61.9904 67.3945V67.4145C63.9704 67.5545 65.5804 68.4845 65.5804 71.2245C65.5804 73.6745 63.9604 74.8445 61.9904 75.0245V75.0545C61.9004 75.0545 61.8104 75.0545 61.7204 75.0545C61.6304 75.0545 61.5404 75.0545 61.4504 75.0545V75.0245C59.4704 74.8445 57.8604 73.6745 57.8604 71.2245Z\" fill=\"#494949\"/>\n</g>\n<path d=\"M99.6497 68.4453C95.8097 68.4453 92.4297 69.1553 92.4297 71.2153C92.4297 73.3753 95.8097 73.9853 99.6497 73.9853C103.49 73.9853 106.87 73.3753 106.87 71.2153C106.87 69.0553 103.49 68.4453 99.6497 68.4453Z\" fill=\"white\"/>\n<mask id=\"mask1_4927_13399\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"92\" y=\"68\" width=\"15\" height=\"6\">\n<path d=\"M99.6497 68.4453C95.8097 68.4453 92.4297 69.1553 92.4297 71.2153C92.4297 73.3753 95.8097 73.9853 99.6497 73.9853C103.49 73.9853 106.87 73.3753 106.87 71.2153C106.87 69.0553 103.49 68.4453 99.6497 68.4453Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask1_4927_13399)\">\n<path d=\"M103.51 71.2245C103.51 68.4945 101.89 67.5545 99.92 67.4145V67.3945C99.83 67.3945 99.74 67.3945 99.65 67.3945C99.56 67.3945 99.47 67.3945 99.38 67.3945V67.4145C97.4 67.5545 95.79 68.4845 95.79 71.2245C95.79 73.6745 97.41 74.8445 99.38 75.0245V75.0545C99.47 75.0545 99.56 75.0545 99.65 75.0545C99.74 75.0545 99.83 75.0545 99.92 75.0545V75.0245C101.9 74.8445 103.51 73.6745 103.51 71.2245Z\" fill=\"#494949\"/>\n</g>\n<path d=\"M48.3204 104.871C48.3204 104.871 45.9504 111.071 45.6904 119.801\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M112.07 104.871C112.07 104.871 114.44 111.071 114.7 119.801\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M79.9101 22.829C86.9601 22.6491 132.57 27.2788 137.97 74.556C138.03 75.046 137.58 75.406 137.2 75.186C132.37 72.3961 106.84 57.587 79.9001 57.207C51.3001 57.967 27.7501 70.6062 23.0801 73.4161C22.7001 73.6461 22.2501 73.2861 22.3101 72.7961C27.7201 25.5489 72.8501 22.6591 79.9101 22.839V22.829Z\" fill=\"#1D232B\"/>\n<mask id=\"mask2_4927_13399\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"22\" y=\"22\" width=\"116\" height=\"54\">\n<path d=\"M79.9101 22.829C86.9601 22.6491 132.57 27.2788 137.97 74.556C138.03 75.046 137.58 75.406 137.2 75.186C132.37 72.3961 106.84 57.587 79.9001 57.207C51.3001 57.967 27.7501 70.6062 23.0801 73.4161C22.7001 73.6461 22.2501 73.2861 22.3101 72.7961C27.7201 25.5489 72.8501 22.6591 79.9101 22.839V22.829Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask2_4927_13399)\">\n<path d=\"M22.27 60.6186L20 56.9888C27.89 51.9791 49.6 40.3997 80.67 41.0497C109.78 41.6597 129.72 52.399 136.94 56.9888L134.67 60.6186C127.75 56.2188 108.63 45.9294 80.59 45.3395C49.82 44.6995 28.17 56.8688 22.27 60.6186Z\" fill=\"white\"/>\n<path d=\"M22.27 50.2787L20 46.6489C27.89 41.6392 49.59 30.0599 80.67 30.7099C109.78 31.3198 129.72 42.0592 136.94 46.6489L134.67 50.2787C127.75 45.879 108.63 35.5896 80.59 34.9996C49.82 34.3597 28.17 46.5289 22.27 50.2787Z\" fill=\"white\"/>\n</g>\n</svg>\n","robber-side":"<svg width=\"144\" height=\"164\" viewBox=\"0 0 144 164\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\r\n<ellipse cx=\"76.1523\" cy=\"150.264\" rx=\"38.0234\" ry=\"13.7371\" fill=\"#E7E9ED\" fill-opacity=\"0.3\"/>\r\n<path d=\"M18.5107 61.0195C-10.8036 80.2468 -1.09869 111.915 18.6492 124.025C35.3415 134.26 52.657 130.237 60.7811 124.75L66.6806 89.3L46.782 64.9408L18.5066 61.0236L18.5107 61.0195Z\" fill=\"#F7DE93\"/>\r\n<path d=\"M66.0613 132.707C65.2953 135.238 66.5176 138.218 68.8195 139.433C71.1256 140.647 74.2505 139.959 75.8762 137.88L66.0613 132.707Z\" fill=\"#7D808C\"/>\r\n<path d=\"M125.032 112.251C124.999 116.295 128.719 119.075 130.748 120.289C131.286 120.611 131.97 120.24 132.007 119.613C132.085 118.28 131.832 116.829 132.415 115.577C133.099 114.102 134.688 113.547 136.2 113.392C137.259 113.282 138.461 113.172 139.353 112.504C140.449 111.68 140.783 110.148 141.007 108.872C141.17 107.947 141.345 105.635 139.952 105.937C136.758 106.63 134.672 107.131 132.08 106.434L121.65 105.978L125.032 112.247V112.251Z\" fill=\"#F7DE93\"/>\r\n<path d=\"M122.054 107.039C122.343 107.463 125.529 111.621 130.28 109.53C132.345 108.621 133.979 106.766 134.374 104.512C134.831 101.903 133.401 99.0827 130.85 97.9414L123.773 98.8056L122.05 107.035L122.054 107.039Z\" fill=\"#9196A3\"/>\r\n<path d=\"M68.2042 37.8762C89.207 22.1952 136.118 26.9358 143.521 65.6798C145.106 73.9748 142.669 85.6816 137.483 92.3461C132.541 98.6968 126.201 103.821 112.438 108.598C102.742 111.965 91.9245 113.75 81.6899 114.133C72.4006 114.48 62.5206 113.469 54.2906 108.818C46.0076 104.138 40.2955 94.7184 39.8555 84.0755\" fill=\"#A3A8B5\"/>\r\n<path d=\"M120.196 74.757C120.746 76.1062 119.634 77.1946 118.314 77.7245C117.026 78.2381 115.543 78.2299 114.993 76.8766C113.909 74.2108 119.08 72.0178 120.196 74.757Z\" fill=\"#FD565C\"/>\r\n<path d=\"M118.456 65.6875C118.456 65.6875 118.44 66.9144 117.441 68.0761\" stroke=\"#7D808C\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\r\n<path d=\"M112.858 84.3394C111.631 86.3897 112.956 91.6806 118.008 90.7145C122.758 89.8055 124.632 85.0323 122.807 81.3516L117.449 81.6777L112.858 84.3394Z\" fill=\"#7D808C\"/>\r\n<path d=\"M109.876 68.8164C109.876 68.8164 110.923 69.811 112.822 69.8925\" stroke=\"#7D808C\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\r\n<path d=\"M108.111 80.7045C107.101 81.0836 106.779 82.604 107.325 83.6434C107.871 84.6869 109.036 85.2291 110.12 85.2413C111.261 85.2535 112.336 84.7685 113.339 84.2345C114.007 83.8798 114.646 83.4804 115.286 83.0728C115.995 82.6244 116.749 82.229 117.507 81.9518C117.698 81.8825 117.898 81.8295 118.097 81.7888C118.977 81.6135 119.829 81.536 120.713 81.5483C121.438 81.5564 122.163 81.5401 122.885 81.4871C124.001 81.4015 125.146 81.2344 126.095 80.6271C127.008 80.0401 127.704 78.9558 127.611 77.786C127.517 76.6161 126.437 75.4992 125.378 75.7193\" stroke=\"#7D808C\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\r\n<path d=\"M99.5928 76.3539C103.252 75.714 106.478 74.915 106.845 77.0143C107.228 79.2195 104.274 79.301 100.611 79.941C96.9527 80.5809 93.4733 81.6244 93.0862 79.4192C92.7196 77.32 95.9301 76.9939 99.5928 76.3539Z\" fill=\"white\"/>\r\n<mask id=\"mask0_5056_11036\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"93\" y=\"75\" width=\"14\" height=\"6\">\r\n<path d=\"M99.5928 76.3539C103.252 75.714 106.478 74.915 106.845 77.0143C107.228 79.2195 104.274 79.301 100.611 79.941C96.9527 80.5809 93.4733 81.6244 93.0862 79.4192C92.7196 77.32 95.9301 76.9939 99.5928 76.3539Z\" fill=\"white\"/>\r\n</mask>\r\n<g mask=\"url(#mask0_5056_11036)\">\r\n<path d=\"M97.3111 78.9391C96.8262 76.1551 98.1993 74.9281 100.057 74.4594V74.439C100.139 74.4227 100.224 74.4145 100.314 74.4023C100.399 74.386 100.485 74.3656 100.57 74.3493V74.3697C102.481 74.1781 104.188 74.867 104.673 77.651C105.109 80.1538 103.777 81.6131 101.927 82.1226V82.1511C101.846 82.1674 101.76 82.1756 101.675 82.1878C101.589 82.2082 101.503 82.2286 101.418 82.2408V82.2122C99.4989 82.359 97.7511 81.4378 97.3151 78.935L97.3111 78.9391Z\" fill=\"#494949\"/>\r\n</g>\r\n<path d=\"M128.968 67.3136C126.014 68.5038 123.7 69.3435 124.352 70.9618C125.036 72.6575 127.819 71.7689 130.769 70.5786C133.723 69.3884 135.499 68.3245 134.815 66.6288C134.163 65.0106 131.922 66.1274 128.972 67.3177L128.968 67.3136Z\" fill=\"white\"/>\r\n<mask id=\"mask1_5056_11036\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"124\" y=\"65\" width=\"11\" height=\"7\">\r\n<path d=\"M128.968 67.3136C126.014 68.5038 123.7 69.3435 124.352 70.9618C125.036 72.6575 127.819 71.7689 130.769 70.5786C133.723 69.3884 135.499 68.3245 134.815 66.6288C134.163 65.0106 131.922 66.1274 128.972 67.3177L128.968 67.3136Z\" fill=\"white\"/>\r\n</mask>\r\n<g mask=\"url(#mask1_5056_11036)\">\r\n<path d=\"M132.888 67.7319C132.146 65.543 130.623 65.221 129.034 65.6367V65.6204C128.956 65.6449 128.887 65.6734 128.818 65.6979C128.749 65.7183 128.675 65.7386 128.606 65.7631V65.7794C127.098 66.4153 126.084 67.5974 126.825 69.7863C127.494 71.7551 129.079 72.2605 130.676 71.8733L130.684 71.8937C130.753 71.8692 130.822 71.8407 130.892 71.8162C130.965 71.7958 131.034 71.7754 131.108 71.751L131.099 71.7306C132.599 71.0621 133.552 69.6966 132.884 67.7278L132.888 67.7319Z\" fill=\"#494949\"/>\r\n</g>\r\n<path d=\"M93.4074 35.3408C84.9126 17.1774 95.7257 3.89313 108.6 0.738175C120.456 -2.16813 133.404 3.68117 138.183 15.2249C142.914 26.6463 137.145 39.9999 127.562 45.6657L93.4033 35.3408H93.4074Z\" fill=\"#A3A8B5\"/>\r\n<mask id=\"mask2_5056_11036\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"90\" y=\"0\" width=\"50\" height=\"46\">\r\n<path d=\"M93.4074 35.3408C84.9126 17.1774 95.7257 3.89313 108.6 0.738175C120.456 -2.16813 133.404 3.68117 138.183 15.2249C142.914 26.6463 137.145 39.9999 127.562 45.6657L93.4033 35.3408H93.4074Z\" fill=\"white\"/>\r\n</mask>\r\n<g mask=\"url(#mask2_5056_11036)\">\r\n<path d=\"M133.498 32.6622C130.19 39.6936 126.543 43.3376 115.547 39.9422C102.864 36.0209 104.388 24.09 108.05 17.4458C112.703 9.00814 124.787 6.46868 131.604 13.7202C137.352 19.8385 135.474 28.4678 133.498 32.6662V32.6622Z\" fill=\"#7D808C\"/>\r\n</g>\r\n<path d=\"M52.5058 108.559C53.0355 108.926 53.7322 108.857 54.0133 108.278C77.4036 59.9058 131.819 57.2685 142.514 61.6911C143.337 62.0295 143.948 61.2346 143.716 60.3786C143.215 58.528 136.431 43.5277 125.492 36.0235C115.131 28.9147 102.693 26.4241 90.3761 28.1606C78.7604 29.8033 68.0939 34.874 59.2365 42.5291C45.4492 54.4396 36.9381 71.3721 40.0671 89.6455C40.7638 93.7136 44.2066 102.795 52.5058 108.559Z\" fill=\"#000A12\"/>\r\n<mask id=\"mask3_5056_11036\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"39\" y=\"27\" width=\"105\" height=\"82\">\r\n<path d=\"M52.5058 108.559C53.0355 108.926 53.7322 108.857 54.0133 108.278C77.4036 59.9058 131.819 57.2685 142.514 61.6911C143.337 62.0295 143.948 61.2346 143.716 60.3786C143.215 58.528 136.431 43.5277 125.492 36.0235C115.131 28.9147 102.693 26.4241 90.3761 28.1606C78.7604 29.8033 68.0939 34.874 59.2365 42.5291C45.4492 54.4396 36.9381 71.3721 40.0671 89.6455C40.7638 93.7136 44.2066 102.795 52.5058 108.559Z\" fill=\"white\"/>\r\n</mask>\r\n<g mask=\"url(#mask3_5056_11036)\">\r\n<path d=\"M44.0717 102.959L39.9404 101.218C41.0731 98.5238 46.5163 88.3496 56.3067 77.3236C68.4684 63.6236 82.8464 53.7266 97.8886 48.7048C116.805 42.3867 132.479 44.6898 142.624 46.9684L141.642 51.3421C132.019 49.1776 117.164 46.9928 99.3105 52.9563C81.2452 58.989 67.7757 71.1564 59.6598 80.2992C50.2727 90.8728 45.1351 100.44 44.0758 102.959H44.0717Z\" fill=\"white\"/>\r\n<path d=\"M38.0424 91.9001L33.9111 90.1595C35.0479 87.4652 40.487 77.2911 50.2774 66.265C62.4391 52.565 76.8172 42.6681 91.8593 37.6462C110.776 31.3281 126.45 33.6312 136.595 35.9098L135.613 40.2835C125.989 38.119 111.135 35.9342 93.2812 41.8977C75.216 47.9304 61.7465 60.0978 53.6305 69.2406C44.2435 79.8142 39.1058 89.381 38.0424 91.9001Z\" fill=\"white\"/>\r\n</g>\r\n<path d=\"M62.1261 112.214C59.2252 118.174 60.0197 126.473 64.5707 131.116C73.7581 140.491 90.8252 143.744 107.534 138.889C114.66 136.818 119.288 132.583 122.665 127.158C125.941 121.895 128.211 115.239 123.248 104.262L63.4584 109.72L62.1302 112.214H62.1261Z\" fill=\"#A3A8B5\"/>\r\n<path d=\"M66.9659 120.746C63.5842 118.847 60.1863 116.609 58.4385 113.315C56.6906 110.022 57.2121 105.42 60.5489 103.451C62.9487 102.036 66.1877 102.338 68.6526 103.651C71.1175 104.959 72.9224 107.123 74.3973 109.382C76.4548 112.121 76.4181 115.851 74.3973 118.357C72.6698 120.501 69.7567 121.435 66.9659 120.742V120.746Z\" fill=\"#A3A8B5\"/>\r\n<mask id=\"mask4_5056_11036\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"57\" y=\"102\" width=\"19\" height=\"19\">\r\n<path d=\"M66.9659 120.746C63.5842 118.847 60.1863 116.609 58.4385 113.315C56.6906 110.022 57.2121 105.42 60.5489 103.451C62.9487 102.036 66.1877 102.338 68.6526 103.651C71.1175 104.959 72.9224 107.123 74.3973 109.382C76.4548 112.121 76.4181 115.851 74.3973 118.357C72.6698 120.501 69.7567 121.435 66.9659 120.742V120.746Z\" fill=\"white\"/>\r\n</mask>\r\n<g mask=\"url(#mask4_5056_11036)\">\r\n<path d=\"M56.1001 112.521C59.3106 118.065 65.0553 120.661 69.5655 124.904C73.0001 128.137 78.1988 122.96 74.752 119.716C70.8163 116.01 65.2142 113.622 62.4355 108.82C60.0724 104.736 53.7329 108.424 56.1041 112.521H56.1001Z\" fill=\"#9196A3\"/>\r\n</g>\r\n<path d=\"M59.3063 114.692C62.6146 114.969 65.7844 113.477 67.5118 110.799C69.6019 107.558 68.616 104.081 68.4611 103.56C66.0207 102.333 62.8875 102.08 60.5489 103.458C57.2121 105.422 56.6906 110.024 58.4385 113.322C58.6951 113.803 58.9885 114.26 59.3063 114.696V114.692Z\" fill=\"#7D808C\"/>\r\n<path d=\"M121.276 134.352C120.204 136.174 118.579 137.674 116.648 138.538C115.633 138.991 114.399 139.26 113.453 138.677C112.26 137.939 109.998 136.207 113.641 130.064C114.541 128.821 115.763 127.679 117.1 126.941C118.567 126.134 120.612 126.11 121.74 127.349C122.682 128.38 122.735 129.95 122.449 131.315C122.225 132.383 121.822 133.406 121.272 134.348L121.276 134.352Z\" fill=\"#7D808C\"/>\r\n<path d=\"M39.3465 22.9128C52.3026 20.9807 63.1727 28.1915 67.9722 40.4444C55.0079 59.0155 54.9346 79.8039 54.9346 79.8039C54.9346 79.8039 50.4081 82.3923 41.5099 82.2293C32.1269 82.0581 21.3301 76.437 16.7465 68.517C7.0661 51.8006 17.4636 26.1737 39.3465 22.9087V22.9128Z\" fill=\"#A3A8B5\"/>\r\n<mask id=\"mask5_5056_11036\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"13\" y=\"22\" width=\"55\" height=\"61\">\r\n<path d=\"M39.3465 22.9128C52.3026 20.9807 63.1727 28.1915 67.9722 40.4444C55.0079 59.0155 54.9346 79.8039 54.9346 79.8039C54.9346 79.8039 50.4081 82.3923 41.5099 82.2293C32.1269 82.0581 21.3301 76.437 16.7465 68.517C7.0661 51.8006 17.4636 26.1737 39.3465 22.9087V22.9128Z\" fill=\"white\"/>\r\n</mask>\r\n<g mask=\"url(#mask5_5056_11036)\">\r\n<path d=\"M28.3992 45.6019C35.9284 31.1681 57.3509 28.3597 66.2124 45.7608C73.3342 59.7421 58.1739 78.9001 41.5346 74.4652C29.483 71.2532 22.5567 56.7991 28.3951 45.5978L28.3992 45.6019Z\" fill=\"#7D808C\"/>\r\n</g>\r\n<path d=\"M119.072 105.66C119.072 105.66 107.248 112.728 93.6934 110.719\" stroke=\"#7D808C\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\r\n<path d=\"M110.277 127.046C115.332 125.698 118.602 121.498 117.582 117.665C116.561 113.833 111.635 111.818 106.58 113.165C101.525 114.513 98.2543 118.713 99.2751 122.546C100.296 126.378 105.222 128.393 110.277 127.046Z\" fill=\"#7D808C\"/>\r\n</svg>\r\n","robber-jailed":"<svg width=\"140\" height=\"116\" viewBox=\"0 0 140 116\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M84.9767 100.27C87.5527 103.244 86.0531 107.074 82.5065 106.824C80.31 106.668 77.9207 104.672 77.5225 102.483C78.7669 102.234 80.1109 101.91 81.542 101.473C82.7865 101.099 83.9313 100.687 84.9767 100.27Z\" fill=\"#7D808C\"/>\n<path d=\"M62.2844 102.483C61.8862 104.672 59.4969 106.668 57.3004 106.824C53.7537 107.074 52.3911 103.307 55.16 100.27C55.5271 100.419 55.9066 100.569 56.2986 100.719L56.336 100.737C56.8524 100.943 57.3813 101.13 57.9288 101.299C57.9475 101.299 57.9662 101.311 57.9786 101.317C58.1404 101.373 58.3084 101.43 58.4764 101.479C59.8204 101.903 61.096 102.234 62.2782 102.49L62.2844 102.483Z\" fill=\"#7D808C\"/>\n<path d=\"M50.3003 83.703C50.3003 83.703 48.8007 89.5279 48.7572 92.2033H48.8692C49.3047 96.8183 52.2479 99.5998 56.3047 101.234C56.3172 101.234 56.3296 101.246 56.3421 101.252C56.8523 101.446 57.3812 101.633 57.935 101.814C57.9536 101.814 57.9723 101.826 57.9847 101.832C61.5687 102.943 65.7874 103.323 69.8443 103.36C79.4452 103.267 89.9172 101.265 90.8194 92.2844H91.0061C90.9625 89.559 90.7634 88.1621 90.7634 88.1621L93.1092 80.1419C92.8727 80.0047 92.9287 79.643 93.1963 79.5869C96.2576 78.982 101.453 77.323 103.818 71.1739C105.435 66.9705 104.832 62.3368 103.077 58.1396C112.585 56.1626 119.734 47.706 119.734 37.5654C119.734 25.9655 110.37 16.5547 98.8212 16.5547C87.2728 16.5547 77.9083 25.9593 77.9083 37.5654C77.9083 38.6818 77.9954 39.7731 78.1634 40.8396L78.655 41.1888C75.7243 40.7959 72.7439 40.6462 69.7821 40.5839C66.839 40.534 63.927 40.6774 61.071 41.0766L61.4007 40.8458C61.5687 39.7794 61.6559 38.688 61.6559 37.5717C61.6559 25.9718 52.2914 16.5609 40.743 16.5609C29.1945 16.5609 19.8301 25.9655 19.8301 37.5717C19.8301 47.7122 26.9794 56.1689 36.487 58.1458C34.7323 62.343 34.1225 66.9767 35.7465 71.1801C38.1172 77.3293 43.3127 78.9882 46.3679 79.5931C46.6416 79.6493 46.6976 80.0047 46.455 80.1482M55.0167 42.4424C52.6585 43.0411 48.975 44.3133 45.2416 47.1322C42.7154 49.0406 40.9296 51.0861 39.735 52.7014C32.9714 51.7846 27.751 45.9535 27.751 38.9063C27.751 31.2167 33.9545 24.9802 41.6079 24.9802C49.2612 24.9802 55.4647 31.2167 55.4647 38.9063C55.4647 40.1286 55.3092 41.3136 55.0105 42.4486L55.0167 42.4424ZM69.7261 96.2321C65.5012 96.2321 62.079 93.513 62.079 90.1578C62.079 86.8025 65.5012 84.0834 69.7261 84.0834C73.951 84.0834 77.3794 86.8025 77.3794 90.1578C77.3794 93.513 73.9572 96.2321 69.7261 96.2321ZM99.8479 52.6951C98.6221 51.0425 96.7367 48.8784 94.0052 46.8765C90.3839 44.226 86.8496 43.0161 84.5661 42.4361C84.2736 41.3073 84.1119 40.1224 84.1119 38.8938C84.1119 31.2042 90.3154 24.9677 97.9688 24.9677C105.622 24.9677 111.832 31.2042 111.832 38.8938C111.832 45.941 106.611 51.7721 99.8479 52.6889V52.6951Z\" fill=\"#A3A8B5\"/>\n<path d=\"M111.832 38.8972C111.832 45.9444 106.612 51.7755 99.8483 52.6923C98.6225 51.0396 96.7372 48.8755 94.0056 46.8736C90.3843 44.2231 86.8501 43.0132 84.5665 42.4333C84.2741 41.3045 84.1123 40.1195 84.1123 38.8909C84.1123 31.2013 90.3159 24.9648 97.9692 24.9648C105.623 24.9648 111.832 31.2013 111.832 38.8909V38.8972Z\" fill=\"#7D808C\"/>\n<path d=\"M69.7262 84.0859C73.9511 84.0859 77.3795 86.8051 77.3795 90.1603C77.3795 93.5155 73.9573 96.2346 69.7262 96.2346C65.4951 96.2346 62.0791 93.5155 62.0791 90.1603C62.0791 86.8051 65.5013 84.0859 69.7262 84.0859Z\" fill=\"#7D808C\"/>\n<path d=\"M55.472 38.8964C55.472 40.1188 55.3164 41.3037 55.0177 42.4387C52.6595 43.0374 48.976 44.3097 45.2426 47.1286C42.7164 49.0369 40.9306 51.0825 39.736 52.6978C32.9724 51.781 27.752 45.9499 27.752 38.9026C27.752 31.2131 33.9555 24.9766 41.6088 24.9766C49.2622 24.9766 55.4657 31.2131 55.4657 38.9026L55.472 38.8964Z\" fill=\"#7D808C\"/>\n<path d=\"M81.2188 58.7414C82.5939 59.9762 83.017 61.7224 83.2597 63.3751C84.0935 69.2 83.2597 75.187 80.833 80.7063C82.1086 80.5441 83.3841 80.3695 84.6597 80.1887C84.9335 80.1512 85.2197 80.1076 85.4499 79.9704C85.817 79.7521 85.9352 79.3592 86.0223 78.9913C87.5717 72.5053 87.329 65.5579 83.8695 59.5833C83.6268 59.1655 83.3406 58.7289 82.8366 58.5231C82.3326 58.3173 81.5735 58.4919 81.4801 58.9472\" fill=\"#80DDFF\"/>\n<path d=\"M58.2838 58.7414C56.9087 59.9762 56.4856 61.7224 56.2429 63.3751C55.4091 69.2 56.2429 75.187 58.6696 80.7063C57.394 80.5441 56.1185 80.3695 54.8429 80.1887C54.5691 80.1512 54.2829 80.1076 54.0527 79.9704C53.6856 79.7521 53.5673 79.3592 53.4802 78.9913C51.9309 72.5053 52.1736 65.5579 55.6331 59.5833C55.8758 59.1655 56.162 58.7289 56.666 58.5231C57.17 58.3173 57.9291 58.4919 58.0224 58.9472\" fill=\"#80DDFF\"/>\n<path d=\"M60.8164 41.1057C63.7533 40.6754 66.7586 40.5257 69.7951 40.5756C72.5888 40.638 76.092 40.7689 78.8609 41.1182\" stroke=\"#494949\" stroke-width=\"1.5\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M72.1034 56.3254C72.1034 57.1736 71.1638 57.5166 70.2367 57.5104C69.3096 57.5041 68.4385 57.1736 68.4385 56.3254C68.4385 54.6478 72.1034 54.6041 72.1034 56.3254Z\" fill=\"#FD565C\"/>\n<path d=\"M64.1699 54.2578C64.1699 54.2578 64.761 54.9937 65.9806 55.212\" stroke=\"#7D808C\" stroke-width=\"1.5\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M81.1066 56.1535C79.1466 55.4862 77.2737 55.3614 76.832 56.6773C76.3653 58.0618 77.9582 59.0347 79.912 59.702C81.872 60.3693 83.72 60.5564 84.1866 59.1782C84.6533 57.7999 83.0604 56.8208 81.1066 56.1535Z\" fill=\"#494949\"/>\n<path d=\"M58.4768 56.2296C60.3932 55.581 62.2288 55.4625 62.6705 56.7722C63.131 58.1505 61.5816 59.1109 59.6652 59.7595C57.7488 60.4081 55.9319 60.5889 55.4714 59.2169C55.011 57.8449 56.5603 56.8782 58.4768 56.2296Z\" fill=\"#494949\"/>\n<path d=\"M69.5899 33.6392C73.821 33.5456 101.205 35.9841 104.447 60.8989C104.478 61.1546 104.217 61.3479 103.986 61.2294C101.087 59.7576 85.7614 51.9558 69.5836 51.7562C52.4165 52.1553 38.2734 58.8159 35.4672 60.3002C35.237 60.4187 34.9694 60.2316 35.0005 59.9697C38.2485 35.0736 65.3463 33.5519 69.5774 33.6454L69.5899 33.6392Z\" fill=\"#1D232B\"/>\n<mask id=\"mask0_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"34\" y=\"33\" width=\"71\" height=\"29\">\n<path d=\"M69.5899 33.6392C73.821 33.5456 101.205 35.9841 104.447 60.8989C104.478 61.1546 104.217 61.3479 103.986 61.2294C101.087 59.7576 85.7614 51.9558 69.5836 51.7562C52.4165 52.1553 38.2734 58.8159 35.4672 60.3002C35.237 60.4187 34.9694 60.2316 35.0005 59.9697C38.2485 35.0736 65.3463 33.5519 69.5774 33.6454L69.5899 33.6392Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask0_4927_15415)\">\n<path d=\"M33.5069 56.2691L32.082 54.0988C37.0225 51.099 50.6305 44.164 70.106 44.5507C88.3496 44.9186 100.844 51.3485 105.367 54.0988L103.942 56.2691C99.6056 53.6373 87.6216 47.4694 70.0438 47.1201C50.7611 46.7335 37.1905 54.0239 33.4945 56.2691H33.5069Z\" fill=\"white\"/>\n<path d=\"M34.9886 50.0815L33.626 47.9113C38.3611 44.9115 51.3904 37.9765 70.0571 38.3632C87.5353 38.7311 99.5069 45.161 103.838 47.9113L102.475 50.0815C98.3184 47.4497 86.8384 41.2819 70.0011 40.9326C51.5273 40.546 38.5291 47.8364 34.9886 50.0815Z\" fill=\"white\"/>\n</g>\n<path d=\"M70.0496 60.2656C69.8194 60.2719 69.5954 60.2843 69.3652 60.2906C66.2105 60.4028 62.7198 60.9766 60.0567 62.9723C57.8354 64.6374 56.6469 67.7307 57.3376 70.6244C57.966 73.2562 60.2558 75.202 62.8505 74.9713C65.4452 74.7405 67.4985 72.2522 70.0496 72.1025C72.6007 72.2522 74.71 74.7468 77.2487 74.9713C79.7874 75.1958 82.1269 73.2625 82.7616 70.6244C83.4523 67.7369 82.2638 64.6374 80.0425 62.9723C77.3794 60.9766 73.8887 60.4028 70.734 60.2906C70.5038 60.2843 70.2798 60.2719 70.0496 60.2656Z\" fill=\"#7D808C\"/>\n<mask id=\"mask1_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"57\" y=\"60\" width=\"26\" height=\"15\">\n<path d=\"M70.0496 60.2656C69.8194 60.2719 69.5954 60.2843 69.3652 60.2906C66.2105 60.4028 62.7198 60.9766 60.0567 62.9723C57.8354 64.6374 56.6469 67.7307 57.3376 70.6244C57.966 73.2562 60.2558 75.202 62.8505 74.9713C65.4452 74.7405 67.4985 72.2522 70.0496 72.1025C72.6007 72.2522 74.71 74.7468 77.2487 74.9713C79.7874 75.1958 82.1269 73.2625 82.7616 70.6244C83.4523 67.7369 82.2638 64.6374 80.0425 62.9723C77.3794 60.9766 73.8887 60.4028 70.734 60.2906C70.5038 60.2843 70.2798 60.2719 70.0496 60.2656Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask1_4927_15415)\">\n<path d=\"M67.3745 59.5703L67.7229 63.1937C67.7789 63.7924 68.1523 64.2352 68.5878 64.2352H71.8421C72.2901 64.2352 72.6634 63.7737 72.7069 63.1563L73.0305 58.8719C73.0865 58.1048 72.6136 57.4624 72.0598 57.556L68.1336 58.217C67.6545 58.2981 67.3123 58.903 67.3745 59.5641V59.5703Z\" fill=\"white\"/>\n</g>\n<path d=\"M74.4311 60.4885C76.3864 60.4885 77.9715 58.897 77.9715 56.9337C77.9715 54.9704 76.3864 53.3789 74.4311 53.3789C72.4757 53.3789 70.8906 54.9704 70.8906 56.9337C70.8906 58.897 72.4757 60.4885 74.4311 60.4885Z\" fill=\"#78D5FF\"/>\n<path d=\"M73.348 57.0198C74.0078 57.0198 74.5427 56.4837 74.5427 55.8224C74.5427 55.1611 74.0078 54.625 73.348 54.625C72.6882 54.625 72.1533 55.1611 72.1533 55.8224C72.1533 56.4837 72.6882 57.0198 73.348 57.0198Z\" fill=\"white\"/>\n<path d=\"M94.5343 4.91797H89.3076V112.448H94.5343V4.91797Z\" fill=\"#3F3F3F\"/>\n<mask id=\"mask2_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"89\" y=\"4\" width=\"6\" height=\"109\">\n<path d=\"M94.5343 4.91797H89.3076V112.448H94.5343V4.91797Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask2_4927_15415)\">\n<path d=\"M91.162 2.42188H86.5762V129.777H91.162V2.42188Z\" fill=\"#777777\"/>\n</g>\n<path d=\"M133.629 4.91797H128.402V112.448H133.629V4.91797Z\" fill=\"#3F3F3F\"/>\n<mask id=\"mask3_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"128\" y=\"4\" width=\"6\" height=\"109\">\n<path d=\"M133.629 4.91797H128.402V112.448H133.629V4.91797Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask3_4927_15415)\">\n<path d=\"M130.257 2.42188H125.671V129.777H130.257V2.42188Z\" fill=\"#777777\"/>\n</g>\n<path d=\"M12.1017 4.91797H6.875V112.448H12.1017V4.91797Z\" fill=\"#3F3F3F\"/>\n<mask id=\"mask4_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"6\" y=\"4\" width=\"7\" height=\"109\">\n<path d=\"M12.1017 4.91797H6.875V112.448H12.1017V4.91797Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask4_4927_15415)\">\n<path d=\"M8.73031 2.42188H4.14453V129.777H8.73031V2.42188Z\" fill=\"#777777\"/>\n</g>\n<path d=\"M51.3146 4.91797H46.0879V112.448H51.3146V4.91797Z\" fill=\"#3F3F3F\"/>\n<mask id=\"mask5_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"46\" y=\"4\" width=\"6\" height=\"109\">\n<path d=\"M51.3146 4.91797H46.0879V112.448H51.3146V4.91797Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask5_4927_15415)\">\n<path d=\"M47.9422 2.42188H43.3564V129.777H47.9422V2.42188Z\" fill=\"#777777\"/>\n</g>\n<path d=\"M140 116.001V110.75L0 110.75V116.001L140 116.001Z\" fill=\"#3F3F3F\"/>\n<mask id=\"mask6_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"110\" width=\"140\" height=\"6\">\n<path d=\"M140 116.001V110.75L0 110.75V116.001L140 116.001Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask6_4927_15415)\">\n<path d=\"M143.248 112.606V108.004L-22.5617 108.004V112.606L143.248 112.606Z\" fill=\"#777777\"/>\n</g>\n<path d=\"M140 5.25112V0L0 0V5.25112L140 5.25112Z\" fill=\"#3F3F3F\"/>\n<mask id=\"mask7_4927_15415\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"140\" height=\"6\">\n<path d=\"M140 5.25112V0L0 0V5.25112L140 5.25112Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask7_4927_15415)\">\n<path d=\"M143.248 1.86034V-2.74219L-22.5617 -2.74219V1.86034L143.248 1.86034Z\" fill=\"#777777\"/>\n</g>\n<path d=\"M48.5249 86.1427C51.4776 85.5915 53.4641 82.9542 52.9621 80.2521C52.46 77.55 49.6593 75.8063 46.7066 76.3575C43.754 76.9087 41.7674 79.546 42.2695 82.2481C42.7716 84.9502 45.5722 86.6938 48.5249 86.1427Z\" fill=\"#A3A8B5\"/>\n<path d=\"M42.2619 80.2757C42.517 78.86 43.4067 77.7125 44.6139 77.0078C42.7596 80.1011 44.1907 85.1963 48.8885 85.1963C50.2885 85.1963 51.3961 84.7411 52.2112 84.0239C51.085 85.6516 48.9507 86.5496 46.7232 86.1443C43.7676 85.6079 41.7703 82.9761 42.2619 80.2695V80.2757Z\" fill=\"#94969B\"/>\n<path d=\"M98.4621 82.2596C98.9641 79.5575 96.9776 76.9202 94.0249 76.3691C91.0722 75.8179 88.2716 77.5616 87.7695 80.2637C87.2674 82.9658 89.254 85.6031 92.2066 86.1542C95.1593 86.7054 97.96 84.9617 98.4621 82.2596Z\" fill=\"#A3A8B5\"/>\n<path d=\"M98.4601 80.2796C98.205 78.864 97.3152 77.7164 96.1081 77.0117C97.9623 80.105 96.5312 85.2002 91.8334 85.2002C90.4334 85.2002 89.3259 84.745 88.5107 84.0278C89.637 85.6555 91.7712 86.5536 93.9987 86.1482C96.9543 85.6118 98.9516 82.98 98.4601 80.2734V80.2796Z\" fill=\"#94969B\"/>\n</svg>\n","police-back":"<svg width=\"180\" height=\"200\" viewBox=\"0 0 180 200\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M36.656 149.312C33.0063 162.135 37.2128 177.018 46.9437 185.694C46.9437 185.694 46.958 185.704 46.9675 185.714C44.6787 193.823 46.387 198.955 50.5744 199.831C56.8746 201.15 60.3435 194.291 62.4086 192.354C62.8464 191.941 66.3486 192.832 67.0243 192.912C68.6564 193.106 70.2838 193.29 71.916 193.464C75.1803 193.808 78.4493 194.101 81.7231 194.296C84.345 194.45 86.9574 194.505 89.565 194.485C92.1726 194.51 94.785 194.455 97.4069 194.296C100.681 194.101 103.95 193.808 107.214 193.464C108.846 193.29 110.478 193.106 112.106 192.912C112.781 192.832 116.284 191.941 116.721 192.354C118.786 194.296 122.255 201.15 128.556 199.831C132.743 198.955 134.451 193.823 132.162 185.714C132.172 185.704 132.186 185.694 132.186 185.694C141.917 177.013 146.124 162.13 142.474 149.312\" fill=\"#B3DCFF\"/>\n<path d=\"M143.911 54.8624C151.377 58.8893 158.762 64.5539 164.62 70.8506C165.143 71.4131 166.005 71.224 166.342 70.5271C171.729 59.3174 168.227 50.3725 165.928 48.4711C162.707 45.7981 151.977 48.9888 143.892 53.5881C143.402 53.8669 143.416 54.5986 143.911 54.8624Z\" fill=\"#B3DCFF\"/>\n<path d=\"M36.3702 164.306C33.382 165.212 29.5705 164.64 26.8582 162.908C19.0734 157.935 20.9482 146.173 27.1246 140.304C27.6052 139.846 27.4577 139.015 26.8534 138.761C19.8775 135.824 13.0111 132.385 7.97195 126.63C2.8614 120.792 0.0777151 112.872 0.0015802 104.953C-0.0745546 97.0332 2.60444 88.8101 7.17729 82.2794C-1.63056 70.6765 -2.16826 53.0904 5.74976 40.8453C6.6491 39.4566 7.66741 38.1076 8.99977 37.1668C12.1023 34.9817 16.1993 35.4097 19.8823 36.0867C30.1462 37.9732 40.2008 41.1291 49.7605 45.4696C62.3227 39.6806 75.5702 37.5252 89.9977 37.4108C105.144 37.0623 117.673 39.6806 130.235 45.4696C139.795 41.1291 149.849 37.9732 160.113 36.0867C163.796 35.4097 167.898 34.9817 170.996 37.1668C172.328 38.1076 173.346 39.4516 174.246 40.8453C182.164 53.0904 181.626 70.6765 172.818 82.2794C177.391 88.8151 180.07 96.854 179.994 104.953C179.918 112.867 177.139 120.792 172.024 126.63C166.984 132.385 160.118 135.824 153.142 138.761C152.538 139.015 152.39 139.846 152.871 140.304C159.047 146.173 160.922 157.935 153.137 162.908C150.425 164.64 146.614 165.212 143.625 164.306\" fill=\"#B3DCFF\"/>\n<path d=\"M36.0848 54.8624C28.6189 58.8893 21.2338 64.5539 15.3762 70.8506C14.8527 71.4131 13.9915 71.224 13.6536 70.5271C8.26708 59.3174 11.7693 50.3725 14.0676 48.4711C17.2891 45.7981 28.0193 48.9888 36.1039 53.5881C36.594 53.8669 36.5797 54.5986 36.0848 54.8624Z\" fill=\"#B3DCFF\"/>\n<path d=\"M172.818 82.2794C181.626 70.6765 182.164 53.0904 174.246 40.8453C173.346 39.4566 172.328 38.1076 170.996 37.1668C167.893 34.9817 163.796 35.4097 160.113 36.0867C149.849 37.9732 139.795 41.1291 130.235 45.4696C117.673 39.6806 105.144 37.0573 89.9977 37.4108C75.5702 37.5252 62.3227 39.6806 49.7605 45.4696C40.2008 41.1291 30.1462 37.9732 19.8823 36.0867C16.1993 35.4097 12.0975 34.9817 8.99977 37.1668C7.66741 38.1076 6.6491 39.4516 5.74976 40.8453C-2.16827 53.0904 -1.63056 70.6765 7.17729 82.2794C2.6092 88.8151 -0.0745573 96.854 0.00157751 104.953C0.0777124 112.867 2.85663 120.792 7.97194 126.63C13.3442 132.768 20.8007 136.272 28.2476 139.343C21.2004 144.779 18.6165 157.651 26.8581 162.913C29.3991 164.535 32.9014 165.138 35.7897 164.466C37.0364 172.609 40.9336 180.334 46.9435 185.69C46.9435 185.69 46.9577 185.7 46.9673 185.71C44.6785 193.819 46.3867 198.951 50.5742 199.827C56.8743 201.146 60.3432 194.287 62.4084 192.35C62.8461 191.937 66.3483 192.828 67.024 192.908C68.6562 193.102 70.2836 193.286 71.9157 193.46C75.18 193.804 78.449 194.098 81.7228 194.292C84.3447 194.446 86.9571 194.501 89.5647 194.481C92.1723 194.506 94.7847 194.451 97.4066 194.292C100.68 194.098 103.949 193.804 107.214 193.46C108.846 193.286 110.478 193.102 112.105 192.908C112.781 192.828 116.283 191.937 116.721 192.35C118.786 194.292 122.255 201.146 128.555 199.827C132.743 198.951 134.451 193.819 132.162 185.71C132.172 185.7 132.186 185.69 132.186 185.69C138.234 180.295 142.145 172.509 143.364 164.306H143.625C146.614 165.212 150.425 164.64 153.137 162.908C161.374 157.646 158.795 144.774 151.748 139.338C159.2 136.267 166.651 132.763 172.024 126.625C177.134 120.787 179.918 112.867 179.994 104.948C180.07 96.849 177.391 88.8051 172.818 82.2744V82.2794Z\" fill=\"#9FD6FF\"/>\n<path d=\"M165.929 48.464C168.227 50.3654 171.729 59.3103 166.343 70.52C166.01 71.2218 165.148 71.406 164.625 70.8435C158.762 64.5468 151.377 58.8822 143.911 54.8553C143.416 54.5915 143.407 53.8598 143.892 53.581C151.977 48.9767 162.712 45.791 165.929 48.464Z\" fill=\"#57BFFF\"/>\n<path d=\"M36.1039 53.581C36.594 53.8598 36.5797 54.5915 36.0848 54.8553C28.6189 58.8822 21.2338 64.5468 15.3762 70.8435C14.8527 71.406 13.9915 71.2218 13.6536 70.52C8.26708 59.3103 11.7693 50.3654 14.0676 48.464C17.2891 45.791 28.0193 48.9767 36.1039 53.581Z\" fill=\"#57BFFF\"/>\n<path d=\"M49.7367 108.457C49.7367 93.7131 37.6265 81.7617 22.685 81.7617C14.8336 81.7617 7.76736 85.0669 2.82335 90.3382C0.967564 94.9575 -0.0459814 99.9451 0.00160284 104.953C0.0777377 112.867 2.85666 120.792 7.97197 126.63C10.9793 130.065 14.6385 132.673 18.5833 134.844C19.9204 135.043 21.2861 135.147 22.6803 135.147C37.6217 135.147 49.7319 123.196 49.7319 108.452L49.7367 108.457Z\" fill=\"#57BFFF\"/>\n<path d=\"M130.226 108.457C130.226 123.201 142.336 135.152 157.277 135.152C158.686 135.152 160.075 135.043 161.427 134.839C165.367 132.668 169.021 130.06 172.028 126.63C177.139 120.792 179.923 112.872 179.999 104.953C180.046 99.965 179.047 95.0023 177.201 90.398C172.257 85.0918 165.162 81.7617 157.282 81.7617C142.341 81.7617 130.23 93.7131 130.23 108.457H130.226Z\" fill=\"#57BFFF\"/>\n<path d=\"M89.8842 180.571C100.459 180.571 109.032 174.204 109.032 166.35C109.032 158.496 100.459 152.129 89.8842 152.129C79.3091 152.129 70.7363 158.496 70.7363 166.35C70.7363 174.204 79.3091 180.571 89.8842 180.571Z\" fill=\"#57BFFF\"/>\n<path d=\"M130.844 42.5267C135.079 40.0876 140.984 36.7476 140.042 30.6101C140.009 30.3911 139.966 30.1721 139.923 29.9531C138.867 25.0302 135.041 21.4114 131.524 18.3701C120.984 9.25099 108.018 2.32208 94.5751 0.350925C91.3822 -0.116975 88.1417 -0.116975 84.9488 0.350925C71.5063 2.3171 58.5395 9.25099 47.9996 18.3701C44.4831 21.4114 40.6574 25.0302 39.601 29.9531C39.5534 30.1721 39.5153 30.3911 39.482 30.6101C38.5399 36.7476 44.4451 40.0876 48.6801 42.5267C57.8258 39.0672 72.4865 34.8212 90.835 34.9905C108.094 35.1498 121.941 39.1568 130.844 42.5267Z\" fill=\"#0B4692\"/>\n<path d=\"M89.9978 94.685C87.2522 87.4773 70.9879 88.1692 70.1742 97.6716C69.1892 109.165 83.8547 110.897 89.9978 104.227C96.141 110.897 110.806 109.165 109.821 97.6716C109.003 88.1692 92.7387 87.4773 89.9978 94.685Z\" fill=\"white\"/>\n<path d=\"M92.3525 78.5312L92.462 83.3048\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M86.9473 78.7031L86.8379 83.4767\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M72.3774 82.0545C73.4671 83.7619 73.7669 86.1014 72.3393 87.5499C70.8595 89.0581 68.5564 88.2368 67.3525 86.7634C66.377 85.5638 65.7917 83.7768 66.2533 82.2288C66.7101 80.7006 68.1614 79.7698 69.6794 79.9888C70.8785 80.163 71.735 81.0491 72.3774 82.0595V82.0545Z\" fill=\"#00719E\"/>\n<path d=\"M106.919 82.0545C105.829 83.7619 105.529 86.1014 106.957 87.5499C108.437 89.0581 110.74 88.2368 111.944 86.7634C112.919 85.5638 113.504 83.7768 113.043 82.2288C112.586 80.7006 111.135 79.7698 109.617 79.9888C108.418 80.163 107.561 81.0491 106.919 82.0595V82.0545Z\" fill=\"#00719E\"/>\n<path d=\"M89.9167 96.4024C92.4816 96.4024 94.5609 94.7042 94.5609 92.6094C94.5609 90.5146 92.4816 88.8164 89.9167 88.8164C87.3518 88.8164 85.2725 90.5146 85.2725 92.6094C85.2725 94.7042 87.3518 96.4024 89.9167 96.4024Z\" fill=\"#FF6692\"/>\n<path d=\"M89.9167 96.4024C92.4816 96.4024 94.5609 94.7042 94.5609 92.6094C94.5609 90.5146 92.4816 88.8164 89.9167 88.8164C87.3518 88.8164 85.2725 90.5146 85.2725 92.6094C85.2725 94.7042 87.3518 96.4024 89.9167 96.4024Z\" fill=\"#FF6692\"/>\n<path d=\"M96.9828 144.207C94.8558 144.56 92.3434 144.829 89.5311 144.839C86.5809 144.849 83.959 144.575 81.7559 144.207\" stroke=\"#57BFFF\" stroke-width=\"3\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M48.6801 42.5267C44.4451 40.0876 38.5399 36.7476 39.482 30.6101C39.5153 30.3911 39.5582 30.1721 39.601 29.9531C40.6574 25.0302 44.4831 21.4114 47.9996 18.3701C58.5395 9.25099 71.5015 2.3171 84.9488 0.350925C88.1417 -0.116975 91.3822 -0.116975 94.5751 0.350925C108.018 2.3171 120.984 9.25099 131.524 18.3701C135.041 21.4114 138.867 25.0302 139.923 29.9531C139.971 30.1721 140.009 30.3911 140.042 30.6101C140.984 36.7476 135.079 40.0876 130.844 42.5267C121.936 39.1568 108.089 35.1547 90.835 34.9905C72.4912 34.8212 57.8305 39.0622 48.6801 42.5267Z\" fill=\"#0B4692\"/>\n<path d=\"M49.0467 46.2902C48.2759 46.2902 47.5526 45.7974 47.2623 44.996C46.8912 43.9656 47.3908 42.8208 48.3758 42.4325C61.9373 37.1114 76.1412 34.4633 90.6211 34.5778C104.501 34.6823 118.134 37.3254 131.144 42.4325C132.129 42.8208 132.629 43.9656 132.257 44.996C131.886 46.0264 130.792 46.5491 129.807 46.1608C117.216 41.218 104.021 38.6595 90.5926 38.5599C76.5885 38.4504 62.8367 41.0089 49.7129 46.1608C49.494 46.2454 49.2656 46.2902 49.0467 46.2902Z\" fill=\"#FFE500\"/>\n<path d=\"M49.0467 46.2902C48.2759 46.2902 47.5526 45.7974 47.2623 44.996C46.8912 43.9656 47.3908 42.8208 48.3758 42.4325C61.9373 37.1114 76.1412 34.4633 90.6211 34.5778C104.501 34.6823 118.134 37.3254 131.144 42.4325C132.129 42.8208 132.629 43.9656 132.257 44.996C131.886 46.0264 130.792 46.5491 129.807 46.1608C117.216 41.218 104.021 38.6595 90.5926 38.5599C76.5885 38.4504 62.8367 41.0089 49.7129 46.1608C49.494 46.2454 49.2656 46.2902 49.0467 46.2902Z\" fill=\"#FFB600\"/>\n<path d=\"M89.7598 23.4381C90.9345 23.4381 91.8868 22.2146 91.8868 20.7054C91.8868 19.1961 90.9345 17.9727 89.7598 17.9727C88.5851 17.9727 87.6328 19.1961 87.6328 20.7054C87.6328 22.2146 88.5851 23.4381 89.7598 23.4381Z\" fill=\"#FFB600\"/>\n</svg>\n","robber-back":"<svg width=\"160\" height=\"145\" viewBox=\"0 0 160 145\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M104.31 134.451C108.44 139.231 106.04 145.381 100.36 144.971C96.8401 144.721 93.0101 141.521 92.3701 138.001C94.3601 137.601 96.5201 137.071 98.8101 136.381C100.8 135.781 102.64 135.121 104.31 134.441V134.451Z\" fill=\"#7D828E\"/>\n<path d=\"M67.9805 138.011C67.3405 141.531 63.5105 144.731 59.9905 144.981C54.3105 145.391 52.1305 139.341 56.5605 134.461C57.1705 134.711 57.8005 134.961 58.4505 135.211C59.2505 135.531 60.0805 135.821 60.9205 136.081C61.2305 136.191 61.5505 136.291 61.8705 136.391C64.0305 137.071 66.0705 137.601 67.9605 138.011H67.9805Z\" fill=\"#7D828E\"/>\n<path d=\"M160 33.738C160 50.0171 148.55 63.6063 133.32 66.7761C136.13 73.5057 137.1 80.9553 134.51 87.7049C130.71 97.5743 122.4 100.244 117.49 101.214C117.06 101.304 116.97 101.874 117.35 102.104C119.9 103.574 123.63 107.174 123.99 112.313C123.93 111.753 123.83 111.173 123.67 110.554C123.67 110.554 119.48 114.593 113.59 114.973C113.59 114.973 113.91 117.223 113.98 121.593H113.68C112.23 136.012 95.46 139.232 80.08 139.372C73.51 139.312 66.7 138.692 60.93 136.872C60.07 136.592 59.25 136.302 58.46 136.002C51.93 133.382 47.19 128.902 46.49 121.473H46.32C46.39 117.183 46.7 114.973 46.7 114.973C40.82 114.593 36.62 110.554 36.62 110.554C36.15 112.353 36.17 113.913 36.44 115.233C36.29 114.673 36.21 114.093 36.19 113.513C36.05 108.894 38.69 104.384 42.66 102.104C43.04 101.884 42.95 101.304 42.52 101.214C37.62 100.244 29.3 97.5843 25.5 87.7049C22.9 80.9553 23.88 73.5057 26.69 66.7761C11.45 63.6063 0 50.0171 0 33.738C0 15.1091 14.99 0 33.49 0C51.99 0 66.99 15.1091 66.99 33.738C66.99 35.5279 66.85 37.2778 66.59 38.9977L66.06 39.3677C70.63 38.7277 75.29 38.4977 80.01 38.5777C84.75 38.6777 89.52 38.9177 94.22 39.5477L93.42 38.9877C93.15 37.2778 93.02 35.5179 93.02 33.728C93.01 15.1091 108.01 0 126.5 0C144.99 0 160 15.1091 160 33.738ZM128.14 58.0266C138.97 56.5567 147.33 47.1972 147.33 35.8779C147.33 23.5286 137.39 13.5192 125.14 13.5192C112.89 13.5192 102.94 23.5286 102.94 35.8779C102.94 37.8378 103.2 39.7477 103.67 41.5576C107.32 42.4875 112.98 44.4274 118.78 48.6871C123.15 51.897 126.18 55.3668 128.14 58.0266ZM92.15 118.193C92.15 112.803 86.67 108.444 79.9 108.444C73.13 108.444 67.65 112.803 67.65 118.193C67.65 123.583 73.13 127.942 79.9 127.942C86.67 127.942 92.15 123.583 92.15 118.193ZM56.33 41.5676C56.8 39.7577 57.05 37.8478 57.05 35.8879C57.05 23.5386 47.11 13.5292 34.86 13.5292C22.61 13.5292 12.67 23.5386 12.67 35.8879C12.67 47.2072 21.02 56.5667 31.86 58.0366C33.77 55.4468 36.63 52.1669 40.68 49.0971C46.66 44.5674 52.56 42.5375 56.33 41.5676Z\" fill=\"#A5AAB7\"/>\n<path d=\"M147.33 35.8782C147.33 47.1976 138.97 56.557 128.14 58.0269C126.17 55.3671 123.15 51.8973 118.78 48.6875C112.97 44.4277 107.32 42.4878 103.67 41.5579C103.2 39.748 102.94 37.8381 102.94 35.8782C102.94 23.5289 112.88 13.5195 125.14 13.5195C137.4 13.5195 147.33 23.5289 147.33 35.8782Z\" fill=\"#7D828E\"/>\n<path d=\"M124 112.345C124.07 113.355 124.01 114.415 123.79 115.545C123.79 115.555 123.79 115.575 123.79 115.585C123.38 117.275 122.57 118.525 121.96 119.275C121.93 119.315 121.9 119.355 121.86 119.385C120.04 121.385 117.21 122.485 114.17 121.595H114C113.93 117.215 113.61 114.975 113.61 114.975C119.49 114.595 123.69 110.555 123.69 110.555C123.85 111.165 123.95 111.755 124.01 112.315C124.01 112.315 124.01 112.335 124.01 112.345H124Z\" fill=\"#7D828E\"/>\n<path d=\"M79.9004 108.445C86.6704 108.445 92.1504 112.805 92.1504 118.195C92.1504 123.584 86.6704 127.944 79.9004 127.944C73.1304 127.944 67.6504 123.584 67.6504 118.195C67.6504 112.805 73.1304 108.445 79.9004 108.445Z\" fill=\"#7D828E\"/>\n<path d=\"M57.0597 35.8782C57.0597 37.8381 56.8097 39.748 56.3397 41.5579C52.5597 42.5178 46.6697 44.5577 40.6897 49.0874C36.6397 52.1573 33.7797 55.4371 31.8697 58.0269C21.0297 56.557 12.6797 47.1976 12.6797 35.8782C12.6797 23.5289 22.6197 13.5195 34.8697 13.5195C47.1197 13.5195 57.0597 23.5289 57.0597 35.8782Z\" fill=\"#7D828E\"/>\n<path d=\"M46.6898 114.973C46.6898 114.973 46.3798 117.183 46.3098 121.473H46.1298C41.8098 122.733 37.5298 119.423 36.4498 115.283C36.4498 115.263 36.4498 115.253 36.4398 115.223C36.1698 113.903 36.1498 112.343 36.6198 110.543C36.6198 110.543 40.8098 114.583 46.6998 114.963L46.6898 114.973Z\" fill=\"#7D828E\"/>\n<path d=\"M91.2098 103.572C83.7398 104.082 76.2298 104.032 68.7598 103.512\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M83.08 74.6854C83.08 76.2154 81.57 76.8354 80.09 76.8254C78.61 76.8154 77.21 76.2154 77.21 74.6854C77.21 71.6554 83.08 71.5754 83.08 74.6854Z\" fill=\"#FF555D\"/>\n<path d=\"M85.7202 63.9375C85.7202 63.9375 85.3102 65.3975 83.6602 66.4975\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M74.4697 63.9375C74.4697 63.9375 74.8797 65.3975 76.5297 66.4975\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M69.8204 79.4766C68.5904 79.5666 67.7504 81.0066 68.0204 82.2166C68.2904 83.4266 69.3904 84.3166 70.5804 84.6466C71.8304 84.9866 73.1604 84.8166 74.4304 84.5666C75.2704 84.4066 76.1104 84.1866 76.9404 83.9666C77.8604 83.7166 78.8104 83.5366 79.7304 83.4866C79.9604 83.4766 80.2004 83.4766 80.4304 83.4866C81.4504 83.5666 82.4104 83.7366 83.3804 84.0066C84.1704 84.2266 84.9804 84.4266 85.7804 84.5766C87.0304 84.8166 88.3404 84.9866 89.5804 84.6466C90.8204 84.3066 91.8804 83.4266 92.1404 82.2166C92.4004 81.0066 91.5704 79.5666 90.3404 79.4766\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M61.72 68.4453C65.56 68.4453 68.94 69.1553 68.94 71.2153C68.94 73.2753 65.56 73.9853 61.72 73.9853C57.88 73.9853 54.5 73.3753 54.5 71.2153C54.5 69.0553 57.88 68.4453 61.72 68.4453Z\" fill=\"white\"/>\n<mask id=\"mask0_4927_13399\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"54\" y=\"68\" width=\"15\" height=\"6\">\n<path d=\"M61.72 68.4453C65.56 68.4453 68.94 69.1553 68.94 71.2153C68.94 73.2753 65.56 73.9853 61.72 73.9853C57.88 73.9853 54.5 73.3753 54.5 71.2153C54.5 69.0553 57.88 68.4453 61.72 68.4453Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask0_4927_13399)\">\n<path d=\"M57.8604 71.2245C57.8604 68.4945 59.4804 67.5545 61.4504 67.4145V67.3945C61.5404 67.3945 61.6304 67.3945 61.7204 67.3945C61.8104 67.3945 61.9004 67.3945 61.9904 67.3945V67.4145C63.9704 67.5545 65.5804 68.4845 65.5804 71.2245C65.5804 73.6745 63.9604 74.8445 61.9904 75.0245V75.0545C61.9004 75.0545 61.8104 75.0545 61.7204 75.0545C61.6304 75.0545 61.5404 75.0545 61.4504 75.0545V75.0245C59.4704 74.8445 57.8604 73.6745 57.8604 71.2245Z\" fill=\"#494949\"/>\n</g>\n<path d=\"M99.6497 68.4453C95.8097 68.4453 92.4297 69.1553 92.4297 71.2153C92.4297 73.3753 95.8097 73.9853 99.6497 73.9853C103.49 73.9853 106.87 73.3753 106.87 71.2153C106.87 69.0553 103.49 68.4453 99.6497 68.4453Z\" fill=\"white\"/>\n<mask id=\"mask1_4927_13399\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"92\" y=\"68\" width=\"15\" height=\"6\">\n<path d=\"M99.6497 68.4453C95.8097 68.4453 92.4297 69.1553 92.4297 71.2153C92.4297 73.3753 95.8097 73.9853 99.6497 73.9853C103.49 73.9853 106.87 73.3753 106.87 71.2153C106.87 69.0553 103.49 68.4453 99.6497 68.4453Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask1_4927_13399)\">\n<path d=\"M103.51 71.2245C103.51 68.4945 101.89 67.5545 99.92 67.4145V67.3945C99.83 67.3945 99.74 67.3945 99.65 67.3945C99.56 67.3945 99.47 67.3945 99.38 67.3945V67.4145C97.4 67.5545 95.79 68.4845 95.79 71.2245C95.79 73.6745 97.41 74.8445 99.38 75.0245V75.0545C99.47 75.0545 99.56 75.0545 99.65 75.0545C99.74 75.0545 99.83 75.0545 99.92 75.0545V75.0245C101.9 74.8445 103.51 73.6745 103.51 71.2245Z\" fill=\"#494949\"/>\n</g>\n<path d=\"M48.3204 104.871C48.3204 104.871 45.9504 111.071 45.6904 119.801\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M112.07 104.871C112.07 104.871 114.44 111.071 114.7 119.801\" stroke=\"#7D828E\" stroke-width=\"2\" stroke-miterlimit=\"10\" stroke-linecap=\"round\"/>\n<path d=\"M79.9101 22.829C86.9601 22.6491 132.57 27.2788 137.97 74.556C138.03 75.046 137.58 75.406 137.2 75.186C132.37 72.3961 106.84 57.587 79.9001 57.207C51.3001 57.967 27.7501 70.6062 23.0801 73.4161C22.7001 73.6461 22.2501 73.2861 22.3101 72.7961C27.7201 25.5489 72.8501 22.6591 79.9101 22.839V22.829Z\" fill=\"#1D232B\"/>\n<mask id=\"mask2_4927_13399\" style=\"mask-type:luminance\" maskUnits=\"userSpaceOnUse\" x=\"22\" y=\"22\" width=\"116\" height=\"54\">\n<path d=\"M79.9101 22.829C86.9601 22.6491 132.57 27.2788 137.97 74.556C138.03 75.046 137.58 75.406 137.2 75.186C132.37 72.3961 106.84 57.587 79.9001 57.207C51.3001 57.967 27.7501 70.6062 23.0801 73.4161C22.7001 73.6461 22.2501 73.2861 22.3101 72.7961C27.7201 25.5489 72.8501 22.6591 79.9101 22.839V22.829Z\" fill=\"white\"/>\n</mask>\n<g mask=\"url(#mask2_4927_13399)\">\n<path d=\"M22.27 60.6186L20 56.9888C27.89 51.9791 49.6 40.3997 80.67 41.0497C109.78 41.6597 129.72 52.399 136.94 56.9888L134.67 60.6186C127.75 56.2188 108.63 45.9294 80.59 45.3395C49.82 44.6995 28.17 56.8688 22.27 60.6186Z\" fill=\"white\"/>\n<path d=\"M22.27 50.2787L20 46.6489C27.89 41.6392 49.59 30.0599 80.67 30.7099C109.78 31.3198 129.72 42.0592 136.94 46.6489L134.67 50.2787C127.75 45.879 108.63 35.5896 80.59 34.9996C49.82 34.3597 28.17 46.5289 22.27 50.2787Z\" fill=\"white\"/>\n</g>\n</svg>\n"};
+const { mount, MOTIONS, piv, Spring, clamp } = window.CharRig;
+const stage = document.getElementById("stage");
+// 좁은 화면(휴대폰, 미리보기 창)에서는 캐릭터를 화면 폭에 맞춰 줄인다
+let UI = 1; const fitUI = () => { UI = Math.max(0.4, Math.min(1, stage.clientWidth / 960)); }; fitUI(); addEventListener("resize", fitUI);
+
+function makeChar(kind, x, y) {
+  const el = document.createElement("div"); el.className = "char"; stage.append(el);
+  const sh = document.createElement("div"); sh.className = "shadow"; el.append(sh);
+  const tag = document.createElement("div"); tag.className = "tag"; tag.textContent = kind === "police" ? "냥파" : "도둥이"; tag.style.color = kind === "police" ? "#0B4692" : "#4A4F59"; el.append(tag);
+  const base = kind === "police" ? 0.95 : 1.12; // 두 캐릭터 몸집이 비슷해 보이게
+  const views = {};
+  const names = kind === "police" ? ["police-front", "police-side", "police-back"] : ["robber-front", "robber-side", "robber-back", "robber-jailed"];
+  for (const n of names) {
+    const rig = mount(SVGS[n], n); const d = rig.def;
+    // 수감 그림은 창살까지 한 장이라 몸이 작게 그려져 있다. 몸 크기를 평소와 맞춘다
+    const scale = base * (n === "robber-jailed" ? 1.45 : 1);
+    rig.svg.setAttribute("viewBox", `0 0 ${d.w} ${d.h}`);
+    rig.svg.style.width = d.w * scale + "px"; rig.svg.style.height = d.h * scale + "px";
+    rig.svg.style.left = (-(d.cx) * scale) + "px"; rig.svg.style.bottom = (-(d.h - d.ground) * scale) + "px";
+    if (rig.parts.shadow) rig.parts.shadow.forEach(g => g.style.display = "none");
+    el.append(rig.svg); views[n] = rig;
+  }
+  tag.style.top = (-(kind === "police" ? 200 : 145) * base - 26) + "px";
+  const c = { kind, el, views, x, y, vx: 0, vy: 0, face: 1, faceS: new Spring(420, 34), pop: new Spring(300, 14), view: null, prev: null, tr: 1, trMode: "fade", mot: {}, mkey: {}, phase: 0, facing: "front", want: null, wantT: 0, stillT: 0, action: null, hide: 0, input: { x: 0, y: 0 } };
+  c.faceS.x = 1;
+  return c;
+}
+
+const P = makeChar("police", stage.clientWidth * 0.3, stage.clientHeight * 0.62), R = makeChar("robber", stage.clientWidth * 0.62, stage.clientHeight * 0.62);
+let ctrl = P;
+
+// 그림(뷰) 하나에 모션 하나. 같은 모션이면 다시 만들지 않아 용수철이 끊기지 않는다
+function ensureMotion(c, view, motionName, opts) {
+  const key = motionName + JSON.stringify(opts || {});
+  if (c.mkey[view] !== key) { const rig = c.views[view]; rig.reset(); c.mot[view] = MOTIONS[motionName](rig, opts || {}); c.mkey[view] = key; }
+}
+// 뷰 바꾸기: 앞↔뒤는 몸을 가로로 접었다 펴며 돌고, 나머지는 짧게 겹쳐 넘어간다
+function goView(c, view, instant) {
+  if (c.view === view) return;
+  if (!c.view || instant) { c.prev = null; c.tr = 1; }
+  else {
+    const a = c.view.split("-")[1], b = view.split("-")[1];
+    c.trMode = (a === "front" && b === "back") || (a === "back" && b === "front") ? "spin" : "swap";
+    c.prev = c.view; c.tr = 0;
+  }
+  c.view = view;
+}
+const hideOpts = { crouch: 1, period: 0.8, bob: 3 };
+
+// 움직이는 방향으로 어느 그림을 쓸지. 대각선에서 깜빡이지 않게 지금 방향을 조금 더 붙든다
+function desiredFacing(c, mx, my) {
+  const mag = Math.hypot(mx, my); const ax = Math.abs(mx) / mag;
+  if (c.facing === "side") return ax > 0.42 ? "side" : (my > 0 ? "front" : "back");
+  if (ax > 0.82) return "side";
+  if (c.facing === "front" && my < -0.3 * mag) return "back";
+  if (c.facing === "back" && my > 0.3 * mag) return "front";
+  return c.facing;
+}
+
+function locomotion(c, dt) {
+  const k = c.kind, mx = c.input.x, my = c.input.y, mag = Math.hypot(mx, my);
+  if (mag < 0.05) {
+    c.stillT += dt;
+    if (c.stillT > 0.08) { c.facing = c.facing === "back" ? "back" : "front"; }
+    const v = `${k}-${c.facing === "back" ? "back" : (c.stillT > 0.08 ? "front" : c.facing)}`;
+    ensureMotion(c, v, c.facing === "side" ? (c.hide ? "runSide" : "runSide") : "idleFront", c.facing === "side" && c.hide ? hideOpts : {});
+    goView(c, v); return;
+  }
+  c.stillT = 0;
+  if (Math.abs(mx) > 0.05) c.face = Math.sign(mx);
+  const want = desiredFacing(c, mx, my);
+  if (want !== c.facing) { if (c.want !== want) { c.want = want; c.wantT = 0; } c.wantT += dt; if (c.wantT > 0.06) { c.facing = want; c.want = null; } } else c.want = null;
+  const v = `${k}-${c.facing}`;
+  if (c.facing === "side") ensureMotion(c, v, "runSide", c.hide ? hideOpts : {});
+  else ensureMotion(c, v, "runFront", {});
+  goView(c, v);
+}
+
+function startAction(c, name) {
+  if (name === "catch" && c.kind === "police") { c.facing = "side"; goView(c, "police-side", c.view === "police-side"); ensureMotion(c, "police-side", "catchSide"); c.mkey["police-side"] += Math.random(); c.action = { name, until: 0.6 }; }
+  if (name === "sniff" && c.kind === "police") { c.facing = "front"; goView(c, "police-front"); ensureMotion(c, "police-front", "sniff"); c.action = { name, until: 1.4 }; }
+  if (name === "jail" && c.kind === "robber") { c.facing = "side"; goView(c, "robber-side", true); ensureMotion(c, "robber-side", "runSide"); c.action = { name: "caught", until: 0.32 }; c.pop.x = -0.12; }
+  if (name === "escape" && c.kind === "robber" && c.action && c.action.name === "jailed") {
+    c.facing = "front"; ensureMotion(c, "robber-jailed", "breakout"); goView(c, "robber-front", true); ensureMotion(c, "robber-front", "idleFront");
+    c.prev = "robber-jailed"; c.tr = 0; c.trMode = "keep";   // 창살은 남아서 튕겨 나가고, 도둥이는 정면으로 뛰어나온다
+    c.action = { name: "escape", until: 0.5 }; c.pop.x = -0.15;
+  }
+  if (name === "hide" && c.kind === "robber") { c.hide = c.hide ? 0 : 5; }
+  if (c.action) c.action.t = 0;
+}
+
+function update(c, dt) {
+  const speed = 210;
+  if (c.action) {
+    c.action.t += dt; c.vx *= 0.8; c.vy *= 0.8;
+    if (c.action.name === "caught") { const k = c.action.t / 0.32; c.views["robber-side"].all.setAttribute("transform", piv(93, 141, 6 * Math.sin(k * 30), 1, 1, 4 * Math.sin(k * 40) * (1 - k), -18 * Math.sin(Math.PI * Math.min(1, k)))); }
+    if (c.action.name === "escape") { const k = c.action.t / 0.5; c.hopY = -40 * Math.sin(Math.PI * Math.min(1, k)); }
+    if (c.action.until !== Infinity && c.action.t >= c.action.until) {
+      const n = c.action.name; c.action = null; c.hopY = 0;
+      if (n === "caught") { goView(c, "robber-jailed"); c.trMode = "swap"; ensureMotion(c, "robber-jailed", "jailed"); c.action = { name: "jailed", until: Infinity, t: 0 }; c.pop.x = -0.1; }
+    }
+  } else {
+    c.vx += (c.input.x * speed - c.vx) * Math.min(1, dt * 12); c.vy += (c.input.y * speed - c.vy) * Math.min(1, dt * 12);
+    c.x = clamp(c.x + c.vx * UI * dt, 60 * UI, stage.clientWidth - 60 * UI); c.y = clamp(c.y + c.vy * UI * dt, 190 * UI, stage.clientHeight - 10);
+    locomotion(c, dt);
+  }
+  if (c.hide) c.hide = Math.max(0, c.hide - dt);
+  const sp = clamp(Math.hypot(c.vx, c.vy) / speed, 0, 1), spd = Math.max(0.35, sp);
+  if (sp > 0.05) c.phase = (c.phase + dt / ((c.hide ? 0.8 : 0.44) / (0.55 + 0.45 * spd))) % 1;   // 그림이 바뀌어도 걸음 박자는 이어진다
+  const ctx = { speed: spd, phase: c.phase };
+  c.mot[c.view] && c.mot[c.view].update(dt, ctx); c.views[c.view].updateLimbs();
+  if (c.prev && c.tr < 1) { c.mot[c.prev] && c.mot[c.prev].update(dt, ctx); c.views[c.prev].updateLimbs(); }
+  c.tr = Math.min(1, c.tr + dt / (c.trMode === "spin" ? 0.2 : c.trMode === "keep" ? 0.42 : 0.14));
+  if (c.tr >= 1) c.prev = null;
+  const fs = c.faceS.step(c.face, dt), pop = c.pop.step(0, dt);
+  for (const [n, rig] of Object.entries(c.views)) {
+    const isCur = n === c.view, isPrev = n === c.prev;
+    rig.svg.classList.toggle("on", isCur || isPrev);
+    if (!isCur && !isPrev) continue;
+    const d = rig.def; const side = n.endsWith("side");
+    let sx = 1, op = 1;
+    if (c.prev) {
+      const k = c.tr, e = k * k * (3 - 2 * k);
+      // 겹쳐 비치게 하지 않는다. 앞 그림이 가로로 접히고 나서 다음 그림이 펴진다
+      if (c.trMode === "spin") { if (isPrev) { sx = Math.max(0.06, 1 - 2 * e); op = k < 0.5 ? 1 : 0; } else { sx = Math.max(0.06, 2 * e - 1); op = k < 0.5 ? 0 : 1; } }
+      else if (c.trMode === "keep") { sx = 1; op = 1; }
+      else { if (isPrev) { sx = 1 - 0.45 * Math.min(1, 2 * e); op = k < 0.5 ? 1 : 0; } else { sx = 0.55 + 0.45 * Math.max(0, 2 * e - 1); op = k < 0.5 ? 0 : 1; } }
+    }
+    // 옆모습은 바라보는 쪽으로 뒤집는다. 뒤집을 때 가로로 접혔다 펴진다
+    const flipX = side ? (Math.abs(fs) < 0.08 ? 0.08 * Math.sign(fs || 1) : clamp(fs, -1, 1)) : 1;
+    rig.svg.style.opacity = op;
+    rig.flip.setAttribute("transform", piv(d.cx, d.ground, 0, flipX * sx * (1 - pop * 0.5), 1 + pop));
+  }
+  c.el.style.opacity = c.hide ? 0.45 : 1;
+  c.el.style.transform = `translate(${c.x}px, ${c.y + (c.hopY || 0) * UI}px) scale(${UI})`;
+  c.el.style.zIndex = Math.round(c.y);
+}
+
+// 입력
+const keys = new Set();
+addEventListener("keydown", e => { keys.add(e.key.toLowerCase()); if (e.key === " ") { startAction(ctrl, ctrl.kind === "police" ? "catch" : "hide"); e.preventDefault(); } if (["arrowup","arrowdown","arrowleft","arrowright"].includes(e.key.toLowerCase())) e.preventDefault(); });
+addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+let padVec = { x: 0, y: 0 };
+const pad = document.getElementById("pad"), knob = document.getElementById("knob");
+function padMove(e) { const r = pad.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; let x = (t.clientX - r.left - r.width / 2) / (r.width / 2), y = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; } padVec = { x, y }; knob.style.transform = `translate(${x * 40}px, ${y * 40}px)`; }
+function padEnd() { padVec = { x: 0, y: 0 }; knob.style.transform = ""; }
+pad.addEventListener("pointerdown", e => { pad.setPointerCapture(e.pointerId); padMove(e); }); pad.addEventListener("pointermove", e => { if (e.buttons) padMove(e); }); pad.addEventListener("pointerup", padEnd); pad.addEventListener("pointercancel", padEnd);
+function readInput() {
+  let x = 0, y = 0; if (keys.has("arrowleft") || keys.has("a")) x -= 1; if (keys.has("arrowright") || keys.has("d")) x += 1; if (keys.has("arrowup") || keys.has("w")) y -= 1; if (keys.has("arrowdown") || keys.has("s")) y += 1;
+  if (x || y) { const m = Math.hypot(x, y); return { x: x / m, y: y / m }; } return padVec;
+}
+const sel = (c) => { ctrl = c; document.getElementById("selP").classList.toggle("on", c === P); document.getElementById("selR").classList.toggle("on", c === R); };
+document.getElementById("selP").onclick = () => sel(P); document.getElementById("selR").onclick = () => sel(R);
+document.getElementById("actCatch").onclick = () => startAction(P, "catch");
+document.getElementById("actSniff").onclick = () => startAction(P, "sniff");
+document.getElementById("actHide").onclick = () => startAction(R, "hide");
+document.getElementById("actJail").onclick = () => startAction(R, "jail");
+document.getElementById("actEscape").onclick = () => startAction(R, "escape");
+
+// 대본 모드 (영상 뽑기용): ?demo=1 이면 정해진 순서로 움직인다
+const DEMO = new URLSearchParams(location.search).get("demo");
+let last = null, demoT = 0;
+const labelEl = document.getElementById("label");
+const script = [
+  [0, 1.8, "냥파 · 정면 대기", c => { c.input = { x: 0, y: 0 }; }, "P", [0.5, 0.62]],
+  [1.8, 4.0, "냥파 · 옆으로 달리기", c => { c.input = { x: 1, y: 0 }; }, "P", [0.2, 0.62]],
+  [4.0, 5.6, "냥파 · 돌아서기", c => { c.input = { x: -1, y: 0 }; }, "P"],
+  [5.6, 7.4, "냥파 · 앞으로 달리기", c => { c.input = { x: 0, y: 1 }; }, "P", [0.5, 0.3]],
+  [7.4, 9.6, "냥파 · 뒤로 돌아 달리기", c => { c.input = { x: 0, y: -1 }; }, "P"],
+  [9.6, 10.8, "냥파 · 뒤를 본 채 멈춤", c => { c.input = { x: 0, y: 0 }; }, "P"],
+  [10.8, 12.8, "냥파 · 대각선으로 달리기", c => { c.input = { x: 0.72, y: 0.69 }; }, "P", [0.25, 0.3]],
+  [12.8, 13.8, "냥파 · 잡기", c => { c.input = { x: 0, y: 0 }; if (!c._c) { startAction(c, "catch"); c._c = 1; } }, "P", [0.4, 0.62]],
+  [13.8, 15.8, "냥파 · 킁킁", c => { if (!c._s) { startAction(c, "sniff"); c._s = 1; } }, "P"],
+  [15.8, 17.6, "도둥이 · 정면 대기", c => { c.input = { x: 0, y: 0 }; }, "R", [0.5, 0.62]],
+  [17.6, 19.8, "도둥이 · 옆으로 달리기", c => { c.input = { x: -1, y: 0 }; }, "R", [0.8, 0.62]],
+  [19.8, 21.2, "도둥이 · 앞으로 달리기", c => { c.input = { x: 0, y: 1 }; }, "R", [0.5, 0.35]],
+  [21.2, 23.0, "도둥이 · 뒤로 돌아 달리기", c => { c.input = { x: 0, y: -1 }; }, "R"],
+  [23.0, 24.8, "도둥이 · 대각선으로 달리기", c => { c.input = { x: -0.72, y: -0.69 }; }, "R", [0.75, 0.9]],
+  [24.8, 27.4, "도둥이 · 숨어서 살금살금", c => { if (!c._h) { startAction(c, "hide"); c._h = 1; } c.input = { x: 1, y: 0 }; }, "R", [0.25, 0.62]],
+  [27.4, 30.0, "도둥이 · 잡힘 → 수감", c => { c.input = { x: 0, y: 0 }; c.hide = 0; if (!c._j) { startAction(c, "jail"); c._j = 1; } }, "R", [0.5, 0.62]],
+  [30.0, 31.4, "도둥이 · 탈옥", c => { if (!c._e) { startAction(c, "escape"); c._e = 1; } }, "R"],
+];
+function frame(dt) {
+  if (DEMO) {
+    demoT += dt; const s = script.find(([a, b]) => demoT >= a && demoT < b) || script[script.length - 1];
+    labelEl.style.display = "block"; const c = s[4] === "P" ? P : R; const o = c === P ? R : P;
+    if (labelEl.textContent !== s[2]) { labelEl.textContent = s[2]; if (s[5]) { c.x = s[5][0] * stage.clientWidth; c.y = s[5][1] * stage.clientHeight; c.vx = c.vy = 0; } }
+    o.el.style.display = "none"; c.el.style.display = "";
+    s[3](c); o.input = { x: 0, y: 0 };
+  } else { ctrl.input = readInput(); (ctrl === P ? R : P).input = { x: 0, y: 0 }; }
+  update(P, dt); update(R, dt);
+}
+window.__step = (dt) => frame(dt);
+window.__demoLength = script[script.length - 1][1];
+// 화면 그리기가 멈칫하는 환경(앱 미리보기 창 등)에서도 돌게, 그리기 신호가 늦으면 타이머가 대신 돌린다
+function tick() { const now = performance.now(); const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now; frame(dt); }
+if (!DEMO) { requestAnimationFrame(function loop() { tick(); requestAnimationFrame(loop); }); setInterval(() => { if (performance.now() - (last || 0) > 40) tick(); }, 16); }
+else { P.x = 300; R.x = 640; frame(1 / 60); }
+</script>
+</body>
+</html>
