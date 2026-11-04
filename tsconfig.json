@@ -10,5 +10,5 @@
     "allowJs": false,
     "skipLibCheck": true
   },
-  "include": ["server/**/*.ts"]
+  "include": ["server/**/*.ts", "gateway/functions/**/*.ts"]
 }
