@@ -35,6 +35,7 @@ declare global {
 export class Room extends DurableObject<Env> {
   private logic: Logic | null = null;
   private game: Game | null = null;
+  private seed = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   private emptySince = 0;
   private lost = new Map<string, { agentId: number; at: number }>();
@@ -179,19 +180,27 @@ export class Room extends DurableObject<Env> {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
     const theme = THEMES[seed % THEMES.length];
     const G = logic.newGame({ seed, theme, diff: "normal" });
+    this.seed = seed;
     this.logic = logic;
     this.game = G;
     this.emptySince = 0;
     this.lost.clear();
 
-    // 어느 쪽도 기본값으로 두지 않는다. 자리를 섞어서 앞에서부터 앉힌다. 빈자리는 봇이 그대로 맡는다.
-    const seats = [...G.agents];
-    for (let i = seats.length - 1; i > 0; i--) {
-      const j = Math.floor(G.rnd() * (i + 1));
-      [seats[i], seats[j]] = [seats[j], seats[i]];
-    }
-    members.forEach(({ ws, me }, i) => {
-      const agent = seats[i];
+    // 어느 쪽도 기본값으로 두지 않는다. 사람 순서와 자리를 섞어서 앉히고, 빈자리는 봇이 그대로 맡는다.
+    // 경찰 자리가 셋에 하나라 사람도 그 비율로 앉힌다. 둘 이상이면 사람끼리 쫓도록 경찰이 꼭 한 명은 있다.
+    const shuffle = <T>(list: T[]): T[] => {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(G.rnd() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      return list;
+    };
+    const policeSeats = shuffle<any>([...G.police]);
+    const robberSeats = shuffle<any>([...G.robbers]);
+    const people = shuffle([...members]);
+    const policeCount = people.length === 1 ? (G.rnd() < 1 / 3 ? 1 : 0) : Math.min(policeSeats.length, Math.max(1, Math.round(people.length / 3)));
+    people.forEach(({ ws, me }, i) => {
+      const agent = i < policeCount ? policeSeats[i] : robberSeats[i - policeCount];
       agent.isPlayer = true;
       agent.name = me.name;
       ws.serializeAttachment({ ...me, agentId: agent.id } satisfies Attachment);
@@ -205,7 +214,7 @@ export class Room extends DurableObject<Env> {
     const G = this.game;
     this.send(ws, {
       t: "start",
-      seed: G.map.seed,
+      seed: this.seed,
       theme: G.theme,
       you: agent.id,
       team: agent.team,
@@ -279,12 +288,13 @@ export class Room extends DurableObject<Env> {
   private finish(winner: string | null, reason: string): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    const stats = this.game?.stats;
+    const G = this.game;
+    const stats = G?.stats;
     this.game = null;
     this.logic = null;
     this.lost.clear();
     for (const { ws, me } of this.members()) {
-      this.send(ws, { t: "over", winner, reason, stats });
+      this.send(ws, { t: "over", winner, reason, stats, mine: me.agentId !== undefined ? G?.agents[me.agentId].s : undefined });
       ws.serializeAttachment({ token: me.token, name: me.name, joinedAt: me.joinedAt } satisfies Attachment);
     }
     this.broadcastLobby();

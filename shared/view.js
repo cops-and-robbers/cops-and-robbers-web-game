@@ -47,6 +47,7 @@ export function viewFor(logic, G, me) {
     others,
     pings,
     rescue: Math.round(G.rescueT * 10) / 10,
+    nextReveal: Math.round(G.nextReveal * 10) / 10,
     freeRobbers: G.robbers.filter(r => r.state === "free").length,
   };
   if (me.team === "police") {
