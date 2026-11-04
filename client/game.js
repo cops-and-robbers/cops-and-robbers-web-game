@@ -11,6 +11,9 @@ const $ = id => document.getElementById(id);
 const stage = $("stage"), world = $("world"), fog = $("fog"), fctx = fog.getContext("2d"), mini = $("mini"), mctx = mini.getContext("2d");
 const CS = 0.5; // 캐릭터 크기
 let G = null, chars = [], role = null, zoom = 1, camX = 0, camY = 0, W = 0, H = 0, ended = false, lastSeenBy = false;
+// 사람끼리 할 때는 net.js 가 채운다. 비어 있으면 이 파일 안에서 봇과 규칙을 돌린다
+let online = null;
+const seen = a => (online ? online.sees(a) : sees(G.player, a));
 const fitStage = () => {
   W = stage.clientWidth; H = stage.clientHeight; fog.width = W; fog.height = H;
   zoom = clamp(Math.min(W / 1180, H / 720), 0.52, 1.25);
@@ -418,7 +421,7 @@ function drawMini() {
   if (p.team === "police") for (const [, k] of G.intel) if (G.t - k.t < 6) dot(k, "rgba(226,87,76,.55)", 4);
   for (const k of G.pings) if (p.team === "police" || k.id === p.id) dot(k, ((G.t * 3) % 1) < 0.6 ? "#E2574C" : "#F2A29B", 5);
   for (const a of G.agents) if (a.team === p.team && a !== p) dot(a, teamCol, 3.4);
-  for (const a of G.agents) if (a.team !== p.team && sees(p, a) && p.state !== "waiting") dot(a, "#E2574C", 3.4);
+  for (const a of G.agents) if (a.team !== p.team && seen(a) && p.state !== "waiting") dot(a, "#E2574C", 3.4);
   x.strokeStyle = "#1D232B"; x.lineWidth = 2; dot(p, teamCol, 5); x.beginPath(); x.arc(p.x * s, p.y * s, 5, 0, 7); x.stroke();
 }
 
@@ -460,12 +463,12 @@ const fmt = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:
 function handleEvents() {
   const p = G.player;
   for (const e of G.events.splice(0)) {
-    if (e.type === "catchStart") { startAction(chars[e.a.id], "catch", e.a.action.dx); if (e.a === p) sfx("swing"); }
+    if (e.type === "catchStart") { startAction(chars[e.a.id], "catch", e.a.action?.dx ?? Math.cos(e.a.faceA)); if (e.a === p) sfx("swing"); }
     if (e.type === "jailed") { burst(e.r.x, e.r.y - 40, "#FFFFFF", 12); if (e.r === p) shake = 5; }
     if (e.type === "catchMiss" && e.a === p) toast("놓쳤어요", "bad");
     if (e.type === "caught") {
       startAction(chars[e.r.id], "jail");
-      if (e.r === p || e.by === p || sees(p, e.r)) { burst(e.r.x, e.r.y - 40, "#FFC93C", 16); sfx("catch"); }
+      if (e.r === p || e.by === p || seen(e.r)) { burst(e.r.x, e.r.y - 40, "#FFC93C", 16); sfx("catch"); }
       if (e.r === p || e.by === p) { shake = 12; hitStop = 0.08; }
       if (e.r === p) toast("잡혔어요. 감옥으로 가요", "bad");
       else if (e.by === p) toast(`${e.r.name}을 잡았어요`, "good");
@@ -473,7 +476,7 @@ function handleEvents() {
       else toast(`${e.r.name}이 잡혔어요`, "bad");
     }
     if (e.type === "unlocked") {
-      startAction(chars[e.r.id], "escape"); if (sees(p, e.r) || e.r === p) sfx("free");
+      startAction(chars[e.r.id], "escape"); if (seen(e.r) || e.r === p) sfx("free");
       if (e.r === p) toast(e.rescued ? "동료가 문을 열었어요. 밖으로 뛰어요" : "문이 열렸어요. 밖으로 뛰어요", "good");
     }
     if (e.type === "rescued" && e.by === p) toast(`동료 ${e.n}명을 구했어요`, "good");
@@ -494,8 +497,10 @@ function drawHud(dt) {
   const p = G.player, left = G.phase === "wait" ? CFG.WAIT - G.t : CFG.DURATION - G.t;
   $("timer").textContent = fmt(left);
   $("timerLabel").textContent = G.phase === "wait" ? "경찰 출동까지" : "남은 시간";
-  const pipKey = G.robbers.map(r => r.state === "free" ? 1 : 0).join("");
-  if (pipKey !== lastPip) { lastPip = pipKey; $("pips").innerHTML = G.robbers.map(r => `<i class="${r.state === "free" ? "free" : "out"}" style="background-image:url('${ROBBER_ICON}')"></i>`).join(""); }
+  // 사람끼리 할 때는 다른 도둑의 상태를 받지 않아서 남은 수로 그린다
+  const pips = G.robbers.map((r, i) => (online ? i < online.free : r.state === "free"));
+  const pipKey = pips.map(Number).join("");
+  if (pipKey !== lastPip) { lastPip = pipKey; $("pips").innerHTML = pips.map(free => `<i class="${free ? "free" : "out"}" style="background-image:url('${ROBBER_ICON}')"></i>`).join(""); }
   let line = "";
   if (G.phase === "wait") line = role === "police" ? "도둑이 도망치는 중이에요" : "경찰에게서 멀어지는 중이에요";
   else if (p.state === "jailed") line = `${Math.ceil(p.lock)}초 뒤 풀려나요. 동료가 감옥 앞에 오면 더 빨리 나갈 수 있어요`;
@@ -546,9 +551,13 @@ function titleOf(p) {
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random";
 function start(r, seed) {
-  role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0;
+  showGame(r, { role: r, seed, diff: pickDiff, theme: pickTheme === "random" ? null : pickTheme, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined });
+}
+function showGame(r, opts, setup) {
+  role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";
   chars.forEach(c => c.el.remove());
-  G = newGame({ role: r, seed, diff: pickDiff, theme: pickTheme === "random" ? null : pickTheme, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined });
+  G = newGame(opts);
+  if (setup) setup(G);
   document.querySelectorAll(".bush").forEach(n => n.remove());
   bakeMap(); bakeBushes(); bakeMini();
   document.body.dataset.theme = G.theme;
@@ -578,7 +587,7 @@ addEventListener("resize", syncRotate); addEventListener("orientationchange", sy
 $("rotateSkip").onclick = () => { allowPortrait = true; syncRotate(); };
 const begin = r => { start(r); syncRotate(); tryLandscape(); };
 document.querySelectorAll("[data-role-pick]").forEach(b => b.addEventListener("click", () => begin(b.dataset.rolePick)));
-$("again").onclick = () => begin(role);
+$("again").onclick = () => (online ? online.toLobby() : begin(role));
 $("swap").onclick = () => begin(role === "police" ? "robber" : "police");
 
 function frame(dt) {
@@ -589,8 +598,14 @@ function frame(dt) {
   if (!ended) {
     const v = readInput();
     p.ix = v.x; p.iy = v.y; p.sprint = keys.has("shift") || sprintBtn;
-    if (wantCatch) { startCatch(G, p); wantCatch = false; }
-    step(G, dt);
+    if (online) {
+      online.input(v, p.sprint, wantCatch);
+      wantCatch = false;
+      online.step(dt);
+    } else {
+      if (wantCatch) { startCatch(G, p); wantCatch = false; }
+      step(G, dt);
+    }
     handleEvents();
     drawHud(dt);
   }
@@ -603,7 +618,7 @@ function frame(dt) {
   wobbleBushes(dt);
   for (const c of chars) {
     const a = c.a;
-    const can = ended || a.team === p.team || (p.state !== "waiting" && inZone(p.x, p.y) && sees(p, a));
+    const can = online ? a.team === p.team || seen(a) : ended || a.team === p.team || (p.state !== "waiting" && inZone(p.x, p.y) && sees(p, a));
     c.el.style.display = can ? "" : "none";
     c.wasVisible = can;
     if (can) dustFor(c, a, dt);
