@@ -103,6 +103,10 @@
   .rules b { color:var(--ink); }
   #rotate { background:rgba(18,23,32,.86); z-index:30; }
   #rotate .card { width:min(84vw,320px); }
+  #lobby input, #lobby button { font:inherit; font-weight:700; width:100%; min-height:48px; margin-top:12px; border-radius:12px; border:1px solid #C9CED6; padding:0 14px; background:#fff; color:var(--ink); }
+  #lobby button { border:0; background:var(--ink); color:#fff; }
+  #lobbyList { font-weight:700; color:var(--ink); }
+  [hidden] { display:none !important; }
   #rotate .phone { width:44px; height:72px; margin:0 auto 14px; border:5px solid var(--ink); border-radius:10px; animation:turn 1.8s ease-in-out infinite; }
   @keyframes turn { 0%,25% { transform:none; } 60%,100% { transform:rotate(90deg); } }
   #rotateSkip { font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; padding:12px; margin-top:14px; width:100%; background:#E9ECF1; color:var(--ink); }
@@ -161,6 +165,16 @@
       <b>감옥</b> 동료가 감옥 앞에 서 있으면 문이 열려요. 밖에서 3초 동안 안 잡히면 탈옥해요.
     </div>
   </div></div>
+  <div id="lobby" class="sheet"><div class="card">
+    <h1>방 <span id="lobbyCode"></span></h1>
+    <p id="lobbyMsg"></p>
+    <div id="lobbyForm">
+      <input id="lobbyName" maxlength="12" placeholder="이름" autocomplete="off">
+      <button id="lobbyJoin">들어가기</button>
+    </div>
+    <p id="lobbyList"></p>
+    <button id="lobbyStart" hidden>시작</button>
+  </div></div>
   <div id="rotate" class="sheet"><div class="card">
     <div class="phone"></div>
     <h1>가로로 돌려 주세요</h1>
@@ -181,5 +195,6 @@
 <script>/*SVGS*/</script>
 <script>/*LOGIC*/</script>
 <script>/*GAME*/</script>
+<script>/*NET*/</script>
 </body>
 </html>
