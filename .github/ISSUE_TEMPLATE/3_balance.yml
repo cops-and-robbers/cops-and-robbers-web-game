@@ -1,0 +1,25 @@
+name: "⚖️ 밸런스"
+description: 속도, 사거리, 시야, 인원 비율 같은 수치를 조정해요.
+labels: ["balance"]
+body:
+  - type: textarea
+    id: feel
+    attributes:
+      label: 🎮 해 보니 어땠나요
+      description: 사람이 해 본 느낌을 적어주세요. 몇 명이 어떤 팀으로 했는지도요.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 🔧 바꿀 값
+      placeholder: 예) 경찰 잡기 사거리 74 -> 90
+    validations:
+      required: true
+  - type: textarea
+    id: numbers
+    attributes:
+      label: 📊 전후 숫자
+      description: "`node tools/sim.mjs 60` 결과와 사람끼리 해 본 결과를 적어주세요."
+    validations:
+      required: false

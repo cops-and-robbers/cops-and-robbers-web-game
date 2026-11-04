@@ -1,0 +1,49 @@
+name: CI
+
+# 검사만 해요. 배포는 하지 않고, Cloudflare 열쇠도 쓰지 않아요. docs/cost-guard.md
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Map
+        run: pnpm run check:map
+
+      - name: Rooms stay separate
+        run: pnpm run check:rooms
+
+      - name: Hidden players stay hidden
+        run: pnpm run check:view
+
+      - name: One full game on the server
+        run: pnpm run check:server
+
+      - name: Build
+        run: pnpm run build

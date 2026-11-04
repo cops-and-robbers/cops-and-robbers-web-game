@@ -1,0 +1,45 @@
+name: "🚀 기능 추가 · 개선"
+description: 게임, 서버, 도구에 기능을 더하거나 고쳐요.
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      options:
+        - 게임 규칙
+        - 방 서버
+        - 게임 화면
+        - 대기실
+        - 도구 · CI
+    validations:
+      required: true
+  - type: textarea
+    id: feature
+    attributes:
+      label: 🔥 구현할 기능
+      description: 무엇을, 왜 만드는지 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: todos
+    attributes:
+      label: 🚧 작업 목록
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: cost
+    attributes:
+      label: 💰 사용량 영향
+      description: 받는 메시지나 방이 깨어 있는 시간이 늘어나나요? 없으면 없음이라고 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: refs
+    attributes:
+      label: 🔗 참고
+    validations:
+      required: false

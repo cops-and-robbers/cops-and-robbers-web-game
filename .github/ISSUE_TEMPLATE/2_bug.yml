@@ -1,0 +1,41 @@
+name: "🐛 버그"
+description: 게임이나 서버에서 생긴 문제를 알려요.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 🚨 요약
+      description: 어떤 현상이 나타나는지 한두 문장으로 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔄 재현 방법
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ 기대한 동작 · ❌ 실제 동작
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 📱 기기와 통신
+      placeholder: 예) 갤럭시 S21, 크롬, LTE
+    validations:
+      required: false
+  - type: input
+    id: seed
+    attributes:
+      label: 🗺 지도 씨앗과 방 코드
+      description: 알면 적어주세요. 같은 지도로 재현할 수 있어요.
+    validations:
+      required: false
