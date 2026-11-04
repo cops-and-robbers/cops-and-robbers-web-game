@@ -16,7 +16,15 @@ Cloudflare 대시보드 Workers 요금제가 **Free** 인지 확인해요. Paid 
 ## 3. 시험용으로 올리기
 - 시험 시간을 짧게: `pnpm exec wrangler deploy --var WAIT_SEC:3 --var GAME_SEC:30`
 - 열쇠는 무작위로 만들어 `pnpm exec wrangler secret put ACCESS_KEY` 로 넣어요. 파일, 커밋, 로그, 채팅에 남기지 않아요
-- 처음에는 `workers.dev` 주소로만 올려요. 도메인 연결은 담당자 결정 후에 해요
+- 도메인 연결은 담당자 결정 후에 해요. 입구가 바뀌면 지연도 바뀌니 연결 전에 다시 재요
+
+방 서버를 먼저 올린 뒤 `pages.dev` 입구를 올려요. 입구에도 같은 열쇠를 넣어요.
+```bash
+cd gateway
+pnpm exec wrangler pages secret put ACCESS_KEY --project-name cops-and-robbers-game
+pnpm exec wrangler pages deploy --project-name cops-and-robbers-game --branch main
+```
+방 서버에는 입구 주소를 허용해요: `--var "ALLOWED_ORIGINS:https://cops-and-robbers-game.pages.dev"`
 
 ## 4. 시험
 ```bash
@@ -24,8 +32,10 @@ ROOM_URL=https://<주소> ACCESS_KEY=<열쇠> node tools/room-check.mjs --player
 ```
 도구가 4명, 초당 5번, 60초를 넘지 못하게 막아요. 이 상한은 늘리지 않아요. 큰 부하 시험이 필요하면 내 컴퓨터에서 해요.
 
+폰에서는 측정 페이지를 열어요: `https://cops-and-robbers-game.pages.dev/#key=<열쇠>&w=<workers 주소>`
+
 ## 5. 사용량 재기
-Cloudflare 수치로 요청과 실행량을 확인하고 계산과 견줘요. 다르면 원인을 찾은 뒤에 넘어가요.
+**지우기 전에** Cloudflare 수치로 요청과 실행량을 확인하고 계산과 견줘요. 수치는 늦게 집계되니 몇 분 뒤에 다시 봐요. 다르면 원인을 찾은 뒤에 넘어가요.
 
 ## 6. 지우기
-공개 전에는 시험이 끝나면 서버를 지워요: `pnpm exec wrangler delete`. 지웠는지 `/health` 로 확인하고, 결과를 담당자에게 보고해요.
+공개 전에는 시험이 끝나면 서버를 지워요: `pnpm exec wrangler pages project delete cops-and-robbers-game` 와 `pnpm exec wrangler delete`. 지웠는지 두 주소로 확인하고, 결과를 담당자에게 보고해요.
