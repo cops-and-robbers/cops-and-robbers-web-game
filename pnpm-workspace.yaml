@@ -1,0 +1,7 @@
+packages:
+  - .
+
+# 설치 때 실행을 허용하는 패키지
+allowBuilds:
+  esbuild: true
+  workerd: true

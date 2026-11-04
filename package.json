@@ -1,0 +1,22 @@
+{
+  "name": "cops-and-robbers-web-game",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.12.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "check:map": "node tools/maptest.mjs 20",
+    "check:rooms": "node tools/roomtest.mjs 3",
+    "check:view": "node tools/viewtest.mjs",
+    "check:balance": "node tools/sim.mjs 20",
+    "check:server": "node tools/room-check.mjs",
+    "check": "pnpm run typecheck && pnpm run check:map && pnpm run check:rooms && pnpm run check:view && pnpm run check:server",
+    "build": "python tools/build.py"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261103.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.157.0"
+  }
+}

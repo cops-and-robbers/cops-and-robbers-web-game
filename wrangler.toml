@@ -1,0 +1,17 @@
+# 계정 번호와 비밀값은 여기에 적지 않는다. 공개 저장소다.
+name = "cops-and-robbers-web-game"
+main = "server/index.ts"
+compatibility_date = "2026-10-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[vars]
+WAIT_SEC = "15"
+GAME_SEC = "180"
+ALLOWED_ORIGINS = ""
