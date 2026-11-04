@@ -7,7 +7,8 @@ server/route.ts    열쇠와 출처를 확인하고 방 코드에 맞는 방으�
 server/index.ts    workers.dev 입구이자 방 서버 Worker
 server/room.ts     방 하나. 대기실, 판 진행, 끊김 처리, 비용 안전장치
 gateway/           pages.dev 입구와 왕복 시간 측정 페이지. 방 서버는 묶음으로 연결해요
-client/            게임 화면. 지금은 봇과 혼자 하는 시제품이에요
+client/game.js     그리기와 조작. 혼자 할 때는 여기서 규칙과 봇을 돌려요
+client/net.js      사람끼리 할 때. 규칙을 돌리지 않고 서버가 보낸 것만 그려요
 tools/             검사와 빌드
 ```
 
