@@ -39,11 +39,12 @@ export class Room extends DurableObject<Env> {
   private emptySince = 0;
   private lost = new Map<string, { agentId: number; at: number }>();
   private rates = new Map<WebSocket, Rate>();
+  private colo: string | null = null;
 
-  async fetch(): Promise<Response> {
+  async fetch(request: Request): Promise<Response> {
     const pair = new WebSocketPair();
     // 잠들 수 있는 방식으로 받는다. 대기실에서 기다리는 동안 실행 시간이 잡히지 않는다.
-    this.ctx.acceptWebSocket(pair[1]);
+    this.ctx.acceptWebSocket(pair[1], [`entry:${request.headers.get("X-Entry-Colo") ?? "unknown"}`]);
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -64,6 +65,8 @@ export class Room extends DurableObject<Env> {
         return this.onInput(ws, msg);
       case "ping":
         return this.send(ws, { t: "pong", n: msg.n });
+      case "where":
+        return this.onWhere(ws);
     }
   }
 
@@ -73,6 +76,23 @@ export class Room extends DurableObject<Env> {
 
   async webSocketError(ws: WebSocket): Promise<void> {
     this.leave(ws);
+  }
+
+  // 들어온 곳과 방 서버 위치를 알려 준다. 위치는 방이 깨어 있는 동안 한 번만 알아낸다
+  private async onWhere(ws: WebSocket): Promise<void> {
+    if (!this.colo) {
+      try {
+        const trace = await (await fetch("https://cloudflare.com/cdn-cgi/trace")).text();
+        this.colo = /^colo=(.+)$/m.exec(trace)?.[1] ?? "unknown";
+      } catch {
+        return this.send(ws, { t: "where", entry: this.entryOf(ws), room: "unknown" });
+      }
+    }
+    this.send(ws, { t: "where", entry: this.entryOf(ws), room: this.colo });
+  }
+
+  private entryOf(ws: WebSocket): string {
+    return this.ctx.getTags(ws).find(tag => tag.startsWith("entry:"))?.slice("entry:".length) ?? "unknown";
   }
 
   private members(): { ws: WebSocket; me: Attachment }[] {

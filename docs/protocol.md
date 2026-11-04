@@ -10,6 +10,7 @@
 | `start` | 방장만 보낼 수 있어요 |
 | `input` | `x`, `y` -1~1 이동, `s` 달리기, `c` 잡기. 초당 20번을 넘으면 버려요 |
 | `ping` | `n` 지연 측정 |
+| `where` | 들어온 곳과 방 서버 위치 묻기 |
 
 200자를 넘는 메시지는 버려요.
 
@@ -24,6 +25,7 @@
 | `e` | 사건 목록. 위치는 싣지 않아요 |
 | `over` | `winner`, `reason`, `stats` |
 | `pong` | `n` |
+| `where` | `entry` 들어온 Cloudflare 위치, `room` 방 서버 위치 |
 | `error` | `code`: `notHost`, `playing`, `full` |
 
 ## 누구에게 무엇을 보내나

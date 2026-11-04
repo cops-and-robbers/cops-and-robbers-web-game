@@ -1,6 +1,6 @@
 // 가짜 접속으로 방 서버를 끝까지 돌려 본다.
 //   내 컴퓨터:  node tools/room-check.mjs            (비용 없음)
-//   올린 서버:  ROOM_URL=https://... ACCESS_KEY=... node tools/room-check.mjs --players 4 --seconds 45
+//   올린 서버:  ROOM_URL=https://... ACCESS_KEY=... [ROOM_HINT=apac-ne] node tools/room-check.mjs --players 4 --seconds 45
 // 올린 서버에는 아래 상한을 넘겨 보낼 수 없다. docs/cost-guard.md
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -41,7 +41,8 @@ async function startLocal() {
 }
 
 function connect(base, key, code) {
-  const url = `${base.replace(/^http/, "ws")}/room/${code}?key=${encodeURIComponent(key)}`;
+  const hint = process.env.ROOM_HINT ? `&hint=${process.env.ROOM_HINT}` : "";
+  const url = `${base.replace(/^http/, "ws")}/room/${code}?key=${encodeURIComponent(key)}${hint}`;
   const ws = new WebSocket(url);
   const c = {
     ws,
@@ -78,6 +79,7 @@ function connect(base, key, code) {
     else if (m.t === "start") c.start = m;
     else if (m.t === "over") c.over = m;
     else if (m.t === "error") c.errors.push(m.code);
+    else if (m.t === "where") c.where = m;
     else if (m.t === "pong") {
       const sent = c.pending.get(m.n);
       if (sent) c.pongs.push(Date.now() - sent);
@@ -135,6 +137,11 @@ try {
   await waitFor(() => clients.every(c => c.lobby?.players.length === PLAYERS), 5000, "대기실");
   check(clients.every(c => c.lobby?.players.length === PLAYERS), "모두 같은 대기실 명단을 받아요");
   check(clients.filter(c => c.host).length === 1 && clients[0].host, "방장은 먼저 들어온 한 명이에요");
+
+  clients[0].sendJson({ t: "where" });
+  sentMessages++;
+  await waitFor(() => clients[0].where, 5000, "위치");
+  check(typeof clients[0].where?.entry === "string" && typeof clients[0].where?.room === "string", `들어온 곳과 방 위치를 알려 줘요 (${clients[0].where?.entry}, ${clients[0].where?.room})`);
 
   clients[1].sendJson({ t: "start" });
   sentMessages++;
