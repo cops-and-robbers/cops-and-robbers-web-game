@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>왕복 시간 재기</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
+  body { margin: 0 auto; max-width: 560px; padding: 20px 16px 40px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { margin: 0 0 16px; }
+  .carriers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+  button { font: inherit; font-weight: 600; min-height: 48px; border: 1px solid #8888; border-radius: 10px; background: transparent; color: inherit; }
+  button:disabled { opacity: .5; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 16px; }
+  th, td { text-align: right; padding: 8px 4px; border-bottom: 1px solid #8884; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  textarea { width: 100%; box-sizing: border-box; height: 120px; font: 13px ui-monospace, monospace; margin-bottom: 8px; }
+  #copy { width: 100%; }
+  [hidden] { display: none; }
+</style>
+</head>
+<body>
+<h1>왕복 시간 재기</h1>
+<p id="guide">와이파이를 끄고 쓰는 통신사를 골라 주세요. 30초쯤 걸려요.</p>
+<div class="carriers" id="carriers">
+  <button>KT</button><button>SKT</button><button>LG U+</button><button>와이파이</button>
+</div>
+<table hidden id="table">
+  <thead><tr><th>경로</th><th>입구</th><th>방</th><th>중간</th><th>느린</th><th>유실</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<div hidden id="done">
+  <textarea id="text" readonly></textarea>
+  <button id="copy">결과 복사</button>
+</div>
+<script>
+const PINGS = 25;
+const GAP_MS = 200;
+const LAST_WAIT_MS = 2000;
+const CONNECT_WAIT_MS = 8000;
+
+const params = new URLSearchParams(location.hash.slice(1));
+const key = params.get("key");
+const worker = params.get("w");
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const routes = [
+  { name: "pages", host: location.host },
+  { name: "pages+지정", host: location.host, hint: true },
+  { name: "workers", host: worker },
+  { name: "workers+지정", host: worker, hint: true },
+];
+
+if (!key || !worker) {
+  $("guide").textContent = "받은 링크를 다시 열어 주세요.";
+  $("carriers").hidden = true;
+}
+
+function roomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(crypto.getRandomValues(new Uint8Array(8)), b => chars[b % chars.length]).join("");
+}
+
+function nth(sorted, ratio) {
+  return sorted.length ? Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))]) : "-";
+}
+
+async function measure(route) {
+  const hint = route.hint ? "&hint=apac-ne" : "";
+  const ws = new WebSocket(`wss://${route.host}/room/${roomCode()}?key=${encodeURIComponent(key)}${hint}`);
+  const sent = new Map();
+  const rtts = [];
+  const result = { entry: "-", room: "-" };
+  let gotWhere;
+  const where = new Promise(r => (gotWhere = r));
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.t === "where") {
+      result.entry = m.entry;
+      result.room = m.room;
+      gotWhere();
+    } else if (m.t === "pong" && sent.has(m.n)) {
+      rtts.push(performance.now() - sent.get(m.n));
+    }
+  };
+  const opened = await Promise.race([
+    new Promise(r => { ws.onopen = () => r(true); ws.onerror = () => r(false); }),
+    sleep(CONNECT_WAIT_MS).then(() => false),
+  ]);
+  if (!opened) {
+    ws.close();
+    return { ...result, failed: true, median: "-", slow: "-", lost: "-" };
+  }
+  ws.send(JSON.stringify({ t: "where" }));
+  await Promise.race([where, sleep(CONNECT_WAIT_MS)]);
+  for (let n = 1; n <= PINGS && ws.readyState === WebSocket.OPEN; n++) {
+    sent.set(n, performance.now());
+    ws.send(JSON.stringify({ t: "ping", n }));
+    await sleep(GAP_MS);
+  }
+  await sleep(LAST_WAIT_MS);
+  ws.close();
+  rtts.sort((a, b) => a - b);
+  return { ...result, median: nth(rtts, 0.5), slow: nth(rtts, 0.9), lost: PINGS - rtts.length };
+}
+
+$("carriers").addEventListener("click", async e => {
+  if (e.target.tagName !== "BUTTON") return;
+  const carrier = e.target.textContent;
+  for (const b of $("carriers").children) b.disabled = true;
+  $("guide").textContent = "재는 중이에요. 화면을 켜 둔 채로 기다려 주세요.";
+  $("table").hidden = false;
+  const lines = [`${carrier} ${new Date().toLocaleTimeString("ko-KR")}`];
+  for (const route of routes) {
+    const row = $("rows").insertRow();
+    row.insertCell().textContent = route.name;
+    const r = await measure(route);
+    for (const v of [r.entry, r.room, r.median, r.slow, r.failed ? "연결 안 됨" : r.lost]) row.insertCell().textContent = v;
+    lines.push(`${route.name}: 입구 ${r.entry} 방 ${r.room} 중간 ${r.median} 느린 ${r.slow} 유실 ${r.failed ? "연결 안 됨" : r.lost}`);
+  }
+  $("text").value = lines.join("\n");
+  $("done").hidden = false;
+  $("guide").textContent = "다 됐어요. 결과를 복사해서 보내 주세요.";
+});
+
+$("copy").addEventListener("click", async () => {
+  $("text").select();
+  try {
+    await navigator.clipboard.writeText($("text").value);
+  } catch {
+    document.execCommand("copy");
+  }
+  $("copy").textContent = "복사했어요";
+});
+</script>
+</body>
+</html>

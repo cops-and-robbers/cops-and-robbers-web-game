@@ -1,0 +1,12 @@
+# pages.dev 입구. 방 서버(루트 wrangler.toml)를 먼저 올린 뒤에 올린다. 열쇠는 pages secret 으로 넣는다.
+name = "cops-and-robbers-game"
+pages_build_output_dir = "public"
+compatibility_date = "2026-10-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+script_name = "cops-and-robbers-web-game"
+
+[vars]
+ALLOWED_ORIGINS = "https://cops-and-robbers-game.pages.dev"
