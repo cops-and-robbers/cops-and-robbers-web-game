@@ -20,10 +20,10 @@
 | --- | --- |
 | `joined` | `token` 돌아올 때 쓰는 값 |
 | `lobby` | `players` 명단, `host` 내가 방장인지, `max` |
-| `start` | `seed`, `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration` |
-| `s` | 갱신. `time`, `phase`, `me`, `others`, `pings`, `rescue`, `freeRobbers`, 경찰은 `intel` |
+| `start` | `seed` 같은 지도를 만드는 값, `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration` |
+| `s` | 갱신. `time`, `phase`, `me`, `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel` |
 | `e` | 사건 목록. 위치는 싣지 않아요 |
-| `over` | `winner`, `reason`, `stats` |
+| `over` | `winner`, `reason`, `stats`, `mine` 내 기록 |
 | `pong` | `n` |
 | `where` | `entry` 들어온 Cloudflare 위치, `room` 방 서버 위치 |
 | `error` | `code`: `notHost`, `playing`, `full` |

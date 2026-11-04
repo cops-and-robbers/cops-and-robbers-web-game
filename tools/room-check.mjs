@@ -7,6 +7,8 @@ const arg = (name, fallback) => {
   return i >= 0 ? Number(process.argv[i + 1]) : fallback;
 };
 
+import "../shared/logic.js";
+
 const REMOTE = process.env.ROOM_URL;
 const PLAYERS = arg("players", 4);
 const INPUT_PER_SEC = arg("rate", 5);
@@ -69,6 +71,7 @@ function connect(base, key, code) {
       c.snaps++;
       c.bytes += text.length;
       c.lastSnap = m;
+      c.firstSnap ||= m;
       if (m.phase === "play") {
         const enemies = m.others.filter(o => o.team !== m.me.team).length;
         c.maxOthers = Math.max(c.maxOthers, enemies);
@@ -154,6 +157,17 @@ try {
   check(clients.every(c => c.start), "시작 신호를 모두 받아요");
   check(new Set(clients.map(c => c.start.seed)).size === 1, "모두 같은 지도 씨앗을 받아요");
   check(new Set(clients.map(c => c.start.you)).size === PLAYERS, "모두 다른 캐릭터를 맡아요");
+  check(PLAYERS < 2 || new Set(clients.map(c => c.start.team)).size === 2, "둘 이상이면 사람이 경찰과 도둑으로 나뉘어요");
+
+  // 화면은 씨앗으로 같은 지도와 자리를 만들어 그린다. 어긋나면 벽을 통과해 보여요
+  await waitFor(() => clients.every(c => c.firstSnap), 3000, "첫 갱신");
+  const sameWorld = clients.every(c => {
+    const logic = globalThis.createGameLogic();
+    const seat = logic.newGame({ seed: c.start.seed, theme: c.start.theme, diff: "normal" }).agents[c.start.you];
+    return seat.team === c.start.team && Math.hypot(seat.x - c.firstSnap.me.x, seat.y - c.firstSnap.me.y) < 80;
+  });
+  check(sameWorld, "시작 신호의 값으로 화면이 같은 지도와 자리를 만들어요");
+  check(typeof clients[0].firstSnap?.nextReveal === "number", "다음 위치 공개 시각을 받아요");
 
   const startedAt = Date.now();
   let inputRound = 0;
@@ -214,6 +228,7 @@ try {
   const elapsed = (Date.now() - startedAt) / 1000;
 
   check(clients.every(c => c.over), "판이 끝나면 모두 결과를 받아요");
+  check(clients.every(c => c.over?.mine && typeof c.over.mine.caught === "number"), "판이 끝나면 내 기록을 받아요");
   const moved = clients.slice(0, -1).some(c => {
     const a = startPositions.get(c);
     return a?.x !== undefined && (a.x !== c.lastSnap?.me.x || a.y !== c.lastSnap?.me.y);
