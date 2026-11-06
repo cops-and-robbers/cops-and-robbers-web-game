@@ -25,7 +25,8 @@
   .char svg { position:absolute; left:0; bottom:0; display:none; overflow:visible; }
   .char svg.on { display:block; }
   .char .shadow { position:absolute; left:0; bottom:-14px; width:96px; height:26px; margin-left:-48px; border-radius:50%; background:rgba(29,35,43,.16); }
-  .tag { position:absolute; left:0; transform:translateX(-50%); white-space:nowrap; font-size:46px; font-weight:800; padding:4px 22px 6px; border-radius:999px; background:#fff; color:var(--ink); box-shadow:0 2px 0 rgba(29,35,43,.12); }
+  /* 이름표는 캐릭터보다 눈에 띄지 않게. 팀 시험(11/7)에서 크고 두껍다는 의견에 46px 800 에서 내렸다 */
+  .tag { position:absolute; left:0; transform:translateX(-50%); white-space:nowrap; font-size:40px; font-weight:700; padding:4px 22px 6px; border-radius:999px; background:#fff; color:var(--ink); box-shadow:0 2px 0 rgba(29,35,43,.12); }
   .tag.me { background:var(--team); color:#fff; }
   #fog { position:absolute; inset:0; pointer-events:none; z-index:5; }
   #fx { position:absolute; inset:0; pointer-events:none; z-index:4; }
