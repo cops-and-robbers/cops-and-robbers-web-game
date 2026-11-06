@@ -35,7 +35,8 @@ body.lobby-mode #stam { bottom:max(14px,env(safe-area-inset-bottom)); width:min(
 .srow { display:flex; align-items:center; height:48px; font-size:15px; font-weight:800; }
 .srow + .srow { border-top:1px solid #EEF0F3; }
 .srow.kick .nm { color:var(--ink); font-size:14px; }
-.sheetR { max-height:calc(100vh - 150px); overflow-y:auto; }
+/* 폰 사파리의 100vh 는 주소창까지 쳐서 창 아래가 화면 밖으로 나간다. 보이는 높이(dvh)로 잡는다 */
+.sheetR { max-height:calc(100vh - 150px); max-height:calc(100dvh - 150px); overflow-y:auto; overscroll-behavior:contain; }
 .srow .nm { flex:1; }
 .srow.cop .nm { color:var(--cop-chalk); } .srow.rob .nm { color:var(--rob-chalk); }
 .srow .num { width:26px; text-align:center; font-variant-numeric:tabular-nums; font-size:16px; }

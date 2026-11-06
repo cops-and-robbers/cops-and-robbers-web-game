@@ -621,8 +621,16 @@ let wakeLock = null;
 async function keepAwake() { try { if (online && !wakeLock) { wakeLock = await navigator.wakeLock?.request("screen"); wakeLock?.addEventListener("release", () => wakeLock = null); } } catch { wakeLock = null; } }
 // 브라우저 기본 동작이 게임을 방해하지 않게 막는다: 당겨서 새로고침, 두 손가락 확대, 길게 눌러 메뉴, 글자 선택
 const typing = e => e.target instanceof HTMLInputElement;
-// 안내 창과 결과 창은 화면보다 길면 스크롤할 수 있어야 한다
-document.addEventListener("touchmove", e => { if (!typing(e) && !e.target.closest?.(".sheet.show")) e.preventDefault(); }, { passive: false });
+// 화면보다 긴 창(안내, 결과, 방장 설정, 열린 방 목록)은 그 안에서 끌어 스크롤할 수 있어야 한다.
+// 창 이름으로 고르면 새 창이 생길 때마다 빠진다(방장 설정 창이 그랬다). 실제로 스크롤되는 상자 안인지로 본다
+const scrollsY = el => {
+  for (let n = el; n && n !== document.body; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY;
+    if ((o === "auto" || o === "scroll") && n.scrollHeight > n.clientHeight) return true;
+  }
+  return false;
+};
+document.addEventListener("touchmove", e => { if (!typing(e) && !scrollsY(e.target)) e.preventDefault(); }, { passive: false });
 document.addEventListener("gesturestart", e => e.preventDefault());
 document.addEventListener("dblclick", e => e.preventDefault());
 document.addEventListener("contextmenu", e => { if (!typing(e)) e.preventDefault(); });
