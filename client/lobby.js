@@ -101,10 +101,12 @@ function createLobbyScene(net) {
   const here = side => [...people.values()].filter(p => p.side === side).length;
   const spotIn = (side, i = 0) => { const z = { cop: [ZX[0], ZX[1]], any: [ZX[1], ZX[2]], rob: [ZX[2], ZX[3]] }[side], cw = (z[1] - z[0] - 60) / 3, col = i % 3, row = Math.floor(i / 3); return { x: z[0] + 30 + cw * (col + .5), y: 775 + (row % 2) * 130 + (col % 2) * 14 }; };
   const rig = (a, kind) => { const t = a.team, pl = G.player; a.team = kind; G.player = null; const c = makeChar(a); a.team = t; G.player = pl; chars.push(c); return c; };
+  // 가운데 사람의 회색 모습. 이름으로 정해서 모두의 화면에서 같고, 칸에 들어가기 전에는 바뀌지 않는다
+  const lookOf = name => [...String(name)].reduce((h, c) => h * 31 + c.codePointAt(0) | 0, 7) & 1 ? "rob" : "cop";
   function makePerson(name, side, isBot) {
     const a = pool.pop(); a.state = "free"; a.isPlayer = true; a.ix = a.iy = 0; a.stam = 1; a.team = side === "rob" ? "robber" : "police"; a.name = name;
     G.agents.push(a);
-    const p = { a, name, side, isBot, rigC: rig(a, "police"), rigR: rig(a, "robber"), tag: document.createElement("div"), say: null, sayT: 0, go: null, morphT: 0, flip: null, swapT: Math.random() * 3 };
+    const p = { a, name, side, isBot, rigC: rig(a, "police"), rigR: rig(a, "robber"), tag: document.createElement("div"), say: null, sayT: 0, go: null, morphT: 0, flip: lookOf(name) };
     p.tag.className = "wtag"; world.append(p.tag);
     return p;
   }
@@ -124,7 +126,8 @@ function createLobbyScene(net) {
   function morph(p, side) {
     const a = p.a, col = side === "cop" ? "#2A9BEF" : side === "rob" ? "#35C26B" : "#BDB19B";
     burst(a.x, a.y - 24, col, side === "any" ? 8 : 16); burst(a.x, a.y - 6, "#F8F4EB", 6);
-    p.morphT = .4; p.swapT = 0; p.flip = p.flip || "cop";
+    // 칸에 들어가면 그 캐릭터가 되고, 가운데로 돌아오면 마지막 모습 그대로 회색이 된다
+    p.morphT = .4; if (side !== "any") p.flip = side;
     (side === "rob" ? p.rigR : side === "cop" ? p.rigC : (p.flip === "rob" ? p.rigR : p.rigC)).pop.x = side === "any" ? -.18 : -.42;
   }
   function saying(p, t) { if (p.say) p.say.remove(); const e = document.createElement("div"); e.className = "wsay"; e.textContent = t; e.style.zIndex = 4000; world.append(e); p.say = e; p.sayT = 2.6; }
@@ -260,8 +263,7 @@ function createLobbyScene(net) {
       if (!active) return;
       for (const p of [...people.values(), ...bots]) {
         const a = p.a;
-        if (!revealed && p.side === "any" && p.morphT <= 0) { p.swapT += dt; const kind = Math.floor(p.swapT / 1.1) % 2 ? "rob" : "cop"; if (kind !== p.flip) { p.flip = kind; (kind === "cop" ? p.rigC : p.rigR).pop.x = -.14; } }
-        const look = p.side === "any" ? p.flip || "cop" : p.side;
+        const look = p.side === "any" ? p.flip : p.side;
         if (p.morphT > 0) p.morphT -= dt;
         const grey = p.side === "any" || p.morphT > .26;
         p.rigC.el.style.display = look === "cop" ? "" : "none"; p.rigR.el.style.display = look === "rob" ? "" : "none";
