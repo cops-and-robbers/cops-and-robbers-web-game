@@ -380,6 +380,7 @@ export class Room extends DurableObject<Env> {
       rescue: this.logic.CFG.RESCUE_SEC,
       autoEscape: this.logic.CFG.AUTO_ESCAPE,
       catchRange: this.logic.CFG.CATCH_R,
+      reveal: G.revealEvery,
     });
   }
 

@@ -137,7 +137,7 @@ function createOnline() {
       CFG.RESCUE_SEC = m.rescue;
       CFG.AUTO_ESCAPE = m.autoEscape;
       CFG.CATCH_R = m.catchRange;
-      showGame(m.team, { seed: m.seed, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers }, G2 => {
+      showGame(m.team, { seed: m.seed, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers, reveal: m.reveal }, G2 => {
         G2.player = G2.agents[m.you];
         G2.player.isPlayer = true;
         // 못 본 상대의 이름은 받지 않으니 진영으로 부른다

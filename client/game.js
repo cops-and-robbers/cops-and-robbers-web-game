@@ -429,13 +429,16 @@ function drawMini() {
 
 // ───────── 입력 ─────────
 const keys = new Set(); let padVec = { x: 0, y: 0 }, sprintBtn = false, wantCatch = false;
+// 화면 아래 키 안내도 누른 키를 같이 눌러 보여 준다
+const KEYCAP = { arrowup: "w", arrowleft: "a", arrowdown: "s", arrowright: "d" };
+const keycap = (k, on) => document.querySelector(`#hint kbd[data-k="${KEYCAP[k] || k}"]`)?.classList.toggle("on", on);
 addEventListener("keydown", e => {
-  const k = e.key.toLowerCase(); keys.add(k);
+  const k = e.key.toLowerCase(); keys.add(k); keycap(k, true);
   if (k === " ") { wantCatch = true; e.preventDefault(); }
   if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
 });
-addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
-addEventListener("blur", () => keys.clear());
+addEventListener("keyup", e => { const k = e.key.toLowerCase(); keys.delete(k); keycap(k, false); });
+addEventListener("blur", () => { keys.clear(); document.querySelectorAll("#hint kbd.on").forEach(n => n.classList.remove("on")); });
 // 터치 조작. 왼쪽 어디를 잡아도 그 자리에서 조이스틱이 시작된다. 손가락마다 따로 따라가서 걷기와 달리기를 함께 누를 수 있다
 const pad = $("pad"), knob = $("knob"), padZone = $("padZone");
 const PAD_DEAD = 0.12;
@@ -547,7 +550,7 @@ function readInput() {
 }
 
 // ───────── 화면 글자 ─────────
-let toastT = 0, bannerT = 0, missionT = 0, lastPip = "";
+let toastT = 0, bannerT = 0, missionT = 0, lastPip = "", lastRevealN = -1;
 const svgUrl = n => "data:image/svg+xml," + encodeURIComponent(SVGS[n]);
 const ROBBER_ICON = svgUrl("robber-front"), POLICE_ICON = svgUrl("police-front");
 $("imgPolice").src = POLICE_ICON; $("imgRobber").src = ROBBER_ICON;
@@ -596,6 +599,18 @@ function drawHud(dt) {
   const pips = G.robbers.map((r, i) => (online ? i < online.free : r.state === "free"));
   const pipKey = pips.map(Number).join("");
   if (pipKey !== lastPip) { lastPip = pipKey; $("pips").innerHTML = pips.map(free => `<i class="${free ? "free" : "out"}" style="background-image:url('${ROBBER_ICON}')"></i>`).join(""); }
+  // 자유롭게 움직일 때는 위치 공개까지 남은 시간을 게이지로, 그 밖의 상태는 문장으로 보여 준다
+  const showReveal = G.phase === "play" && !["jailed", "inJail", "breaking"].includes(p.state);
+  $("reveal").hidden = !showReveal; $("status").hidden = showReveal;
+  if (showReveal) {
+    const rest = Math.max(0, G.nextReveal - G.t), n = Math.ceil(rest), soon = n <= 5;
+    if (n !== lastRevealN) { lastRevealN = n; const el = $("revealN"); el.textContent = n; if (soon) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } }
+    $("revealLabel").textContent = role === "police" ? "도둑 위치 공개" : "내 위치 공개";
+    $("revealFill").style.width = Math.min(100, rest / G.revealEvery * 100) + "%";
+    $("reveal").className = soon ? (role === "robber" ? "hot" : "soon") : "";
+  }
+  $("hint").classList.toggle("dim", G.phase === "play" && G.t - CFG.WAIT > 12);
+  $("stam").classList.toggle("tired", !!p.tired);
   let line = "";
   if (G.phase === "wait") line = role === "police" ? "도둑이 도망치는 중이에요" : "경찰에게서 멀어지는 중이에요";
   else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = "같은 편이 감옥 앞에 오면 나갈 수 있어요";
@@ -609,7 +624,6 @@ function drawHud(dt) {
   $("status").textContent = line;
   const waitBig = role === "police" && G.phase === "wait";
   $("bigCount").className = waitBig ? "show" : ""; if (waitBig) $("bigCount").textContent = Math.ceil(left);
-  $("status").className = (role === "robber" && G.phase === "play" && p.state === "free" && G.nextReveal - G.t <= 5) ? "hot" : "";
   $("stamFill").style.width = (p.stam * 100) + "%"; $("stamFill").className = p.tired ? "tired" : "";
   const out = !inZone(p.x, p.y);
   $("lock").className = out ? "show" : "";
@@ -784,7 +798,7 @@ function sfx(n) {
   if (n === "lose") [392, 330, 262].forEach((f, i) => tone(f, f * 0.97, 0.26, "triangle", 0.08, i * 0.16));
 }
 function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch { audio = null; } }
-$("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").textContent = muted ? "소리 꺼짐" : "소리 켜짐"; });
+$("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").setAttribute("aria-label", muted ? "소리 켜기" : "소리 끄기"); });
 addEventListener("pointerdown", unlockAudio); addEventListener("keydown", unlockAudio);
 
 const pick = (attr, set) => document.querySelectorAll(`[${attr}]`).forEach(b => { b.addEventListener("click", () => { set(b.getAttribute(attr)); document.querySelectorAll(`[${attr}]`).forEach(o => o.classList.toggle("on", o === b)); }); });
