@@ -377,8 +377,37 @@ function leaveInApp() {
   if (canOpen && !store.get("triedOut")) { store.set("triedOut", "1"); open(); }
 }
 
-if (NET_ROOM && NET_KEY) { online = createOnline(); leaveInApp(); }
-else if (NET_KEY) { showHome(); leaveInApp(); }
+// 운영 상태(어드민이 바꿈)를 먼저 읽고 첫 화면을 고른다. 내 컴퓨터 파일처럼 못 읽으면 지금처럼 열쇠로만 고른다
+async function readStatus() {
+  if (location.protocol === "file:") return null;
+  try { const res = await fetch("/status", { cache: "no-store" }); return res.ok ? await res.json() : null; } catch { return null; }
+}
+// 다시 여는 예정 시각을 "오후 9시쯤", 날이 다르면 "11월 7일 오후 9시쯤" 으로. 분은 10분 단위로 어림한다
+function untilText(iso) {
+  const t = new Date(iso); if (Number.isNaN(t.getTime())) return "";
+  t.setMinutes(Math.round(t.getMinutes() / 10) * 10, 0, 0);
+  const now = new Date(), sameDay = t.toDateString() === now.toDateString();
+  const h = t.getHours(), m = t.getMinutes(), ap = h < 12 ? "오전" : "오후", h12 = h % 12 || 12;
+  return `${sameDay ? "" : `${t.getMonth() + 1}월 ${t.getDate()}일 `}${ap} ${h12}시${m ? ` ${m}분` : ""}쯤`;
+}
+function showGate(mode, st) {
+  $("start").className = "sheet";
+  const wrap = $("gate").querySelector(".homeWrap");
+  if (!wrap.querySelector(".hero")) wrap.prepend($("home").querySelector(".hero").cloneNode(true));
+  const soon = mode === "soon", until = !soon && st?.until ? untilText(st.until) : "";
+  $("gateTitle").textContent = soon ? "경찰과 도둑 온라인 게임을 만들고 있어요" : "점검하고 있어요";
+  $("gateMsg").textContent = soon ? "동네에서 직접 뛰는 경찰과 도둑도 눈여겨봐 주세요"
+    : [st?.message, until ? `${until} 다시 와 주세요` : st?.message ? "" : "조금 뒤에 다시 와 주세요"].filter(Boolean).join("\n");
+  $("gateApp").href += `&utm_content=${soon ? "soon" : "pause"}`;
+  $("gate").className = "sheet brand show";
+}
+(async () => {
+  const st = await readStatus(), mode = st?.mode;
+  if (mode === "pause") showGate("pause", st);
+  else if (mode === "soon" && !NET_KEY) showGate("soon", st);
+  else if (NET_ROOM && (NET_KEY || mode === "open")) { online = createOnline(); leaveInApp(); }
+  else if (NET_KEY || mode === "open") { showHome(); leaveInApp(); }
+})();
 window.__game.online = () => online;
 // 시안 보기: ?howto=police 로 하는 방법 안내만 띄운다
 const HOWTO_PREVIEW = new URLSearchParams(location.search).get("howto");
