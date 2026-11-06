@@ -127,12 +127,23 @@ try {
   });
   check(refused, "열쇠가 틀리면 방에 못 들어와요");
 
+  // 아무도 없는 방에 코드로 들어오면 없는 방이라고 알려 준다
+  {
+    const ghost = connect(env.base, env.key, `NO${code}`.slice(0, 8));
+    await ghost.open;
+    connections++;
+    ghost.sendJson({ t: "join", name: "없는방" });
+    sentMessages++;
+    await waitFor(() => ghost.errors.includes("noRoom"), 3000, "없는 방");
+    check(ghost.errors.includes("noRoom"), "아무도 없는 방에 코드로 오면 없는 방이라고 해요");
+  }
+
   const clients = [];
   for (let i = 0; i < PLAYERS; i++) {
     const c = connect(env.base, env.key, code);
     await c.open;
     connections++;
-    c.sendJson({ t: "join", name: `시험${i + 1}` });
+    c.sendJson({ t: "join", name: `시험${i + 1}`, create: i === 0 });
     sentMessages++;
     await waitFor(() => c.token, 5000, "입장");
     clients.push(c);
@@ -151,9 +162,51 @@ try {
   await waitFor(() => clients[1].errors.includes("notHost"), 3000, "방장 아님 거절");
   check(clients[1].errors.includes("notHost") && !clients[0].start, "방장이 아니면 시작하지 못해요");
 
+  // 편 고르기와 인원. 칸이 차면 못 들어가고, 고른 편은 시작해도 그대로다
+  if (PLAYERS >= 3) {
+    clients[1].sendJson({ t: "seats", cops: 1, robs: PLAYERS });
+    sentMessages++;
+    await waitFor(() => clients[1].errors.filter(e => e === "notHost").length >= 2, 3000, "방장 아닌 인원 변경 거절");
+    check(true, "방장이 아니면 인원을 못 바꿔요");
+    clients[0].sendJson({ t: "seats", cops: 1, robs: PLAYERS, bots: false });
+    sentMessages++;
+    await waitFor(() => clients.every(c => c.lobby?.cops === 1 && c.lobby?.robs === PLAYERS), 3000, "인원 변경");
+    check(clients.every(c => c.lobby.cops === 1), "방장이 정한 인원을 모두 받아요");
+    clients[1].sendJson({ t: "side", side: "cop" });
+    sentMessages++;
+    await waitFor(() => clients.every(c => c.lobby.players[1].side === "cop"), 3000, "칸 이동");
+    check(true, "칸에 들어가면 모두에게 알려요");
+    clients[2].sendJson({ t: "side", side: "cop" });
+    sentMessages++;
+    await waitFor(() => clients[2].errors.includes("sideFull"), 3000, "꽉 찬 칸 거절");
+    check(clients[2].errors.includes("sideFull"), "자리가 찬 칸에는 못 들어가요");
+    clients[0].sendJson({ t: "side", side: "rob" });
+    sentMessages++;
+    await waitFor(() => clients.every(c => c.lobby.players[0].side === "rob"), 3000, "도둑 칸 이동");
+  }
+
+  // 방장이 내보내면 그 사람은 나가고 명단에서 빠진다
+  if (PLAYERS >= 3) {
+    const extra = connect(env.base, env.key, code);
+    await extra.open;
+    connections++;
+    extra.sendJson({ t: "join", name: "나갈사람" });
+    sentMessages++;
+    await waitFor(() => clients[0].lobby?.players.some(p => p.name === "나갈사람"), 3000, "추가 입장");
+    const id = clients[0].lobby.players.find(p => p.name === "나갈사람").id;
+    clients[0].sendJson({ t: "kick", id });
+    sentMessages++;
+    await waitFor(() => extra.errors.includes("kicked") && !clients[0].lobby.players.some(p => p.name === "나갈사람"), 3000, "내보내기");
+    check(extra.errors.includes("kicked"), "방장이 내보내면 그 사람은 방에서 나가요");
+  }
+
   clients[0].sendJson({ t: "start" });
   sentMessages++;
-  await waitFor(() => clients.every(c => c.start), 5000, "시작");
+  await waitFor(() => clients.every(c => c.start), 9000, "시작");
+  if (PLAYERS >= 3) {
+    check(clients[1].start.team === "police" && clients[0].start.team === "robber", "고른 편은 시작해도 그대로예요");
+    check(clients[0].start.police + clients[0].start.robbers === PLAYERS, "봇을 끄면 들어온 사람 수만큼만 판이 열려요");
+  }
   check(clients.every(c => c.start), "시작 신호를 모두 받아요");
   check(new Set(clients.map(c => c.start.seed)).size === 1, "모두 같은 지도 씨앗을 받아요");
   check(new Set(clients.map(c => c.start.you)).size === PLAYERS, "모두 다른 캐릭터를 맡아요");
@@ -163,7 +216,7 @@ try {
   await waitFor(() => clients.every(c => c.firstSnap), 3000, "첫 갱신");
   const sameWorld = clients.every(c => {
     const logic = globalThis.createGameLogic();
-    const seat = logic.newGame({ seed: c.start.seed, theme: c.start.theme, diff: "normal" }).agents[c.start.you];
+    const seat = logic.newGame({ seed: c.start.seed, theme: c.start.theme, diff: "normal", police: c.start.police, robbers: c.start.robbers }).agents[c.start.you];
     return seat.team === c.start.team && Math.hypot(seat.x - c.firstSnap.me.x, seat.y - c.firstSnap.me.y) < 80;
   });
   check(sameWorld, "시작 신호의 값으로 화면이 같은 지도와 자리를 만들어요");
