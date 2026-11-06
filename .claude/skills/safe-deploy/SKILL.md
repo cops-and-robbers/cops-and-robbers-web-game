@@ -5,13 +5,15 @@ description: Cloudflare 에 방 서버를 올리거나 실제 통신을 시험�
 
 # 안전하게 올리기
 
+정식 배포는 `main` 에 머지하면 `deploy.yml` 이 해요(`docs/deploy.md`). 이 스킬은 손으로 시험 서버를 올리거나 실제 통신을 시험할 때 써요.
+
 **순서를 건너뛰지 않아요.** 요금제를 확인하지 못하면 올리지 않고 담당자에게 물어요. 배포는 담당자가 요청했을 때만 해요.
 
 ## 1. 요금제 확인
 Cloudflare 대시보드 Workers 요금제가 **Free** 인지 확인해요. Paid 면 멈추고 담당자에게 알려요. 무료 요금제는 한도를 넘으면 막히고, 유료 요금제는 청구돼요.
 
 ## 2. 오늘 사용량 확인
-같은 계정의 다른 서비스와 무료 한도를 함께 쓸 수 있어요. 시험 전 오늘 사용량을 봐요.
+같은 계정의 다른 서비스와 무료 한도를 함께 쓸 수 있어요. 시험 전 오늘 사용량을 봐요. `CLOUDFLARE_API_TOKEN` 과 `CLOUDFLARE_ACCOUNT_ID` 를 넣고 `node tools/usage-guard.mjs` 를 돌려요. 끝 코드가 0 이 아니면 올리지 않아요.
 
 ## 3. 시험용으로 올리기
 - 시험 시간을 짧게: `pnpm exec wrangler deploy --var WAIT_SEC:3 --var GAME_SEC:30`

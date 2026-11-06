@@ -1,0 +1,77 @@
+name: Deploy
+
+# main 에 머지되면 검사하고, 오늘 사용량을 본 뒤 방 서버와 pages.dev 입구를 차례로 올려요. docs/cost-guard.md
+# 사용량을 확인하지 못하거나 무료 한도의 70% 를 넘었으면 올리지 않아요.
+# 비밀값은 production 환경에만 있어서 PR 에서는 읽을 수 없어요.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "client/**"
+      - "server/**"
+      - "shared/**"
+      - "gateway/**"
+      - "tools/build.py"
+      - "wrangler.toml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 배포는 한 번에 하나씩. 뒤에 온 것이 앞의 것을 끊지 않아요
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SITE: https://cops-and-robbers-game.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm run check
+
+      - name: Usage today
+        run: node tools/usage-guard.mjs
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Room server
+        run: >
+          pnpm exec wrangler deploy
+          --var WAIT_SEC:15 --var GAME_SEC:180
+          --var "ALLOWED_ORIGINS:${SITE}"
+
+      - name: Gateway
+        working-directory: gateway
+        run: pnpm exec wrangler pages deploy --project-name cops-and-robbers-game --branch main --commit-hash "${GITHUB_SHA}"
+
+      # 게임 화면이 뜨고, 입구가 방 서버까지 이어지는지(열쇠 없이는 막히는지) 봐요
+      - name: Smoke test
+        run: |
+          sleep 5
+          play=$(curl -s -o /dev/null -w '%{http_code}' "${SITE}/play")
+          rooms=$(curl -s -o /dev/null -w '%{http_code}' "${SITE}/rooms")
+          echo "play ${play}, rooms ${rooms}"
+          test "$play" = 200 && test "$rooms" = 403
