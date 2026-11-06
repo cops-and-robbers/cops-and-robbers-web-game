@@ -21,6 +21,7 @@ function publicAgent(a) {
     state: a.state,
     bush: a.inBush ? 1 : 0,
     catching: a.action?.name === "catch" ? 1 : 0,
+    ...(a.protect > 0 ? { safe: 1 } : {}),
   };
 }
 

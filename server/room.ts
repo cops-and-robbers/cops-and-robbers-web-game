@@ -4,8 +4,22 @@ import { DurableObject } from "cloudflare:workers";
 import "../shared/logic.js";
 import { eventsFor, viewFor } from "../shared/view.js";
 import type { Env } from "./index";
+import { DIRECTORY_NAME } from "./directory";
 
-const MAX_PLAYERS = 6;
+const MAX_PLAYERS = 8;
+const COUNT_MS = 3000;
+const MAX_NAME = 6;
+// 사람끼리 하는 판: 같은 편이 구해 줘야만 감옥에서 나온다. 그만큼 구출을 빠르게, 위치 공개를 드물게 한다
+const RESCUE_SEC = 1.2;
+const REVEAL_SEC = 35;
+// 사람이 폰으로 잡기엔 짧다는 시험 의견이 있어 넓혀 본다
+const CATCH_RANGE = 90;
+const CATCH_HIT_SEC = 0.16;
+const SAY_LINES = 5;
+// 처음에는 비밀 방이다. 친구끼리 하는 게임이라 모르는 사람이 갑자기 들어오지 않게 한다
+const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false };
+// 공개 방은 이 간격으로 목록에 살아 있다고 알린다. 목록은 5분 동안 소식이 없는 방을 지운다
+const LIST_BEAT_MS = 2 * 60_000;
 const TICK_MS = 50;
 const TICK_SEC = TICK_MS / 1000;
 const MAX_MESSAGE = 200;
@@ -14,10 +28,21 @@ const REJOIN_MS = 30_000;
 const EMPTY_STOP_MS = 30_000;
 const THEMES = ["town", "night", "park", "city", "snow"];
 
+type Side = "cop" | "any" | "rob";
+interface Seats {
+  cops: number;
+  robs: number;
+  bots: boolean;
+  open: boolean;
+}
+// 대기실 상태는 접속에 붙여 둔다. 방이 잠들어도 남고 저장 비용이 들지 않는다
 interface Attachment {
   token: string;
+  pid: string;
   name: string;
   joinedAt: number;
+  side: Side;
+  seats: Seats;
   agentId?: number;
 }
 interface Rate {
@@ -39,13 +64,17 @@ export class Room extends DurableObject<Env> {
   private timer: ReturnType<typeof setInterval> | null = null;
   private emptySince = 0;
   private lost = new Map<string, { agentId: number; at: number }>();
+  private lobbyLost = new Map<string, { pid: string; joinedAt: number; side: Side; at: number }>();
   private rates = new Map<WebSocket, Rate>();
   private colo: string | null = null;
+  private counting: ReturnType<typeof setTimeout> | null = null;
+  private code: string | null = null;
+  private listed = "";
 
   async fetch(request: Request): Promise<Response> {
     const pair = new WebSocketPair();
     // 잠들 수 있는 방식으로 받는다. 대기실에서 기다리는 동안 실행 시간이 잡히지 않는다.
-    this.ctx.acceptWebSocket(pair[1], [`entry:${request.headers.get("X-Entry-Colo") ?? "unknown"}`]);
+    this.ctx.acceptWebSocket(pair[1], [`entry:${request.headers.get("X-Entry-Colo") ?? "unknown"}`, `room:${request.headers.get("X-Room-Code") ?? ""}`]);
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -62,6 +91,14 @@ export class Room extends DurableObject<Env> {
         return this.onJoin(ws, msg);
       case "start":
         return this.onStart(ws);
+      case "side":
+        return this.onSide(ws, msg);
+      case "seats":
+        return this.onSeats(ws, msg);
+      case "say":
+        return this.onSay(ws, msg);
+      case "kick":
+        return this.onKick(ws, msg);
       case "input":
         return this.onInput(ws, msg);
       case "ping":
@@ -113,17 +150,139 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  private broadcastLobby(): void {
+  private seats(): Seats {
+    return { ...DEFAULT_SEATS, ...this.members()[0]?.me.seats };
+  }
+
+  // 방 코드는 접속에 붙여 둔 표에서 읽는다. 방은 자기 이름을 모른다
+  private roomCode(): string | null {
+    if (!this.code) {
+      for (const ws of this.ctx.getWebSockets()) {
+        const tag = this.ctx.getTags(ws).find(t => t.startsWith("room:"))?.slice("room:".length);
+        if (tag) { this.code = tag; break; }
+      }
+    }
+    return this.code;
+  }
+
+  // 공개 방이면 목록에 지금 상태를 알린다. 바뀐 게 없으면 보내지 않는다.
+  // 비밀 방은 아무것도 보내지 않고, 공개였다가 닫히거나 모두 나가면 목록에서 빼 달라고 한다
+  private report(wasOpen = false, beat = false): void {
+    const code = this.roomCode();
+    if (!code) return;
+    const members = this.members();
+    const seats = this.seats();
+    const open = seats.open && members.length > 0;
+    const max = seats.cops + seats.robs;
+    const body = open
+      ? { code, open: true, host: members[0].me.name, n: members.length, max, state: this.game || this.counting ? "playing" : members.length >= max ? "full" : "open" }
+      : { code, open: false };
+    const key = JSON.stringify(body);
+    if (!beat && key === this.listed) return;
+    if (!open && !wasOpen && !this.listed.includes('"open":true')) return;
+    this.listed = key;
+    const dir = this.env.DIRECTORY;
+    if (!dir) return;
+    dir.get(dir.idFromName(DIRECTORY_NAME)).fetch("https://directory/set", { method: "POST", body: key }).catch(() => {});
+    if (open) this.ctx.storage.setAlarm(Date.now() + LIST_BEAT_MS).catch(() => {});
+  }
+
+  async alarm(): Promise<void> {
+    if (this.seats().open && this.members().length) this.report(false, true);
+  }
+
+  private broadcastLobby(wasOpen = false): void {
     const members = this.members();
     const hostToken = members[0]?.me.token;
+    const seats = this.seats();
     for (const { ws, me } of members) {
       this.send(ws, {
         t: "lobby",
         host: me.token === hostToken,
-        players: members.map(m => m.me.name),
+        you: me.pid,
+        players: members.map(m => ({ id: m.me.pid, name: m.me.name, side: m.me.side })),
+        cops: seats.cops,
+        robs: seats.robs,
+        bots: seats.bots,
+        open: seats.open,
         max: MAX_PLAYERS,
       });
     }
+    this.report(wasOpen);
+  }
+
+  private inLobby(): boolean {
+    return !this.game && !this.counting;
+  }
+
+  // 칸에 들어가면 자리를 맡는다. 걷는 건 화면에서 처리하고 칸이 바뀔 때만 받는다
+  private onSide(ws: WebSocket, msg: any): void {
+    const me = ws.deserializeAttachment() as Attachment | null;
+    if (!me || !this.inLobby() || !this.allowInput(ws)) return;
+    const side = msg.side;
+    if (side !== "cop" && side !== "any" && side !== "rob") return;
+    if (side === me.side) return;
+    const seats = this.seats();
+    if (side !== "any") {
+      const here = this.members().filter(m => m.me.side === side).length;
+      if (here >= (side === "cop" ? seats.cops : seats.robs)) {
+        this.send(ws, { t: "error", code: "sideFull", side: me.side });
+        return;
+      }
+    }
+    ws.serializeAttachment({ ...me, side } satisfies Attachment);
+    this.broadcastLobby();
+  }
+
+  // 방장이 인원을 정한다. 줄여서 넘치면 가장 나중에 온 사람부터 가운데로 돌아간다
+  private onSeats(ws: WebSocket, msg: any): void {
+    const members = this.members();
+    const me = ws.deserializeAttachment() as Attachment | null;
+    if (!me || !this.inLobby() || !this.allowInput(ws)) return;
+    if (members[0]?.me.token !== me.token) {
+      this.send(ws, { t: "error", code: "notHost" });
+      return;
+    }
+    const cops = Number(msg.cops), robs = Number(msg.robs);
+    if (!Number.isInteger(cops) || !Number.isInteger(robs) || cops < 1 || robs < 1) return;
+    if (cops + robs > MAX_PLAYERS || cops + robs < members.length) return;
+    const before = this.seats();
+    const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open };
+    const left: Record<Side, number> = { cop: cops, rob: robs, any: Infinity };
+    for (const { ws: w, me: m } of members) {
+      const side: Side = left[m.side] > 0 ? m.side : "any";
+      left[side]--;
+      w.serializeAttachment({ ...m, side, seats } satisfies Attachment);
+    }
+    this.broadcastLobby(before.open);
+  }
+
+  // 방장이 내보낸다. 내보낸 사람은 이번에 받은 표로 돌아오지 못한다
+  private onKick(ws: WebSocket, msg: any): void {
+    const members = this.members();
+    const me = ws.deserializeAttachment() as Attachment | null;
+    if (!me || !this.inLobby() || members[0]?.me.token !== me.token || msg.id === me.pid) return;
+    const target = members.find(m => m.me.pid === msg.id);
+    if (!target) return;
+    this.send(target.ws, { t: "error", code: "kicked" });
+    target.ws.serializeAttachment(null);
+    target.ws.close(4003, "kicked");
+    this.broadcastLobby();
+  }
+
+  private onSay(ws: WebSocket, msg: any): void {
+    const me = ws.deserializeAttachment() as Attachment | null;
+    if (!me || !this.inLobby() || !this.allowInput(ws)) return;
+    if (!Number.isInteger(msg.i) || msg.i < 0 || msg.i >= SAY_LINES) return;
+    for (const { ws: w } of this.members()) this.send(w, { t: "say", id: me.pid, i: msg.i });
+  }
+
+  private canStart(members: { me: Attachment }[]): boolean {
+    if (members.length === 0) return false;
+    if (this.seats().bots) return true;
+    if (members.length < 2) return false;
+    const n = (side: Side) => members.filter(m => m.me.side === side).length;
+    return n("cop") + n("any") > 0 && n("rob") + n("any") > 0;
   }
 
   private onJoin(ws: WebSocket, msg: any): void {
@@ -141,8 +300,11 @@ export class Room extends DurableObject<Env> {
       this.lost.delete(msg.token);
       ws.serializeAttachment({
         token: msg.token,
+        pid: crypto.randomUUID().slice(0, 8),
         name: agent.name,
         joinedAt: Date.now(),
+        side: agent.team === "police" ? "cop" : "rob",
+        seats: this.seats(),
         agentId: rejoin.agentId,
       } satisfies Attachment);
       this.send(ws, { t: "joined", token: msg.token, rejoined: true });
@@ -150,14 +312,26 @@ export class Room extends DurableObject<Env> {
       return;
     }
 
-    if (this.members().length >= MAX_PLAYERS) {
-      this.send(ws, { t: "error", code: "full" });
+    // 아무도 없는 방은 만든 사람만 연다. 링크나 코드로 왔는데 비어 있으면 없는 방이다
+    if (!this.members().length && !msg.create && !(typeof msg.token === "string" && this.lobbyLost.has(msg.token))) {
+      this.send(ws, { t: "error", code: "noRoom" });
+      ws.close(4004, "noRoom");
+      return;
+    }
+    const seats = this.seats();
+    if (this.counting || this.members().length >= seats.cops + seats.robs) {
+      this.send(ws, { t: "error", code: this.counting ? "playing" : "full" });
       ws.close(4002, "full");
       return;
     }
-    const token = crypto.randomUUID();
-    const name = typeof msg.name === "string" ? msg.name.trim().slice(0, 12) : "";
-    ws.serializeAttachment({ token, name: name || "참가자", joinedAt: Date.now() } satisfies Attachment);
+    const back = typeof msg.token === "string" ? this.lobbyLost.get(msg.token) : undefined;
+    const fresh = back && Date.now() - back.at <= REJOIN_MS ? back : undefined;
+    if (fresh) this.lobbyLost.delete(msg.token);
+    const token = fresh ? msg.token as string : crypto.randomUUID();
+    const sideBack: Side = fresh && (fresh.side === "any" || this.members().filter(m => m.me.side === fresh.side).length < (fresh.side === "cop" ? seats.cops : seats.robs)) ? fresh.side : "any";
+    // 게임 안에서 머리 위에 뜨니 짧게 받는다. 글자가 잘리지 않게 글자 단위로 자른다
+    const name = typeof msg.name === "string" ? Array.from(msg.name.replace(/\s+/g, " ").trim()).slice(0, MAX_NAME).join("") : "";
+    ws.serializeAttachment({ token, pid: fresh?.pid ?? crypto.randomUUID().slice(0, 8), name: name || "참가자", joinedAt: fresh?.joinedAt ?? Date.now(), side: sideBack, seats } satisfies Attachment);
     this.send(ws, { t: "joined", token });
     this.broadcastLobby();
   }
@@ -165,49 +339,79 @@ export class Room extends DurableObject<Env> {
   private onStart(ws: WebSocket): void {
     const members = this.members();
     const me = ws.deserializeAttachment() as Attachment | null;
-    if (this.game || !me || members[0]?.me.token !== me.token) {
+    if (!this.inLobby() || !me || members[0]?.me.token !== me.token) {
       this.send(ws, { t: "error", code: "notHost" });
       return;
     }
-    this.begin(members);
+    if (!this.canStart(members)) {
+      this.send(ws, { t: "error", code: "cantStart" });
+      return;
+    }
+    for (const { ws: w } of members) this.send(w, { t: "count", ms: COUNT_MS });
+    this.counting = setTimeout(() => {
+      this.counting = null;
+      const now = this.members();
+      if (this.canStart(now)) this.begin(now);
+      else this.broadcastLobby();
+    }, COUNT_MS);
+    this.report();
   }
 
   private begin(members: { ws: WebSocket; me: Attachment }[]): void {
     const logic = globalThis.createGameLogic();
     logic.CFG.WAIT = Number(this.env.WAIT_SEC);
     logic.CFG.DURATION = Number(this.env.GAME_SEC);
+    logic.CFG.AUTO_ESCAPE = false;
+    logic.CFG.RESCUE_SEC = RESCUE_SEC;
+    logic.CFG.CATCH_R = CATCH_RANGE;
+    logic.CFG.CATCH_ASSIST = true;
+    logic.CFG.CATCH_HIT_AT = CATCH_HIT_SEC;
 
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
     const theme = THEMES[seed % THEMES.length];
-    const G = logic.newGame({ seed, theme, diff: "normal" });
+    const seats = this.seats();
+    const rnd = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+    const shuffle = <T>(list: T[]): T[] => {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      return list;
+    };
+    // 고른 편은 바꾸지 않는다. 가운데 사람만 남은 자리로 들어가고, 한쪽이 비지 않게 먼저 채운다
+    const cops = members.filter(m => m.me.side === "cop");
+    const robs = members.filter(m => m.me.side === "rob");
+    const free = shuffle(members.filter(m => m.me.side === "any"));
+    if (!seats.bots && !cops.length && free.length) cops.push(free.pop()!);
+    if (!seats.bots && !robs.length && free.length) robs.push(free.pop()!);
+    for (const m of free) {
+      const copLeft = seats.cops - cops.length, robLeft = seats.robs - robs.length;
+      (copLeft > 0 && (robLeft <= 0 || rnd() < copLeft / (copLeft + robLeft)) ? cops : robs).push(m);
+    }
+
+    const police = seats.bots ? seats.cops : cops.length, robbers = seats.bots ? seats.robs : robs.length;
+    const G = logic.newGame({ seed, theme, diff: "normal", police, robbers, reveal: REVEAL_SEC });
     this.seed = seed;
     this.logic = logic;
     this.game = G;
     this.emptySince = 0;
     this.lost.clear();
 
-    // 어느 쪽도 기본값으로 두지 않는다. 사람 순서와 자리를 섞어서 앉히고, 빈자리는 봇이 그대로 맡는다.
-    // 경찰 자리가 셋에 하나라 사람도 그 비율로 앉힌다. 둘 이상이면 사람끼리 쫓도록 경찰이 꼭 한 명은 있다.
-    const shuffle = <T>(list: T[]): T[] => {
-      for (let i = list.length - 1; i > 0; i--) {
-        const j = Math.floor(G.rnd() * (i + 1));
-        [list[i], list[j]] = [list[j], list[i]];
-      }
-      return list;
+    const seat = (list: { ws: WebSocket; me: Attachment }[], agents: any[]) => {
+      const open = shuffle([...agents]);
+      list.forEach(({ ws, me }, i) => {
+        const agent = open[i];
+        agent.isPlayer = true;
+        agent.name = me.name;
+        ws.serializeAttachment({ ...me, agentId: agent.id } satisfies Attachment);
+        this.sendStart(ws, agent);
+      });
     };
-    const policeSeats = shuffle<any>([...G.police]);
-    const robberSeats = shuffle<any>([...G.robbers]);
-    const people = shuffle([...members]);
-    const policeCount = people.length === 1 ? (G.rnd() < 1 / 3 ? 1 : 0) : Math.min(policeSeats.length, Math.max(1, Math.round(people.length / 3)));
-    people.forEach(({ ws, me }, i) => {
-      const agent = i < policeCount ? policeSeats[i] : robberSeats[i - policeCount];
-      agent.isPlayer = true;
-      agent.name = me.name;
-      ws.serializeAttachment({ ...me, agentId: agent.id } satisfies Attachment);
-      this.sendStart(ws, agent);
-    });
+    seat(cops, G.police);
+    seat(robs, G.robbers);
 
     this.timer = setInterval(() => this.tick(), TICK_MS);
+    this.report();
   }
 
   private sendStart(ws: WebSocket, agent: any): void {
@@ -220,6 +424,12 @@ export class Room extends DurableObject<Env> {
       team: agent.team,
       wait: this.logic.CFG.WAIT,
       duration: this.logic.CFG.DURATION,
+      police: G.police.length,
+      robbers: G.robbers.length,
+      rescue: this.logic.CFG.RESCUE_SEC,
+      autoEscape: this.logic.CFG.AUTO_ESCAPE,
+      catchRange: this.logic.CFG.CATCH_R,
+      reveal: G.revealEvery,
     });
   }
 
@@ -256,7 +466,8 @@ export class Room extends DurableObject<Env> {
       this.game.agents[me.agentId].isPlayer = false;
       this.lost.set(me.token, { agentId: me.agentId, at: Date.now() });
     } else if (!this.game) {
-      this.broadcastLobby();
+      this.lobbyLost.set(me.token, { pid: me.pid, joinedAt: me.joinedAt, side: me.side, at: Date.now() });
+      this.broadcastLobby(!!me.seats.open);
     }
   }
 
@@ -295,7 +506,8 @@ export class Room extends DurableObject<Env> {
     this.lost.clear();
     for (const { ws, me } of this.members()) {
       this.send(ws, { t: "over", winner, reason, stats, mine: me.agentId !== undefined ? G?.agents[me.agentId].s : undefined });
-      ws.serializeAttachment({ token: me.token, name: me.name, joinedAt: me.joinedAt } satisfies Attachment);
+      const { agentId: _played, ...rest } = me;
+      ws.serializeAttachment(rest satisfies Attachment);
     }
     this.broadcastLobby();
   }

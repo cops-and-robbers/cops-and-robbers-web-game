@@ -9,22 +9,22 @@ function createGameLogic() {
     SPRINT: { police: 322, robber: 316 },
     STAMINA: { police: 2.4, robber: 3.4 }, REGEN: 6.5,
     VISION: 510, NEAR: 150, CONE: 1.15, TURN: 7, BUSH_SEE: 120,
-    CATCH_R: 74, CATCH_CD: 1.6, CATCH_DASH: 230, CATCH_HIT_AT: 0.24, CATCH_LEN: 0.6,
+    CATCH_R: 74, CATCH_CD: 1.6, CATCH_DASH: 230, CATCH_HIT_AT: 0.24, CATCH_LEN: 0.6, CATCH_ASSIST: false, CATCH_GRACE: 35,
     JAIL: { x: 1800, y: 1350, r: 175 }, GATE_R: 235, RESCUE_SEC: 2.2,
-    LOCK_BASE: 16, LOCK_STEP: 5, LOCK_MAX: 32, BREAK_SEC: 3,
+    LOCK_BASE: 16, LOCK_STEP: 5, LOCK_MAX: 32, BREAK_SEC: 3, AUTO_ESCAPE: true, PROTECT_SEC: 2,
     POLICE: 2, ROBBERS: 4,
   };
 
   // 테마는 색만이 아니라 판의 성격을 바꾼다. 건물과 덤불의 양, 시야, 골목 폭
   const THEMES = {
-    town: { speck: "#E9E2D3", curb: "#F8F4EB", cross: "rgba(255,255,255,.75)", flower: ["#F4A6A0", "#F7D774", "#FFFFFF"], winOff: "rgba(255,255,255,.55)", winOn: 0, dust: "#D8CDB7", name: "동네", cover: 1, bush: 1, vision: 1, lot: 1, ground: "#F3EEE4", road: "#E7DFD0", line: "#D5CBB8", out: "#DDD7CB", park: "#DCE8CF", plaza: "#E4DBC9", jail: "#D8CDB7",
-      roofs: [["#C9D6E8", "#A9BAD2"], ["#E8D9C6", "#CDB99F"], ["#D3E3CF", "#B2C9AC"], ["#F2DCCB", "#D9BDA7"], ["#CFE5F4", "#A9CCE4"], ["#E2DCEB", "#C4BBD3"]], win: "rgba(255,255,255,.55)", bin: [["#4F6B5A", "#3F5849"], ["#6B7482", "#566070"]], trees: 0.5, species: "round", trunk: "#8A6F5B", bushes: ["#5E9A7D", "#78B194", "#98CAAF"], fog: "18,23,32", fogA: 0.5 },
-    night: { speck: "#333B52", curb: "#454F6B", cross: "rgba(200,210,235,.3)", flower: ["#5F6F8F", "#7A6F9F"], winOff: "#2A3048", winOn: 0.55, dust: "#6B7696", name: "밤 골목", cover: 1.05, bush: 1, vision: 0.78, lot: 1, ground: "#39425A", road: "#2F374C", line: "#4C5671", out: "#232939", park: "#34504F", plaza: "#465070", jail: "#535E80",
-      roofs: [["#56617F", "#3E4762"], ["#62597C", "#494260"], ["#4D6A78", "#38505D"], ["#6B5F73", "#4F4557"]], win: "#FFD978", bin: [["#2E3A4A", "#232D3B"], ["#343E4F", "#272F3E"]], trees: 0.4, species: "round", trunk: "#3B3846", bushes: ["#27464A", "#33595C", "#426E70"], fog: "6,9,18", fogA: 0.7 },
-    park: { speck: "#CFE2B8", curb: "#E5DAB8", cross: "rgba(255,255,255,.45)", flower: ["#F2849E", "#FFD24D", "#FFFFFF", "#B98CE8"], winOff: "rgba(255,255,255,.5)", winOn: 0, dust: "#C9D8A8", name: "공원", cover: 0.42, bush: 2.1, vision: 1.05, lot: 0.8, ground: "#DCEBC9", road: "#EFE6CF", line: "#DDD0AE", out: "#BFD3A8", park: "#C9E2B3", plaza: "#EFE6CF", jail: "#E3D7B8",
-      roofs: [["#F0D5B8", "#D6B48F"], ["#F3E2B5", "#D9C58D"], ["#E5C9C2", "#C9A79E"]], win: "rgba(255,255,255,.5)", bin: [["#5E7A4E", "#4C653E"]], trees: 0.42, species: "round", trunk: "#8A6F5B", bushes: ["#5B9B70", "#76B386", "#9ACCA3"], fog: "18,32,23", fogA: 0.42 },
-    city: { speck: "#D5DAE0", curb: "#EDF0F3", cross: "rgba(255,255,255,.9)", flower: ["#A9C9B0", "#FFFFFF"], winOff: "rgba(214,238,255,.75)", winOn: 0, dust: "#C4CAD3", name: "도심", cover: 1.3, bush: 0.55, vision: 0.95, lot: 0.82, ground: "#DFE3E8", road: "#CDD3DB", line: "#F4F6F8", out: "#BDC3CC", park: "#D3DFD4", plaza: "#D3D8DF", jail: "#C4CAD3",
-      roofs: [["#AEB8C6", "#8894A6"], ["#9FB2CC", "#7A90AF"], ["#C2B7AE", "#A0948A"], ["#A8BDB7", "#859C95"]], win: "rgba(214,238,255,.75)", bin: [["#56616F", "#454F5C"], ["#3F6A73", "#32565E"]], trees: 0.8, species: "oval", trunk: "#7A6A5F", bushes: ["#6E9A63", "#8AB178", "#ABCB96"], fog: "16,20,30", fogA: 0.52 },
+    town: { speck: "#D2EBBE", curb: "#F6F9FB", cross: "rgba(255,255,255,.9)", flower: ["#FFFFFF"], winOff: "#F3F9FF", winOn: 0, dust: "#D6E8C6", name: "동네", cover: 1, bush: 1, vision: 1, lot: 1, ground: "#DDF0CA", road: "#E7EEF4", line: "#CFDAE6", out: "#BED7AA", park: "#D6EFC2", plaza: "#EEF3F7", jail: "#E1E9F1",
+      roofs: [["#E1EFFC", "#BCD8F2"], ["#E8E5FA", "#CEC8F0"], ["#DDF2E7", "#BCE2CC"], ["#FFF0DB", "#F0D3AE"], ["#DCECF9", "#B5D2EC"]], win: "#FFFFFF", bin: [["#A7C8E8", "#8DB3DA"], ["#AEDCBD", "#93CBA6"]], trees: 0.5, species: "round", trunk: "#C99A73", bushes: ["#86C687", "#A6DA97", "#C9EBB4"], fog: "18,23,32", fogA: 0.5 },
+    night: { speck: "#3A5268", curb: "#5A6A90", cross: "rgba(200,210,235,.35)", flower: ["#FFFFFF"], winOff: "#3A4E73", winOn: 0.55, dust: "#5A6B8F", name: "밤 골목", cover: 1.05, bush: 1, vision: 0.78, lot: 1, ground: "#33485F", road: "#4A5A80", line: "#3B4A70", out: "#26364E", park: "#2E4559", plaza: "#506089", jail: "#58698F",
+      roofs: [["#66778F", "#55657E"], ["#6B6C90", "#58597B"], ["#5E7484", "#4C6170"]], win: "#FFD978", bin: [["#3E4C6E", "#33405E"]], trees: 0.4, species: "round", trunk: "#5A4040", bushes: ["#1E2C55", "#2A3A69", "#3D4F80"], fog: "6,9,18", fogA: 0.7 },
+    park: { speck: "#C9E6B2", curb: "#F4F7EF", cross: "rgba(255,255,255,.7)", flower: ["#FFFFFF", "#FFE7A6"], winOff: "#F6F9FF", winOn: 0, dust: "#CFE3B6", name: "공원", cover: 0.42, bush: 2.1, vision: 1.05, lot: 0.8, ground: "#D6EDBE", road: "#EDF1E8", line: "#D3DCC8", out: "#B8D79E", park: "#CDEBB4", plaza: "#F0F3EC", jail: "#E3E9DC",
+      roofs: [["#FFF0DB", "#F0D3AE"], ["#DDF2E7", "#BCE2CC"], ["#FAE4EA", "#EDC6D2"]], win: "#FFFFFF", bin: [["#AEDCBD", "#93CBA6"]], trees: 0.42, species: "round", trunk: "#C99A73", bushes: ["#7FC283", "#9FD691", "#C4E9AE"], fog: "18,32,23", fogA: 0.42 },
+    city: { speck: "#D7E3EC", curb: "#F7FAFC", cross: "rgba(255,255,255,.95)", flower: ["#FFFFFF"], winOff: "#F1F8FF", winOn: 0, dust: "#D3DEE8", name: "도심", cover: 1.3, bush: 0.55, vision: 0.95, lot: 0.82, ground: "#E2EBF2", road: "#D8E3EE", line: "#C3D1DF", out: "#C7D5E2", park: "#DCEFD0", plaza: "#EBF1F6", jail: "#D9E3EC",
+      roofs: [["#DCECF9", "#B5D2EC"], ["#E1EFFC", "#BCD8F2"], ["#E8E5FA", "#CEC8F0"], ["#E4EAF0", "#C8D3DE"]], win: "#FFFFFF", bin: [["#A7C8E8", "#8DB3DA"], ["#B9C6D4", "#A0AFC0"]], trees: 0.8, species: "oval", trunk: "#C99A73", bushes: ["#86C687", "#A6DA97", "#C9EBB4"], fog: "16,20,30", fogA: 0.52 },
     snow: { speck: "#EAF1F8", curb: "#F4F8FB", cross: "rgba(255,255,255,.85)", flower: ["#FFFFFF", "#DCE8F3"], winOff: "#9FB6CC", winOn: 0.6, roofEdge: "#DCE8F3", dust: "#FFFFFF", name: "눈 마을", cover: 0.9, bush: 0.9, vision: 0.92, lot: 1.1, ground: "#E6EEF5", road: "#D3DFEA", line: "#BCCCDB", out: "#C5D2DF", park: "#DCE7F0", plaza: "#DAE5EF", jail: "#CAD7E4",
       roofs: [["#FFFFFF", "#B9806C"], ["#FFFFFF", "#8FA7BE"], ["#FFFFFF", "#C2A070"], ["#FFFFFF", "#9B8FB5"]], win: "#FFE6A6", bin: [["#5E7188", "#4B5C70"]], trees: 0.42, species: "pine", trunk: "#6F5A4C", bushes: ["#3F6E67", "#4F857C", "#6E9C95"], fog: "28,38,58", fogA: 0.46 },
   };
@@ -211,7 +211,8 @@ function createGameLogic() {
   function loadMap(m) {
     MAP = m; BUILDINGS = m.buildings; BUSHES = m.bushes; ZONE = m.zone; ROADS = m.roads; PARKS = m.parks;
     // 옆으로는 몸 폭만큼 더 띄운다. 벽이 팔을 잘라 먹지 않게
-    SOLID = BUILDINGS.map(b => b.kind === "tree" ? inflate(b, CFG.RADIUS) : { x: b.x - 36, y: b.y - CFG.RADIUS, w: b.w + 72, h: b.h + CFG.RADIUS * 2 });
+    // 건물은 몸 폭만큼, 쓰레기통과 나무 줄기는 보이는 크기에 가깝게 막는다. 작은 통 둘레에 안 보이는 벽이 생기지 않게
+    SOLID = BUILDINGS.map(b => b.kind === "tree" ? inflate(b, 14) : b.kind === "bin" ? { x: b.x - 22, y: b.y - 16, w: b.w + 44, h: b.h + 32 } : { x: b.x - 36, y: b.y - CFG.RADIUS, w: b.w + 72, h: b.h + CFG.RADIUS * 2 });
     CFG.W = m.W; CFG.H = m.H; CFG.JAIL = m.jail;
     GW = Math.ceil(m.W / CELL); GH = Math.ceil(m.H / CELL);
     blocked = new Uint8Array(GW * GH); gScore = new Float32Array(GW * GH); from = new Int32Array(GW * GH); stamp = new Int32Array(GW * GH); stampN = 0;
@@ -303,13 +304,14 @@ function createGameLogic() {
       G.agents.push(a); (team === "police" ? G.police : G.robbers).push(a); return a;
     };
     // 경찰은 감옥 앞에서 대기, 도둑은 네 귀퉁이 쪽 먼 자리에서 시작한다
-    mk("police", POLICE_NAMES[0], CFG.JAIL.x - 90, CFG.JAIL.y + 40, opts.role === "police");
-    mk("police", POLICE_NAMES[1], CFG.JAIL.x + 90, CFG.JAIL.y + 40, false);
+    // 인원은 방장이 정한다. 정하지 않으면 기본 인원이다
+    const nPolice = opts.police ?? CFG.POLICE, nRobbers = opts.robbers ?? CFG.ROBBERS, gap = nPolice > 2 ? 110 : 180;
+    for (let i = 0; i < nPolice; i++) mk("police", POLICE_NAMES[i % POLICE_NAMES.length], CFG.JAIL.x + (i - (nPolice - 1) / 2) * gap, CFG.JAIL.y + 40, opts.role === "police" && i === 0);
     const pool = SPOTS.filter(s => { const d = dist(s, CFG.JAIL); return d > 420 && d < 1000; }).sort(() => rnd() - 0.5);
     const starts = [];
-    for (const s of pool.concat(SPOTS)) { if (starts.length < CFG.ROBBERS && starts.every(o => dist(o, s) > 420)) starts.push(s); }
-    while (starts.length < CFG.ROBBERS) starts.push(SPOTS[starts.length % SPOTS.length]);
-    for (let i = 0; i < CFG.ROBBERS; i++) mk("robber", ROBBER_NAMES[i], starts[i].x, starts[i].y, opts.role === "robber" && i === 0);
+    for (const s of pool.concat(SPOTS)) { if (starts.length < nRobbers && starts.every(o => dist(o, s) > 420)) starts.push(s); }
+    while (starts.length < nRobbers) starts.push(SPOTS[starts.length % SPOTS.length]);
+    for (let i = 0; i < nRobbers; i++) mk("robber", ROBBER_NAMES[i % ROBBER_NAMES.length], starts[i].x, starts[i].y, opts.role === "robber" && i === 0);
     G.player = G.agents.find(a => a.isPlayer) || null;
     return G;
   }
@@ -335,7 +337,7 @@ function createGameLogic() {
     return true;
   }
   // 감옥 안은 안전하다. 나와서 3초를 버티는 동안만 다시 잡힌다
-  const catchable = r => r.state === "free" || r.state === "breaking";
+  const catchable = r => (r.state === "free" || r.state === "breaking") && !(r.protect > 0);
 
   function move(G, a, dt) {
     const blockedNow = a.action || a.state === "jailed" || a.state === "caught" || a.state === "waiting";
@@ -355,8 +357,18 @@ function createGameLogic() {
     const margin = 40;
     let nx = a.x + a.vx * dt, ny = a.y + a.vy * dt;
     nx = Math.max(margin, Math.min(CFG.W - margin, nx)); ny = Math.max(margin, Math.min(CFG.H - margin, ny));
-    if (!solidAt(nx, a.y)) a.x = nx; else a.vx = 0;
-    if (!solidAt(a.x, ny)) a.y = ny; else a.vy = 0;
+    // 모서리에 걸리면 살짝 비켜서 미끄러진다. 끝에 한 끗 걸려 멈추는 게 가장 답답하다
+    const slip = (blockedX) => {
+      for (const d of [6, 12, 18, 24]) for (const s of [1, -1]) {
+        const ox = blockedX ? 0 : d * s, oy = blockedX ? d * s : 0;
+        if (!solidAt(blockedX ? nx : a.x + ox, blockedX ? a.y + oy : ny) && !solidAt(a.x + ox, a.y + oy)) return [ox, oy];
+      }
+      return null;
+    };
+    if (!solidAt(nx, a.y)) a.x = nx;
+    else { const s = Math.abs(a.vx) > Math.abs(a.vy) * 1.5 ? slip(true) : null; if (s) { a.y += Math.sign(s[1]) * Math.min(Math.abs(s[1]), Math.abs(a.vx) * dt); } else a.vx = 0; }
+    if (!solidAt(a.x, ny)) a.y = ny;
+    else { const s = Math.abs(a.vy) > Math.abs(a.vx) * 1.5 ? slip(false) : null; if (s) { a.x += Math.sign(s[0]) * Math.min(Math.abs(s[0]), Math.abs(a.vy) * dt); } else a.vy = 0; }
     a.inBush = !!bushAt(a.x, a.y);
     // 고개는 움직이는 쪽으로 돌린다. 봇은 멈춰 있으면 주변을 살핀다
     const mv = Math.hypot(a.ix, a.iy);
@@ -377,13 +389,15 @@ function createGameLogic() {
     if (best) { dx = best.x - a.x; dy = best.y - a.y; }
     const m = Math.hypot(dx, dy) || 1;
     a.action = { name: "catch", t: 0, hit: false, dx: dx / m, dy: dy / m };
+    // 사람끼리 하는 판: 누른 순간 닿는 도둑을 정해 둔다. 판정까지 짧은 사이에 도망간 만큼 억울하지 않게
+    if (CFG.CATCH_ASSIST && best && bd <= CFG.CATCH_R + CFG.CATCH_GRACE) a.action.lock = best;
     a.catchCd = CFG.CATCH_CD;
     emit(G, "catchStart", { a });
     return true;
   }
 
   function jailSlot(G, r) {
-    const i = G.robbers.indexOf(r), ang = i / CFG.ROBBERS * Math.PI * 2 + 0.6;
+    const i = G.robbers.indexOf(r), ang = i / G.robbers.length * Math.PI * 2 + 0.6;
     return { x: CFG.JAIL.x + Math.cos(ang) * 74, y: CFG.JAIL.y + Math.sin(ang) * 60 };
   }
 
@@ -398,10 +412,13 @@ function createGameLogic() {
     if (!a.action) return;
     a.action.t += dt;
     if (a.action.name === "catch") {
+      const lock = a.action.lock;
+      if (lock && !a.action.hit) { const dx = lock.x - a.x, dy = lock.y - a.y, m = Math.hypot(dx, dy) || 1; a.action.dx = dx / m; a.action.dy = dy / m; }
       if (!a.action.hit && a.action.t >= CFG.CATCH_HIT_AT) {
         a.action.hit = true;
         let hit = null, bd = CFG.CATCH_R;
         for (const r of G.robbers) { if (!catchable(r)) continue; const d = dist(a, r); if (d < bd && lineOfSight(a, r)) { bd = d; hit = r; } }
+        if (!hit && lock && catchable(lock) && dist(a, lock) < CFG.CATCH_R + CFG.CATCH_GRACE && lineOfSight(a, lock)) hit = lock;
         if (hit) arrest(G, hit, a); else emit(G, "catchMiss", { a });
       }
       if (a.action.t >= CFG.CATCH_LEN) a.action = null;
@@ -409,6 +426,7 @@ function createGameLogic() {
   }
 
   function updateRobberState(G, r, dt) {
+    if (r.protect > 0) r.protect -= dt;
     if (r.state === "caught") {
       r.caughtT -= dt;
       if (r.caughtT <= 0) {
@@ -417,10 +435,12 @@ function createGameLogic() {
         emit(G, "jailed", { r });
       }
     } else if (r.state === "jailed") {
-      r.lock -= dt;
-      if (r.lock <= 0) { r.state = "inJail"; emit(G, "unlocked", { r }); }
+      if (CFG.AUTO_ESCAPE) {
+        r.lock -= dt;
+        if (r.lock <= 0) { r.state = "inJail"; emit(G, "unlocked", { r }); }
+      }
     } else if (r.state === "inJail") {
-      if (dist(r, CFG.JAIL) > CFG.JAIL.r) { r.state = "breaking"; r.breakT = CFG.BREAK_SEC; emit(G, "breaking", { r }); }
+      if (dist(r, CFG.JAIL) > CFG.JAIL.r) { r.state = "breaking"; r.breakT = CFG.BREAK_SEC; r.protect = CFG.PROTECT_SEC; emit(G, "breaking", { r }); }
     } else if (r.state === "breaking") {
       if (dist(r, CFG.JAIL) <= CFG.JAIL.r) { r.state = "inJail"; }
       else { r.breakT -= dt; if (r.breakT <= 0) { r.state = "free"; emit(G, "freed", { r }); } }
@@ -650,7 +670,7 @@ function createGameLogic() {
     }
   }
 
-  return { inCone, CFG, THEMES, DIFF, newGame, step, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
+  return { loadMap, inCone, CFG, THEMES, DIFF, newGame, step, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
     get BUILDINGS() { return BUILDINGS; }, get BUSHES() { return BUSHES; }, get SPOTS() { return SPOTS; }, get ZONE() { return ZONE; }, get ROADS() { return ROADS; }, get PARKS() { return PARKS; } };
 }
 

@@ -8,5 +8,10 @@ name = "ROOMS"
 class_name = "Room"
 script_name = "cops-and-robbers-web-game"
 
+[[durable_objects.bindings]]
+name = "DIRECTORY"
+class_name = "Directory"
+script_name = "cops-and-robbers-web-game"
+
 [vars]
 ALLOWED_ORIGINS = "https://cops-and-robbers-game.pages.dev"

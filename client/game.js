@@ -10,6 +10,7 @@ if (QS.get("reveal")) CFG.REVEAL_EVERY = Number(QS.get("reveal"));
 const $ = id => document.getElementById(id);
 const stage = $("stage"), world = $("world"), fog = $("fog"), fctx = fog.getContext("2d"), mini = $("mini"), mctx = mini.getContext("2d");
 const CS = 0.5; // 캐릭터 크기
+let camTarget = null; // 대기실처럼 시점을 따로 잡을 때 쓴다
 let G = null, chars = [], role = null, zoom = 1, camX = 0, camY = 0, W = 0, H = 0, ended = false, lastSeenBy = false;
 // 사람끼리 할 때는 net.js 가 채운다. 비어 있으면 이 파일 안에서 봇과 규칙을 돌린다
 let online = null;
@@ -21,6 +22,30 @@ const fitStage = () => {
 fitStage(); addEventListener("resize", fitStage);
 
 // ───────── 맵 ─────────
+// 앱 배경과 같은 결의 지도 부품(나무, 수풀, 꽃). client/brand/map 의 SVG 를 빌드할 때 경로로 바꿔 넣는다
+const MAP_ART = /*MAPART*/{};
+const ART_PATHS = new Map();
+// 낮 색으로 그린 부품을 테마 색으로 바꾼다
+function artColors(T) {
+  const [lo, mid, hi] = T.bushes, dark = G.theme === "night";
+  return {
+    "#86C687": lo, "#A6DA97": mid, "#C9EBB4": hi,
+    "#7DBE7E": dark ? "#17234A" : lo, "#93CF8C": dark ? "#22305E" : "#93CF8C", "#B7E3A1": dark ? "#2F3F70" : "#B7E3A1", "#D6F0C2": dark ? "#4A5D88" : "#D6F0C2",
+    "#F4FBEF": dark ? "#5C6E9C" : "#F4FBEF", "#C99A73": T.trunk, "#AE7F5B": dark ? "#463232" : "#AE7F5B", "#FFD36B": dark ? "#E0B040" : "#FFD36B",
+  };
+}
+function drawArt(x, name, cx, foot, w, colors) {
+  const a = MAP_ART[name]; if (!a) return;
+  const s = w / a.w;
+  x.save(); x.translate(cx - a.fx * s, foot - a.fy * s); x.scale(s, s); x.lineCap = "round";
+  for (const [d, fill, stroke, sw, op] of a.shapes) {
+    let p = ART_PATHS.get(d); if (!p) ART_PATHS.set(d, p = new Path2D(d));
+    x.globalAlpha = op;
+    if (fill && fill !== "none") { x.fillStyle = colors[fill] || fill; x.fill(p); }
+    if (stroke) { x.strokeStyle = colors[stroke] || stroke; x.lineWidth = sw; x.stroke(p); }
+  }
+  x.restore();
+}
 function hash(n) { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
 function bakeMap() {
   const c = $("map"); c.width = CFG.W; c.height = CFG.H; const x = c.getContext("2d"), T = G.th, seed = G.map.seed % 1000;
@@ -33,19 +58,27 @@ function bakeMap() {
   // 큰길: 인도 턱, 차로, 중앙선
   for (const r of L.ROADS) { x.fillStyle = T.curb; x.fillRect(r.x - 10, r.y - 10, r.w + 20, r.h + 20); }
   x.fillStyle = T.road; for (const r of L.ROADS) x.fillRect(r.x, r.y, r.w, r.h);
-  x.strokeStyle = T.line; x.lineWidth = 5; x.setLineDash([34, 30]);
-  for (const r of L.ROADS) { x.beginPath(); if (r.w > r.h) { x.moveTo(r.x, r.y + r.h / 2); x.lineTo(r.x + r.w, r.y + r.h / 2); } else { x.moveTo(r.x + r.w / 2, r.y); x.lineTo(r.x + r.w / 2, r.y + r.h); } x.stroke(); }
-  x.setLineDash([]);
+  x.strokeStyle = T.line; x.lineWidth = 3;
+  for (const r of L.ROADS) { const hor = r.w > r.h, cell = 64; x.beginPath(); for (let k = cell; k < (hor ? r.w : r.h); k += cell) { if (hor) { x.moveTo(r.x + k, r.y); x.lineTo(r.x + k, r.y + r.h); } else { x.moveTo(r.x, r.y + k); x.lineTo(r.x + r.w, r.y + k); } } for (let k = cell; k < (hor ? r.h : r.w); k += cell) { if (hor) { x.moveTo(r.x, r.y + k); x.lineTo(r.x + r.w, r.y + k); } else { x.moveTo(r.x + k, r.y); x.lineTo(r.x + k, r.y + r.h); } } x.stroke(); }
   // 교차로: 가운데를 지우고 횡단보도를 그린다
   const hs = L.ROADS.filter(r => r.w > r.h), vs = L.ROADS.filter(r => r.w <= r.h); let crossN = 0;
   for (const h of hs) for (const v of vs) {
     if (v.x + v.w < h.x || v.x > h.x + h.w || h.y + h.h < v.y || h.y > v.y + v.h) continue;
     x.fillStyle = T.road; x.fillRect(v.x, h.y, v.w, h.h);
     crossN++;
-    if (crossN % 3) continue;
+    continue;
     x.fillStyle = T.cross;
     for (let k = 0; k < v.w - 12; k += 26) x.fillRect(v.x + 6 + k, h.y - 34, 13, 28);
     for (let k = 0; k < h.h - 12; k += 26) x.fillRect(v.x + v.w + 6, h.y + 6 + k, 28, 13);
+  }
+  // 잔디 마당과 빈터에 흰 꽃과 짧은 풀 자국을 뿌린다. 길과 감옥 마당은 피한다
+  const artCol = artColors(T), onRoad = (px, py) => L.ROADS.some(r => px > r.x - 20 && px < r.x + r.w + 20 && py > r.y - 20 && py < r.y + r.h + 20);
+  for (let k = 0; k < 420; k++) {
+    const px = hash(k * 3.1 + seed) * CFG.W, py = hash(k * 7.7 + seed * 1.3) * CFG.H;
+    if (onRoad(px, py) || Math.hypot(px - CFG.JAIL.x, py - CFG.JAIL.y) < CFG.GATE_R + 30 || L.solidAt(px, py)) continue;
+    const inPark = L.PARKS.some(p => Math.hypot((px - p.x) / p.rx, (py - p.y) / p.ry) < 1);
+    if (k % 3 === 0 || inPark) drawArt(x, "flower", px, py + 10, 18 + hash(k) * 8, artCol);
+    else { x.strokeStyle = T.speck; x.lineWidth = 4; x.beginPath(); x.moveTo(px - 9, py + 4); x.quadraticCurveTo(px - 6, py - 6, px - 3, py + 4); x.moveTo(px + 1, py + 4); x.quadraticCurveTo(px + 4, py - 8, px + 7, py + 4); x.stroke(); }
   }
   // 감옥 마당: 울타리를 세우면 통과할 때 어색해서 바닥에 그린다
   const J = CFG.JAIL;
@@ -67,24 +100,43 @@ function bakeMap() {
   }
   // 감옥 글자
   x.font = "800 30px Pretendard, 'Noto Sans KR', sans-serif"; x.textAlign = "center";
-  const w = x.measureText("감옥").width + 34; x.fillStyle = "#1D232B"; rr(x, J.x - w / 2, J.y - J.r - 58, w, 44, 14); x.fill(); x.fillStyle = "#fff"; x.fillText("감옥", J.x, J.y - J.r - 25);
+  const w = x.measureText("감옥").width + 78, sy = J.y - J.r - 62;
+  x.fillStyle = "rgba(29,35,43,.18)"; rr(x, J.x - w / 2 + 4, sy + 6, w, 50, 16); x.fill();
+  x.fillStyle = "#1D232B"; rr(x, J.x - w / 2, sy, w, 50, 16); x.fill();
+  x.fillStyle = "#E2574C"; x.beginPath(); x.arc(J.x - w / 2 + 28, sy + 25, 15, 0, 7); x.fill();
+  if (SIREN_IMG.complete) x.drawImage(SIREN_IMG, J.x - w / 2 + 19, sy + 14, 18, 22);
+  x.fillStyle = "#fff"; x.fillText("감옥", J.x + 16, sy + 36);
 }
+const SIREN_IMG = new Image(); SIREN_IMG.src = "data:image/svg+xml;base64,/*B64:siren.svg*/";
 function drawBuilding(x, b, T, i, seed) {
-    const [roof, wall] = T.roofs[(i * 7 + seed) % T.roofs.length], wh = Math.min(66, Math.max(40, b.h * 0.34)), h = hash(i + seed);
-    x.fillStyle = "rgba(29,35,43,.14)"; rr(x, b.x + 8, b.y + 14, b.w + 6, b.h + 4, 14); x.fill();
-    x.fillStyle = wall; rr(x, b.x, b.y, b.w, b.h, 12); x.fill();
-    x.fillStyle = "rgba(0,0,0,.14)"; x.fillRect(b.x + 3, b.y + b.h - 8, b.w - 6, 8);
-    x.fillStyle = roof; rr(x, b.x, b.y, b.w, b.h - wh, 12); x.fill();
-    x.fillStyle = "rgba(0,0,0,.10)"; x.fillRect(b.x, b.y + b.h - wh - 7, b.w, 7);
-    const rh = b.h - wh;
-    if (h < 0.4) { x.strokeStyle = "rgba(0,0,0,.07)"; x.lineWidth = 3; for (let k = b.y + 24; k < b.y + rh - 10; k += 20) { x.beginPath(); x.moveTo(b.x + 6, k); x.lineTo(b.x + b.w - 6, k); x.stroke(); } }
+    const [roof, wall] = T.roofs[(i * 7 + seed) % T.roofs.length], wh = Math.min(84, Math.max(46, b.h * 0.4)), rh = b.h - wh, night = G.theme === "night";
+    x.fillStyle = night ? "rgba(8,14,34,.35)" : "rgba(70,110,160,.14)"; rr(x, b.x + 10, b.y + 14, b.w + 4, b.h + 4, 16); x.fill();
+    // 벽(앞면)
+    x.fillStyle = wall; rr(x, b.x, b.y, b.w, b.h, 14); x.fill();
+    x.fillStyle = night ? "rgba(0,0,0,.18)" : "rgba(60,100,150,.10)"; rr(x, b.x, b.y + b.h - 10, b.w, 10, 6); x.fill();
+    // 지붕(윗면): 가장자리 턱과 작은 실외기
+    // 지붕: 위와 왼쪽은 빛을 받아 밝고, 벽과 만나는 아래는 그늘이 진다. 안쪽 테두리를 두르면 화면처럼 보여서 두지 않는다
+    x.fillStyle = roof; rr(x, b.x, b.y, b.w, rh, 14); x.fill();
+    x.save(); rr(x, b.x, b.y, b.w, rh, 14); x.clip();
+    x.fillStyle = "rgba(255,255,255,.45)"; x.fillRect(b.x, b.y, b.w, 7); x.fillRect(b.x, b.y, 7, rh);
+    x.fillStyle = night ? "rgba(0,0,0,.22)" : "rgba(60,100,150,.16)"; x.fillRect(b.x, b.y + rh - 9, b.w, 9);
+    x.restore();
     if (T.roofEdge) { x.fillStyle = T.roofEdge; x.fillRect(b.x + 4, b.y + rh - 8, b.w - 8, 5); }
-    const n = Math.max(1, Math.floor((b.w - 30) / 58)), door = n > 1 ? Math.floor(hash(i * 9 + seed) * n) : -1;
-    for (let k = 0; k < n; k++) {
-      const wx = b.x + (b.w - n * 58 + 22) / 2 + k * 58, wy = b.y + b.h - wh + 11, ww = wh - 26;
-      if (k === door) { x.fillStyle = "rgba(29,35,43,.5)"; x.fillRect(wx + 4, wy, 28, wh - 15); continue; }
-      x.fillStyle = hash(i * 13 + k) < T.winOn ? T.win : T.winOff; x.fillRect(wx, wy, 36, ww);
+    if (hash(i + seed) < 0.55 && b.w > 120) { const ax = b.x + 22 + hash(i * 3 + seed) * (b.w - 90), ay = b.y + 22 + hash(i * 5) * Math.max(0, rh - 70); x.fillStyle = wall; rr(x, ax, ay, 46, 30, 6); x.fill(); x.fillStyle = roof; x.beginPath(); x.arc(ax + 23, ay + 15, 9, 0, 7); x.fill(); }
+    // 창문: 둥근 칸이 격자로. 문은 하나
+    const cols = Math.max(1, Math.floor((b.w - 24) / 40)), rows = Math.max(1, Math.floor((wh - 22) / 30)), cw = 26, ch = 20;
+    const gx = b.x + (b.w - (cols * 40 - 14)) / 2, gy = b.y + rh + (wh - 10 - (rows * 30 - 10)) / 2;
+    const clear = k => { const fx = gx + k * 40 + 13, fy = b.y + b.h + 46; return !L.solidAt(fx, fy) && !L.BUSHES.some(u => Math.hypot((u.x - fx) / (u.rx + 30), (u.y - fy) / (u.ry + 40)) < 1); };
+    const doors = [...Array(cols).keys()].filter(clear), door = cols > 1 && doors.length ? doors[Math.floor(hash(i * 9 + seed) * doors.length)] : -1;
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      const wx = gx + k * 40, wy = gy + r * 30;
+      if (k === door && r === rows - 1) continue;
+      const lit = night && hash(i * 13 + k + r * 7) < T.winOn;
+      if (lit) { x.fillStyle = "rgba(255,217,120,.25)"; rr(x, wx - 4, wy - 4, cw + 8, ch + 8, 8); x.fill(); }
+      x.fillStyle = lit ? T.win : T.winOff; rr(x, wx, wy, cw, ch, 5); x.fill();
+      if (!night) { x.fillStyle = "rgba(120,170,220,.22)"; rr(x, wx, wy + ch - 6, cw, 6, 3); x.fill(); }
     }
+    if (door >= 0) { const dx = gx + door * 40 - 2, dh = Math.min(wh - 16, 40); x.fillStyle = night ? "#2E3C5E" : "#A9C9E8"; rr(x, dx, b.y + b.h - 10 - dh, 30, dh, 8); x.fill(); }
 }
 function rr(x, a, b, w, h, r) { x.beginPath(); x.roundRect(a, b, w, h, r); }
 // 윤곽은 낮은 주파수로만 흔들어 납작한 실루엣으로 둔다. 잎을 하나하나 찍지 않는다(앱 그림체가 면 위주다)
@@ -103,27 +155,26 @@ function crown(x, cx, cy, rx, ry, pal, seed, snow) {
   x.restore();
 }
 // 그림자는 건물과 같은 방향(오른쪽 아래)으로 떨어진다
-const groundShadow = (x, cx, cy, rx, ry) => { x.fillStyle = "rgba(29,35,43,.15)"; x.beginPath(); x.ellipse(cx + rx * 0.1, cy + ry * 0.25, rx, ry, 0, 0, 7); x.fill(); };
+const groundShadow = (x, cx, cy, rx, ry) => { x.fillStyle = G.theme === "night" ? "rgba(8,14,34,.32)" : G.theme === "snow" ? "rgba(29,35,43,.15)" : "rgba(52,96,72,.17)"; x.beginPath(); x.ellipse(cx + rx * 0.1, cy + ry * 0.25, rx, ry, 0, 0, 7); x.fill(); };
 function drawBush(x, b, w, h, foot, pal, seed, snow) {
   const cx = w / 2;
-  if (b.hedge) {
-    // 생울타리: 건물처럼 윗면과 앞면이 있다. 가장자리만 잎처럼 울퉁불퉁하다
-    const fh = Math.min(b.r * 0.42, 26), topH = b.ry * 1.5, y0 = foot - fh - topH, hw = b.rx;
-    groundShadow(x, cx, foot - 2, hw * 1.02, b.r * 0.15);
-    const leafy = (px, py, pw, ph, col, sd) => {
-      x.fillStyle = col; rr(x, px, py, pw, ph, 6); x.fill();
-      const dot = 11, step = 15; let k = sd * 7;
-      const bump = (bx, by) => { k = (k * 16807 + 11) % 2147483647; x.beginPath(); x.arc(bx, by, dot * (0.72 + (k % 100) / 260), 0, 7); x.fill(); };
-      for (let q = px + 4; q <= px + pw - 4; q += step) { bump(q, py + 3); bump(q + 5, py + ph - 3); }
-      for (let q = py + 8; q <= py + ph - 8; q += step) { bump(px + 3, q); bump(px + pw - 3, q + 4); }
-    };
-    leafy(cx - hw, y0 + topH * 0.45, hw * 2, topH * 0.55 + fh, pal[0], seed + 1);
-    leafy(cx - hw, y0, hw * 2, topH, snow ? "#FFFFFF" : pal[1], seed + 2);
-    if (!snow) { x.save(); rr(x, cx - hw, y0, hw * 2, topH, 6); x.clip(); x.fillStyle = pal[2]; lobed(x, cx - hw * 0.3, y0 + topH * 0.24, hw * 0.62, topH * 0.3, seed, 0.1); x.fill(); x.restore(); }
-  } else {
+  if (b.hedge && !snow) {
+    // 생울타리도 수풀 부품을 이어 붙인 둥근 덩이 줄. 들어가 숨을 수 있는 풀숲으로 보이게 한다
+    // 숨는 범위를 그림이 빈틈없이 덮도록 덩이를 겹친다. 뒤(위)부터 그려 앞 덩이가 덮게 한다
+    const long = b.rx >= b.ry, col = artColors(G.th);
+    groundShadow(x, cx, foot - 3, b.rx * 1.05, Math.max(b.ry, 18) * 0.3);
+    if (long) {
+      const n = Math.max(2, Math.round(b.rx * 2 / 90)), pw = b.rx * 2 / n * 1.5;
+      for (let k = 0; k < n; k++) drawArt(x, "bush", cx - b.rx + pw * 0.45 + k * (b.rx * 2 - pw * 0.9) / (n - 1), foot, pw, col);
+    } else {
+      const pw = Math.max(b.rx * 2.6, 70), top = foot - b.ry * 1.5, n = Math.max(2, Math.ceil((foot - top) / (pw * 0.56 * 0.45)) + 1);
+      for (let k = 0; k < n; k++) drawArt(x, "bush", cx, top + k * (foot - top) / (n - 1), pw, col);
+    }
+  } else if (b.hedge) {
     // 둥근 관목: 낮은 무더기
     groundShadow(x, cx, foot - 3, b.rx * 1.02, b.r * 0.2);
-    crown(x, cx, foot - b.ry * 0.86, b.rx, b.ry * 0.9, pal, seed, snow);
+    if (snow) crown(x, cx, foot - b.ry * 0.86, b.rx, b.ry * 0.9, pal, seed, snow);
+    else drawArt(x, "bush", cx, foot, b.rx * 2.2, artColors(G.th));
   }
 }
 function drawTree(x, b, w, h, foot, pal, seed, T) {
@@ -140,13 +191,8 @@ function drawTree(x, b, w, h, foot, pal, seed, T) {
     }
     return;
   }
-  const oval = b.species === "oval", rx = oval ? r * 0.7 : r, ry = oval ? r * 1 : r * 0.76, trunkH = r * (oval ? 0.5 : 0.46);
-  // 그림자는 줄기 밑이 아니라 잎이 드리운 만큼 넓다
-  groundShadow(x, cx, foot - 3, rx * 0.86, r * 0.26);
-  // 짧은 줄기가 낮은 곳에서 갈라진다. 위는 잎이 덮는다
-  x.fillStyle = T.trunk; x.beginPath(); x.moveTo(cx - 11, foot); x.quadraticCurveTo(cx - 7, foot - trunkH * 0.5, cx - 8, foot - trunkH); x.lineTo(cx + 8, foot - trunkH); x.quadraticCurveTo(cx + 7, foot - trunkH * 0.5, cx + 11, foot); x.closePath(); x.fill();
-  x.strokeStyle = T.trunk; x.lineCap = "round"; x.lineWidth = 7; x.beginPath(); x.moveTo(cx - 2, foot - trunkH * 0.72); x.lineTo(cx - rx * 0.32, foot - trunkH * 1.5); x.moveTo(cx + 2, foot - trunkH * 0.78); x.lineTo(cx + rx * 0.3, foot - trunkH * 1.55); x.stroke();
-  crown(x, cx, foot - trunkH - ry * 0.68, rx, ry, pal, seed);
+  groundShadow(x, cx, foot - 3, r * 0.8, r * 0.24);
+  drawArt(x, b.species === "oval" || r < 70 ? "tree-small" : "tree", cx, foot, r * 2.3, artColors(T));
 }
 // 건물과 쓰레기통은 부딪히는 칸보다 위로 높게 그린다. 그 뒤로 가면 몸 아래쪽이 가려지고 머리는 보인다
 const RISE = 70, BIN_RISE = 30;
@@ -168,7 +214,7 @@ function bakeBushes() {
   bakeSolids();
   const pal = G.th.bushes, snow = G.theme === "snow";
   L.BUSHES.forEach((b, i) => {
-    const c = document.createElement("canvas"); c.className = "bush"; const w = Math.round(b.rx * 2 + 40), h = Math.round(b.ry * 2 + b.r * 0.9 + 30), foot = h - 12, by = b.y + b.ry * 0.82;
+    const c = document.createElement("canvas"); c.className = "bush"; const w = Math.round(Math.max(b.rx * 2.6 + 20, b.rx * 2 + 60)), h = Math.round(b.ry * 2 + b.r * 1.6 + 60), foot = h - 12, by = b.y + b.ry * 0.82;
     c.width = w; c.height = h; c.style.left = (b.x - w / 2) + "px"; c.style.top = (by - foot) + "px"; c.style.zIndex = Math.round(by);
     drawBush(c.getContext("2d"), b, w, h, foot, pal, i * 1.7 + 3, snow);
     c.style.transformOrigin = "50% 90%"; b.el = c;
@@ -225,8 +271,9 @@ function makeChar(a) {
   }
   const headTop = -(kind === "police" ? 200 : 145) * base;
   let tag = null;
-  if (a.team === (G.player && G.player.team)) {
-    tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? "나" : a.name; tag.style.top = (headTop - 46) + "px"; el.append(tag);
+  // 사람끼리 할 때는 상대 이름도 보여 준다. 시야 밖 상대는 캐릭터째 숨고 이름도 받지 않는다
+  if (G.player && (online || a.team === G.player.team)) {
+    tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? "나" : a.name; tag.style.top = (headTop - 66) + "px"; el.append(tag);
   }
   const c = { a, kind, el, views, tag, face: 1, faceS: new Spring(420, 34), pop: new Spring(300, 14), view: null, prev: null, tr: 1, trMode: "fade", mot: {}, mkey: {}, phase: 0, facing: "front", want: null, wantT: 0, stillT: 0, action: null, hopY: 0, input: { x: 0, y: 0 }, hide: 0, wasVisible: false };
   c.faceS.x = 1;
@@ -371,11 +418,46 @@ function drawFog() {
     ctx.globalCompositeOperation = "source-over";
   }
   drawPings(ctx);
-  // 감옥 구출 진행
-  if (G.rescueT > 0) {
-    const [x, y] = toScreen(CFG.JAIL.x, CFG.JAIL.y);
-    ctx.strokeStyle = "#35C26B"; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(x, y, CFG.JAIL.r * zoom, -Math.PI / 2, -Math.PI / 2 + G.rescueT / CFG.RESCUE_SEC * Math.PI * 2); ctx.stroke();
+  const [jx, jy] = toScreen(CFG.JAIL.x, CFG.JAIL.y), jailedN = jailedCount();
+  // 구출 자리와 진행을 문 앞 원 하나로 보여 준다. 갇힌 친구가 있으면 도둑에게 옅은 초록 원, 구출 중이면 같은 원이 차오른다
+  const gr = CFG.GATE_R * zoom, rescuing = G.rescueT > 0, showGate = rescuing || (G.player?.team === "robber" && G.player.state === "free" && jailedN > 0 && G.phase === "play");
+  if (showGate) {
+    ctx.save(); ctx.lineCap = "round";
+    ctx.strokeStyle = rescuing ? "rgba(255,255,255,.8)" : "rgba(53,194,107,.45)"; ctx.lineWidth = rescuing ? 10 : 6; ctx.beginPath(); ctx.arc(jx, jy, gr, 0, 7); ctx.stroke();
+    if (rescuing) { ctx.strokeStyle = "#35C26B"; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(jx, jy, gr, -Math.PI / 2, -Math.PI / 2 + Math.min(1, G.rescueT / CFG.RESCUE_SEC) * Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
   }
+}
+// 갇힌 도둑 수. 사람끼리 할 때는 남은 수만 받아서 거기서 센다
+function jailedCount() {
+  if (online) return Math.max(0, G.robbers.length - online.free - G.robbers.filter(r => r.state === "breaking" || r.state === "inJail").length);
+  return G.robbers.filter(r => r.state === "jailed").length;
+}
+// 보호 중인 도둑은 비눗방울 같은 막이 깜빡인다
+function drawShields() {
+  for (const c of chars) {
+    const a = c.a;
+    if (!(a.protect > 0) || c.el.style.display === "none") continue;
+    const [x, y] = toScreen(a.x, a.y - 34), r = 46 * zoom, blink = 0.55 + Math.sin(performance.now() / 90) * 0.25;
+    fx2.save(); fx2.globalAlpha = blink;
+    fx2.fillStyle = "rgba(170,230,255,.22)"; fx2.strokeStyle = "#FFFFFF"; fx2.lineWidth = Math.max(2, 4 * zoom);
+    fx2.beginPath(); fx2.arc(x, y, r, 0, 7); fx2.fill(); fx2.stroke();
+    fx2.globalAlpha = blink * 0.9; fx2.fillStyle = "#FFFFFF"; fx2.beginPath(); fx2.ellipse(x - r * 0.38, y - r * 0.42, r * 0.18, r * 0.1, -0.6, 0, 7); fx2.fill();
+    fx2.restore();
+  }
+}
+// 감옥 소식 띠: 경찰은 문이 열리는 중이면 경고, 갇힌 도둑은 구하러 오는 중이면 알림
+let jailAlertWas = false;
+function drawJailAlert() {
+  const p = G.player, el = $("jailAlert");
+  const on = G.phase === "play" && G.rescueT > 0 && (p.team === "police" || p.state === "jailed");
+  el.hidden = !on;
+  if (!on) { jailAlertWas = false; return; }
+  el.className = p.team === "police" ? "bad" : "good";
+  $("jailAlertText").textContent = p.team === "police" ? "감옥 문이 열리고 있어요" : "친구가 문을 열고 있어요";
+  $("jailAlertFill").style.width = Math.min(100, G.rescueT / CFG.RESCUE_SEC * 100) + "%";
+  if (!jailAlertWas && p.team === "police") { play("alert"); haptic([0, 200, 100, 200]); }
+  jailAlertWas = true;
 }
 function drawPings(ctx) {
   for (const k of G.pings) {
@@ -427,22 +509,125 @@ function drawMini() {
 
 // ───────── 입력 ─────────
 const keys = new Set(); let padVec = { x: 0, y: 0 }, sprintBtn = false, wantCatch = false;
+// 화면 아래 키 안내도 누른 키를 같이 눌러 보여 준다
+const KEYCAP = { arrowup: "w", arrowleft: "a", arrowdown: "s", arrowright: "d" };
+const keycap = (k, on) => document.querySelector(`#hint kbd[data-k="${KEYCAP[k] || k}"]`)?.classList.toggle("on", on);
 addEventListener("keydown", e => {
-  const k = e.key.toLowerCase(); keys.add(k);
+  const k = e.key.toLowerCase(); keys.add(k); keycap(k, true);
   if (k === " ") { wantCatch = true; e.preventDefault(); }
   if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
 });
-addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
-addEventListener("blur", () => keys.clear());
-const pad = $("pad"), knob = $("knob");
-function padMove(e) { const r = pad.getBoundingClientRect(); let x = (e.clientX - r.left - r.width / 2) / (r.width / 2), y = (e.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; } padVec = m < 0.12 ? { x: 0, y: 0 } : { x, y }; knob.style.transform = `translate(${x * 40}px, ${y * 40}px)`; }
-function padEnd() { padVec = { x: 0, y: 0 }; knob.style.transform = ""; }
-pad.addEventListener("pointerdown", e => { pad.setPointerCapture(e.pointerId); padMove(e); });
-pad.addEventListener("pointermove", e => { if (e.buttons) padMove(e); });
-pad.addEventListener("pointerup", padEnd); pad.addEventListener("pointercancel", padEnd);
-const hold = (el, on, off) => { el.addEventListener("pointerdown", e => { e.preventDefault(); on(); }); for (const t of ["pointerup", "pointercancel", "pointerleave"]) el.addEventListener(t, off); };
-hold($("btnRun"), () => sprintBtn = true, () => sprintBtn = false);
-$("btnCatch").addEventListener("pointerdown", e => { e.preventDefault(); wantCatch = true; });
+addEventListener("keyup", e => { const k = e.key.toLowerCase(); keys.delete(k); keycap(k, false); });
+addEventListener("blur", () => { keys.clear(); document.querySelectorAll("#hint kbd.on").forEach(n => n.classList.remove("on")); });
+// 터치 조작. 왼쪽 어디를 잡아도 그 자리에서 조이스틱이 시작된다. 손가락마다 따로 따라가서 걷기와 달리기를 함께 누를 수 있다
+const pad = $("pad"), knob = $("knob"), padZone = $("padZone");
+const PAD_DEAD = 0.12;
+let padId = null, padCx = 0, padCy = 0, padFsAt = 0;
+const haptic = ms => { try { navigator.vibrate?.(ms); } catch { /* 진동이 없는 기기는 넘어간다 */ } };
+function padMove(e) {
+  const R = pad.offsetWidth / 2 || 66;
+  let x = (e.clientX - padCx) / R, y = (e.clientY - padCy) / R;
+  if (Math.hypot(x, y) > 1.15) {
+    const over = Math.hypot(x, y) - 1.15, m0 = Math.hypot(x, y);
+    padCx += x / m0 * over * R; padCy += y / m0 * over * R;
+    const rest = pad.getBoundingClientRect(), cur = pad.style.transform.match(/-?[\d.]+/g)?.map(Number) || [0, 0];
+    pad.style.transform = `translate(${cur[0] + (padCx - (rest.left + R))}px, ${cur[1] + (padCy - (rest.top + R))}px)`;
+    x = (e.clientX - padCx) / R; y = (e.clientY - padCy) / R;
+  }
+  const m = Math.hypot(x, y), lim = Math.min(1, m);
+  if (m > 1) { x /= m; y /= m; }
+  knob.style.transform = `translate(${x * R * .62}px, ${y * R * .62}px)`;
+  // 살짝 건드린 흔들림은 무시하고, 그 위로는 처음부터 부드럽게 커진다
+  const k = lim < PAD_DEAD ? 0 : (lim - PAD_DEAD) / (1 - PAD_DEAD) / (lim || 1);
+  padVec = { x: x * k * (m > 1 ? 1 : 1), y: y * k };
+}
+// 지금 누르면 잡히는 도둑을 찾는다. 판정은 서버가 하고 화면은 알려 주기만 한다
+function catchTarget() {
+  const p = G?.player;
+  if (!p || p.team !== "police" || p.state !== "free" || !inPlayView()) return null;
+  let best = null, bd = CFG.CATCH_R + CFG.CATCH_GRACE;
+  for (const r of G.robbers) { if ((r.state !== "free" && r.state !== "breaking") || r.protect > 0 || !(online ? online.sees(r) : sees(p, r))) continue; const d = dist(p, r); if (d < bd && L.lineOfSight(p, r)) { bd = d; best = r; } }
+  return best;
+}
+const inPlayView = () => G.phase === "play" && !ended && !document.body.classList.contains("lobby-mode");
+let beatT = 0, spottedAt = new Map(), lastEndTick = -1;
+function tensionSound(dt) {
+  const p = G?.player;
+  if (!p || !inPlayView() || p.state !== "free") { beatT = 0; return; }
+  const visible = G.agents.filter(a => a.team !== p.team && (online ? online.sees(a) : sees(p, a)) && (a.state === "free" || a.state === "breaking"));
+  const near = Math.min(...visible.map(a => dist(p, a)), Infinity), close = near === Infinity ? 0 : Math.max(0, Math.min(1, 1 - (near - 120) / 520));
+  const now = G.t;
+  // 5초 넘게 못 보다가 다시 보인 순간에만 알린다
+  for (const a of visible) {
+    if (now - (spottedAt.get(a.id) ?? -99) > 5) { if (p.team === "robber") { play("spotted"); haptic(40); beatT = 0.5; } else { play("found"); haptic(12); } }
+    spottedAt.set(a.id, now);
+  }
+  // 도둑: 경찰이 보이는 동안 심장. 가까울수록 빠르다
+  if (p.team === "robber" && near !== Infinity) {
+    beatT -= dt;
+    if (beatT <= 0) { beatT = 0.42 + (1 - close) * 0.5; play("heart", 0.95 + close * 0.15); }
+  } else beatT = 0;
+  // 마지막 5초는 둘 다 시계
+  const left = Math.ceil(CFG.DURATION - G.t);
+  if (G.phase === "play" && left >= 1 && left <= 5 && left !== lastEndTick) { lastEndTick = left; play("tick", left <= 2 ? 1.12 : 1); }
+}
+function drawCatchAid() {
+  const t = catchTarget(), p = G?.player, btn = $("btnCatch");
+  btn.classList.toggle("ready", !!t && p.catchCd <= 0);
+  if (!t) return;
+  // 대상 발밑에 표시를 한다. 곤봉이 그쪽으로 간다는 걸 누르기 전에 알 수 있다
+  const [x, y] = toScreen(t.x, t.y), rx = 50 * zoom, ry = 22 * zoom;
+  fx2.save(); fx2.strokeStyle = "#FFD24D"; fx2.lineWidth = Math.max(3, 6 * zoom); fx2.globalAlpha = p.catchCd > 0 ? .35 : .95;
+  fx2.beginPath(); fx2.ellipse(x, y + 4 * zoom, rx, ry, 0, 0, 7); fx2.stroke(); fx2.restore();
+}
+function padEnd() { padId = null; padVec = { x: 0, y: 0 }; knob.style.transform = ""; pad.style.transform = ""; pad.classList.remove("on"); }
+padZone.addEventListener("pointerdown", e => {
+  if (padId !== null) return;
+  e.preventDefault();
+  padId = e.pointerId; padZone.setPointerCapture(padId);
+  const rest = pad.getBoundingClientRect(), R = rest.width / 2 || 66, m = 8;
+  // 화면 밖으로 잘리지 않게 안쪽으로 당긴다
+  padCx = clamp(e.clientX, R + m, innerWidth - R - m); padCy = clamp(e.clientY, R + m, innerHeight - R - m);
+  pad.style.transform = `translate(${padCx - (rest.left + R)}px, ${padCy - (rest.top + R)}px)`;
+  pad.classList.add("on"); padMove(e);
+  // 전체 화면이 풀렸으면 다음 터치에 다시 시도한다
+  if (document.fullscreenEnabled && !document.fullscreenElement && Date.now() - padFsAt > 5000) { padFsAt = Date.now(); tryLandscape(); }
+});
+padZone.addEventListener("pointermove", e => { if (e.pointerId === padId) { e.preventDefault(); padMove(e); } });
+for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) padZone.addEventListener(t, e => { if (e.pointerId === padId) padEnd(); });
+const hold = (el, on, off) => {
+  let id = null;
+  el.addEventListener("pointerdown", e => { e.preventDefault(); id = e.pointerId; el.setPointerCapture(id); el.classList.add("down"); on(); });
+  for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) el.addEventListener(t, e => { if (e.pointerId === id) { id = null; el.classList.remove("down"); off(); } });
+};
+// 달리기: 누르고 있으면 그동안, 짧게 누르면 켜 둔다. 켜 두면 엄지를 잡기로 옮길 수 있다
+let runDownAt = 0, runLatched = false;
+const runBtn = $("btnRun");
+hold(runBtn, () => { runDownAt = Date.now(); sprintBtn = true; haptic(8); }, () => {
+  const tap = Date.now() - runDownAt < 180;
+  runLatched = tap && !runLatched;
+  sprintBtn = runLatched;
+  runBtn.classList.toggle("down", runLatched);
+  runBtn.classList.toggle("latched", runLatched);
+  $("btnRunLabel").textContent = runLatched ? "달리는 중" : "달리기";
+});
+hold($("btnCatch"), () => { wantCatch = true; haptic(15); }, () => {});
+// 다른 앱으로 나갔다 오면 눌린 채로 남지 않게 푼다
+const releaseAll = () => { padEnd(); sprintBtn = false; runLatched = false; runBtn.classList.remove("latched"); $("btnRunLabel").textContent = "달리기"; keys.clear(); document.querySelectorAll("#btnRun.down,#btnCatch.down").forEach(b => b.classList.remove("down")); };
+addEventListener("blur", releaseAll);
+document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); else keepAwake(); });
+// 판 도중 화면이 꺼지지 않게 한다. 안 되는 브라우저는 넘어간다
+let wakeLock = null;
+async function keepAwake() { try { if (online && !wakeLock) { wakeLock = await navigator.wakeLock?.request("screen"); wakeLock?.addEventListener("release", () => wakeLock = null); } } catch { wakeLock = null; } }
+// 브라우저 기본 동작이 게임을 방해하지 않게 막는다: 당겨서 새로고침, 두 손가락 확대, 길게 눌러 메뉴, 글자 선택
+const typing = e => e.target instanceof HTMLInputElement;
+// 안내 창과 결과 창은 화면보다 길면 스크롤할 수 있어야 한다
+document.addEventListener("touchmove", e => { if (!typing(e) && !e.target.closest?.(".sheet.show")) e.preventDefault(); }, { passive: false });
+document.addEventListener("gesturestart", e => e.preventDefault());
+document.addEventListener("dblclick", e => e.preventDefault());
+document.addEventListener("contextmenu", e => { if (!typing(e)) e.preventDefault(); });
+document.addEventListener("selectstart", e => { if (!typing(e)) e.preventDefault(); });
+window.visualViewport?.addEventListener("resize", () => fitStage());
 function readInput() {
   let x = 0, y = 0;
   if (keys.has("arrowleft") || keys.has("a")) x -= 1; if (keys.has("arrowright") || keys.has("d")) x += 1;
@@ -452,23 +637,27 @@ function readInput() {
 }
 
 // ───────── 화면 글자 ─────────
-let toastT = 0, bannerT = 0, missionT = 0, lastPip = "";
+let toastT = 0, bannerT = 0, missionT = 0, lastPip = "", lastRevealN = -1;
 const svgUrl = n => "data:image/svg+xml," + encodeURIComponent(SVGS[n]);
 const ROBBER_ICON = svgUrl("robber-front"), POLICE_ICON = svgUrl("police-front");
+// 이긴 쪽은 앱의 승리 그림(트로피 냥파, 브이 도둥이)으로 보여 준다
+const WIN_ICON = { police: "data:image/svg+xml;base64,/*B64:win-cop.svg*/", robber: "data:image/svg+xml;base64,/*B64:win-rob.svg*/" };
 $("imgPolice").src = POLICE_ICON; $("imgRobber").src = ROBBER_ICON;
 const toast = (t, kind = "") => { const n = $("toast"); n.textContent = t; n.className = "show " + kind; toastT = 3; };
-const banner = (lead, main) => { $("bannerLead").textContent = lead; $("bannerMain").textContent = main; $("banner").className = "show " + role; bannerT = 1.8; };
+const CHASE_ART = { police: "data:image/svg+xml;base64,/*B64:police-chase.svg*/", robber: "data:image/svg+xml;base64,/*B64:robber-chase.svg*/" };
+const banner = (lead, main) => { $("bannerLead").textContent = lead; $("bannerMain").textContent = main; $("bannerArt").src = CHASE_ART[role] || CHASE_ART.police; $("banner").className = "show " + role; bannerT = 1.8; };
 const fmt = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 function handleEvents() {
   const p = G.player;
   for (const e of G.events.splice(0)) {
-    if (e.type === "catchStart") { startAction(chars[e.a.id], "catch", e.a.action?.dx ?? Math.cos(e.a.faceA)); if (e.a === p) sfx("swing"); }
+    if (e.type === "catchStart") startAction(chars[e.a.id], "catch", e.a.action?.dx ?? Math.cos(e.a.faceA));
     if (e.type === "jailed") { burst(e.r.x, e.r.y - 40, "#FFFFFF", 12); if (e.r === p) shake = 5; }
-    if (e.type === "catchMiss" && e.a === p) toast("놓쳤어요", "bad");
+    if (e.type === "catchMiss" && e.a === p) { toast("놓쳤어요", "bad"); play("miss"); }
     if (e.type === "caught") {
       startAction(chars[e.r.id], "jail");
-      if (e.r === p || e.by === p || seen(e.r)) { burst(e.r.x, e.r.y - 40, "#FFC93C", 16); sfx("catch"); }
+      if (e.r === p || e.by === p || seen(e.r)) burst(e.r.x, e.r.y - 40, "#FFC93C", 16);
+      if (e.by === p) { play("catch"); haptic(80); } else if (e.r === p) { play("caught"); haptic(500); }
       if (e.r === p || e.by === p) { shake = 12; hitStop = 0.08; }
       if (e.r === p) toast("잡혔어요. 감옥으로 가요", "bad");
       else if (e.by === p) toast(`${e.r.name}을 잡았어요`, "good");
@@ -476,20 +665,20 @@ function handleEvents() {
       else toast(`${e.r.name}이 잡혔어요`, "bad");
     }
     if (e.type === "unlocked") {
-      startAction(chars[e.r.id], "escape"); if (seen(e.r) || e.r === p) sfx("free");
+      startAction(chars[e.r.id], "escape"); if (e.r === p || (p.team === "robber" && e.rescued)) play("free");
       if (e.r === p) toast(e.rescued ? "동료가 문을 열었어요. 밖으로 뛰어요" : "문이 열렸어요. 밖으로 뛰어요", "good");
     }
     if (e.type === "rescued" && e.by === p) toast(`동료 ${e.n}명을 구했어요`, "good");
     if (e.type === "rescued" && p.team === "police") toast("도둑이 감옥 문을 열었어요", "bad");
     if (e.type === "freed" && e.r === p) toast("탈옥했어요. 다시 숨어요", "good");
-    if (e.type === "dispatch") sfx("go");
+    if (e.type === "dispatch") { play("go"); haptic(role === "police" ? [0, 90, 90, 90] : 600); }
     if (e.type === "dispatch") banner(role === "police" ? "시간이 됐어요" : "경찰이 출동했어요", role === "police" ? "출동!" : "조심!");
     if (e.type === "reveal") {
-      sfx("ping");
+      if (role === "police" || p.state === "free") { play("reveal"); haptic(250); }
       if (role === "police") toast("도둑 위치가 공개됐어요. 빨간 표시가 있는 곳으로 가요", "good");
       else if (p.state === "free") toast("내 위치가 공개됐어요. 지금 자리를 옮겨요", "bad");
     }
-    if (e.type === "over") { showEnd(); sfx(G.over.winner === p.team ? "win" : "lose"); }
+    if (e.type === "over") { showEnd(); play(G.over.winner === p.team ? "win" : "lose"); }
   }
 }
 
@@ -497,12 +686,26 @@ function drawHud(dt) {
   const p = G.player, left = G.phase === "wait" ? CFG.WAIT - G.t : CFG.DURATION - G.t;
   $("timer").textContent = fmt(left);
   $("timerLabel").textContent = G.phase === "wait" ? "경찰 출동까지" : "남은 시간";
+  $("clock").classList.toggle("wait", G.phase === "wait");
   // 사람끼리 할 때는 다른 도둑의 상태를 받지 않아서 남은 수로 그린다
   const pips = G.robbers.map((r, i) => (online ? i < online.free : r.state === "free"));
   const pipKey = pips.map(Number).join("");
   if (pipKey !== lastPip) { lastPip = pipKey; $("pips").innerHTML = pips.map(free => `<i class="${free ? "free" : "out"}" style="background-image:url('${ROBBER_ICON}')"></i>`).join(""); }
+  // 자유롭게 움직일 때는 위치 공개까지 남은 시간을 게이지로, 그 밖의 상태는 문장으로 보여 준다
+  const showReveal = G.phase === "play" && !["jailed", "inJail", "breaking"].includes(p.state);
+  $("reveal").hidden = !showReveal; $("status").hidden = showReveal;
+  if (showReveal) {
+    const rest = Math.max(0, G.nextReveal - G.t), n = Math.ceil(rest), soon = n <= 5;
+    if (n !== lastRevealN) { lastRevealN = n; const el = $("revealN"); el.textContent = n; if (soon) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } }
+    $("revealLabel").textContent = role === "police" ? "도둑 위치 공개" : "내 위치 공개";
+    $("revealFill").style.width = Math.min(100, rest / G.revealEvery * 100) + "%";
+    $("reveal").className = soon ? (role === "robber" ? "hot" : "soon") : "";
+  }
+  $("hint").classList.toggle("dim", G.phase === "play" && G.t - CFG.WAIT > 12);
+  $("stam").classList.toggle("tired", !!p.tired);
   let line = "";
   if (G.phase === "wait") line = role === "police" ? "도둑이 도망치는 중이에요" : "경찰에게서 멀어지는 중이에요";
+  else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = "같은 편이 감옥 앞 초록 원에 서면 나갈 수 있어요";
   else if (p.state === "jailed") line = `${Math.ceil(p.lock)}초 뒤 풀려나요. 동료가 감옥 앞에 오면 더 빨리 나갈 수 있어요`;
   else if (p.state === "inJail") line = "감옥 밖에서 3초 동안 안 잡히면 탈옥해요";
   else if (p.state === "breaking") line = `탈옥까지 ${Math.ceil(p.breakT)}초. 잡히면 다시 감옥에 가요`;
@@ -513,11 +716,15 @@ function drawHud(dt) {
   $("status").textContent = line;
   const waitBig = role === "police" && G.phase === "wait";
   $("bigCount").className = waitBig ? "show" : ""; if (waitBig) $("bigCount").textContent = Math.ceil(left);
-  $("status").className = (role === "robber" && G.phase === "play" && p.state === "free" && G.nextReveal - G.t <= 5) ? "hot" : "";
   $("stamFill").style.width = (p.stam * 100) + "%"; $("stamFill").className = p.tired ? "tired" : "";
   const out = !inZone(p.x, p.y);
   $("lock").className = out ? "show" : "";
-  if (role === "police") $("btnCatch").className = p.catchCd > 0 || p.state !== "free" ? "off" : "";
+  if (role === "police") $("btnCatch").classList.toggle("off", p.catchCd > 0 || p.state !== "free");
+  // 지치면 켜 둔 달리기도 꺼 준다
+  if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down", "latched"); $("btnRunLabel").textContent = "달리기"; }
+  runBtn.classList.toggle("tired", !!p.tired);
+  // 잡기를 다시 쓸 수 있을 때까지 버튼 위로 시계처럼 차오른다
+  if (role === "police") $("btnCatch").style.setProperty("--cd", p.catchCd > 0 ? (1 - p.catchCd / CFG.CATCH_CD).toFixed(3) : "1");
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $("toast").className = ""; }
   if (missionT > 0) { missionT -= dt; if (missionT <= 0) $("mission").className = ""; }
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $("banner").className = ""; }
@@ -526,11 +733,11 @@ function drawHud(dt) {
 function showEnd() {
   ended = true;
   const p = G.player, won = G.over.winner === p.team;
-  $("endTitle").textContent = "게임 종료!";
+  // 결과 창에서 제일 먼저 봐야 하는 건 이겼는지 졌는지다. 색으로 한 번 더 알린다
+  $("endTitle").textContent = won ? "이겼어요!" : "졌어요";
+  $("endTitle").className = won ? "won" : "lost";
   $("endReason").textContent = G.over.reason === "allArrested" ? "도둑이 모두 체포됐어요!" : "제한 시간이 끝났어요!";
-  $("endWin").textContent = won ? "우리 팀이 이겼어요" : "이번 판은 졌어요";
-  $("endBadge").textContent = titleOf(p);
-  $("endHero").src = p.team === "police" ? POLICE_ICON : ROBBER_ICON;
+  $("endHero").src = won ? WIN_ICON[p.team] : p.team === "police" ? POLICE_ICON : ROBBER_ICON;
   $("endHero").className = won ? "won" : "lost";
   const s = p.s;
   $("endStats").innerHTML = (p.team === "police"
@@ -539,15 +746,6 @@ function showEnd() {
   ).map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("");
   setTimeout(() => $("end").className = "sheet show " + role, 500);
 }
-function titleOf(p) {
-  const s = p.s, won = G.over && G.over.winner === p.team;
-  if (p.team === "police") return s.catches >= 3 ? "드디어 검거율 상승" : s.catches >= 1 ? "오늘도 순찰 완료" : "발자국만 봤어요";
-  if (s.rescued >= 1) return "감옥 문 여는 친구";
-  if (s.caught >= 3) return "감옥 단골손님";
-  if (!won) return "다음엔 꼭 도망쳐요";
-  return s.caught === 0 ? "끝까지 안 잡힌 도둑" : "아슬아슬 도주 성공";
-}
-
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random";
 function start(r, seed) {
@@ -610,7 +808,7 @@ function frame(dt) {
     drawHud(dt);
   }
   // 카메라: 살짝 늦게 따라가고 달리는 쪽을 조금 더 보여 준다
-  const tx = p.x + p.vx * 0.22 - W / 2 / zoom, ty = p.y - 30 + p.vy * 0.22 - H / 2 / zoom, k = Math.min(1, dt * 6);
+  const [tx, ty] = camTarget ? camTarget(p) : [p.x + p.vx * 0.22 - W / 2 / zoom, p.y - 30 + p.vy * 0.22 - H / 2 / zoom], k = Math.min(1, dt * 6);
   camX += (tx - camX) * k; camY += (ty - camY) * k;
   shake = Math.max(0, shake - dt * 30);
   const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
@@ -625,6 +823,10 @@ function frame(dt) {
     drawChar(c, dt);
   }
   drawFx(dt);
+  drawShields();
+  drawJailAlert();
+  drawCatchAid();
+  tensionSound(dt);
   drawFog();
   drawMini();
 }
@@ -674,26 +876,37 @@ function wobbleBushes(dt) {
     b.el.style.transform = b.wob > 0.02 ? `rotate(${Math.sin(t * 22 + b.x) * 2.6 * b.wob}deg) scale(${1 + 0.02 * b.wob * Math.sin(t * 17)},1)` : "";
   }
 }
-// 효과음: 파일 없이 소리를 만든다
+// 효과음: CC0 소리 파일을 다듬어 쓴다(docs/sound.md)
 let audio = null, muted = false;
-function tone(f0, f1, len, type = "sine", vol = 0.12, delay = 0) {
-  if (!audio || muted) return;
-  const t = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
-  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + len);
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + len);
-  o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + len);
+// 모든 소리는 한 줄기(bus)로 모아 낸다. 소리 끄기와 크기를 한곳에서 다룬다
+let bus = null;
+function ensureBus() { if (audio && !bus) { bus = audio.createGain(); bus.connect(audio.destination); } }
+const SOUND_SRC = { spotted: "data:audio/mpeg;base64,/*B64:sound/spotted.mp3*/", heart: "data:audio/mpeg;base64,/*B64:sound/heart.mp3*/", found: "data:audio/mpeg;base64,/*B64:sound/found.mp3*/", catch: "data:audio/mpeg;base64,/*B64:sound/catch.mp3*/", caught: "data:audio/mpeg;base64,/*B64:sound/caught.mp3*/", miss: "data:audio/mpeg;base64,/*B64:sound/miss.mp3*/", reveal: "data:audio/mpeg;base64,/*B64:sound/reveal.mp3*/", free: "data:audio/mpeg;base64,/*B64:sound/free.mp3*/", go: "data:audio/mpeg;base64,/*B64:sound/go.mp3*/", alert: "data:audio/mpeg;base64,/*B64:sound/alert.mp3*/", tick: "data:audio/mpeg;base64,/*B64:sound/tick.mp3*/", win: "data:audio/mpeg;base64,/*B64:sound/win.mp3*/", lose: "data:audio/mpeg;base64,/*B64:sound/lose.mp3*/" };
+// 순간마다 크기(0~1)와 같은 소리 사이 최소 간격(초). 파일마다 귀에 들리는 크기(LUFS)를 재서 맞췄다. 잡기와 들킴이 기준(1), 사이렌은 같은 최고점이어도 8dB 크게 들려 낮췄다
+const SOUND_MIX = { spotted: [1, 4], heart: [0.68, 0.2], found: [0.45, 3], catch: [0.9, 0.3], caught: [1, 1], miss: [0.78, 0.4], reveal: [0.74, 2], free: [0.65, 1], go: [0.36, 2], alert: [0.36, 4], tick: [0.93, 0.5], win: [0.78, 2], lose: [0.48, 2] };
+// 자주 반복되는 소리만 높이를 조금씩 흔든다. 멜로디가 있는 소리는 흔들면 음이 틀어져 들린다
+const JITTER = new Set(["heart", "miss", "tick"]);
+const sounds = {}, lastPlayed = {};
+async function loadSounds() {
+  if (!audio || sounds.go) return;
+  for (const [k, src] of Object.entries(SOUND_SRC)) {
+    try { sounds[k] = await audio.decodeAudioData(await (await fetch(src)).arrayBuffer()); } catch { /* 못 읽은 소리는 조용히 넘어간다 */ }
+  }
 }
-function sfx(n) {
-  if (n === "swing") tone(520, 180, 0.14, "triangle", 0.1);
-  if (n === "catch") { tone(180, 70, 0.22, "square", 0.1); tone(900, 500, 0.12, "triangle", 0.08, 0.03); }
-  if (n === "free") { tone(420, 840, 0.18, "triangle", 0.09); tone(620, 1240, 0.18, "triangle", 0.07, 0.09); }
-  if (n === "ping") { tone(1320, 1320, 0.22, "sine", 0.07); tone(990, 990, 0.3, "sine", 0.06, 0.16); }
-  if (n === "go") { tone(392, 392, 0.12, "square", 0.06); tone(587, 587, 0.24, "square", 0.06, 0.13); }
-  if (n === "win") [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.2, "triangle", 0.09, i * 0.11));
-  if (n === "lose") [392, 330, 262].forEach((f, i) => tone(f, f * 0.97, 0.26, "triangle", 0.08, i * 0.16));
+function play(name, rate = 1) {
+  if (!audio || muted || !sounds[name]) return;
+  ensureBus();
+  const [vol, gap] = SOUND_MIX[name] || [0.6, 0.2], now = audio.currentTime;
+  if (now - (lastPlayed[name] ?? -9) < gap) return;
+  lastPlayed[name] = now;
+  const s = audio.createBufferSource(), g = audio.createGain();
+  s.buffer = sounds[name];
+  s.playbackRate.value = rate * (JITTER.has(name) ? 1 + (Math.random() - 0.5) * 0.08 : 1);
+  g.gain.value = vol * (1 + (Math.random() - 0.5) * 0.2);
+  s.connect(g); g.connect(bus); s.start();
 }
-function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch { audio = null; } }
-$("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").textContent = muted ? "소리 꺼짐" : "소리 켜짐"; });
+function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); loadSounds(); } catch { audio = null; } }
+$("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").setAttribute("aria-label", muted ? "소리 켜기" : "소리 끄기"); });
 addEventListener("pointerdown", unlockAudio); addEventListener("keydown", unlockAudio);
 
 const pick = (attr, set) => document.querySelectorAll(`[${attr}]`).forEach(b => { b.addEventListener("click", () => { set(b.getAttribute(attr)); document.querySelectorAll(`[${attr}]`).forEach(o => o.classList.toggle("on", o === b)); }); });

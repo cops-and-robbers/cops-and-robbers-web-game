@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>경찰과 도둑 시제품</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
@@ -9,6 +12,10 @@
   :root { --ink:#1D232B; --sub:#545E6E; --police:#2A9BEF; --robber:#35C26B; --danger:#E2574C; --team:var(--police); }
   body[data-role=robber] { --team:var(--robber); }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { overscroll-behavior:none; -webkit-touch-callout:none; -webkit-text-size-adjust:100%; }
+  body { position:fixed; inset:0; }
+  button { touch-action:manipulation; }
+  input { -webkit-user-select:text; user-select:text; }
   html,body { margin:0; height:100%; overflow:hidden; background:#1D232B; color:var(--ink); font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif; user-select:none; -webkit-user-select:none; }
   #stage { position:fixed; inset:0; overflow:hidden; touch-action:none; }
   #world { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; width:3200px; height:2400px; }
@@ -18,7 +25,7 @@
   .char svg { position:absolute; left:0; bottom:0; display:none; overflow:visible; }
   .char svg.on { display:block; }
   .char .shadow { position:absolute; left:0; bottom:-14px; width:96px; height:26px; margin-left:-48px; border-radius:50%; background:rgba(29,35,43,.16); }
-  .tag { position:absolute; left:0; transform:translateX(-50%); white-space:nowrap; font-size:30px; font-weight:800; padding:3px 16px; border-radius:999px; background:#fff; color:var(--ink); box-shadow:0 2px 0 rgba(29,35,43,.12); }
+  .tag { position:absolute; left:0; transform:translateX(-50%); white-space:nowrap; font-size:46px; font-weight:800; padding:4px 22px 6px; border-radius:999px; background:#fff; color:var(--ink); box-shadow:0 2px 0 rgba(29,35,43,.12); }
   .tag.me { background:var(--team); color:#fff; }
   #fog { position:absolute; inset:0; pointer-events:none; z-index:5; }
   #fx { position:absolute; inset:0; pointer-events:none; z-index:4; }
@@ -53,7 +60,13 @@
   #mission.show { opacity:1; }
   #lock { position:absolute; left:50%; top:46%; transform:translateX(-50%); background:var(--danger); color:#fff; font-size:18px; font-weight:800; padding:12px 20px; border-radius:14px; display:none; white-space:nowrap; }
   #lock.show { display:block; }
-  #pad,#btnRun,#btnCatch { pointer-events:auto; display:none; touch-action:none; }
+  #padZone { position:absolute; left:0; bottom:0; width:50%; height:78%; pointer-events:auto; touch-action:none; display:none; }
+  #pad { pointer-events:none !important; transition:opacity .12s; opacity:.75; }
+  #pad.on { opacity:1; }
+  #btnRun,#btnCatch { pointer-events:auto; display:none; touch-action:none; -webkit-user-select:none; user-select:none; }
+  #pad { display:none; touch-action:none; }
+  #btnRun::after,#btnCatch::after { content:""; position:absolute; inset:-14px; border-radius:50%; }
+  #btnRun.down,#btnCatch.down { transform:scale(.92); filter:brightness(1.15); }
   #pad { position:absolute; left:18px; bottom:calc(18px + env(safe-area-inset-bottom)); width:132px; height:132px; border-radius:50%; background:rgba(255,255,255,.55); }
   #knob { position:absolute; left:50%; top:50%; width:54px; height:54px; margin:-27px 0 0 -27px; border-radius:50%; background:rgba(29,35,43,.75); }
   #btnRun,#btnCatch { position:absolute; border:0; border-radius:50%; font:inherit; font-weight:800; color:#fff; width:84px; height:84px; font-size:17px; }
@@ -81,7 +94,7 @@
     #pad { width:112px; height:112px; left:calc(14px + env(safe-area-inset-left)); bottom:12px; } #knob { width:46px; height:46px; margin:-23px 0 0 -23px; }
     #btnRun { width:72px; height:72px; right:calc(14px + env(safe-area-inset-right)); bottom:12px; font-size:15px; } #btnCatch { width:72px; height:72px; right:calc(94px + env(safe-area-inset-right)); bottom:30px; font-size:15px; }
   }
-  @media (pointer:coarse) { #pad,#btnRun { display:block; } #btnCatch { display:block; } #hint { display:none; } #mini { width:112px; height:84px; } #toast { top:112px; font-size:14px; } }
+  @media (pointer:coarse) { #padZone,#pad,#btnRun { display:block; } #btnCatch { display:block; } #hint { display:none; } #mini { width:112px; height:84px; } #toast { top:112px; font-size:14px; } }
   .sheet { position:absolute; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(18,23,32,.55); }
   .sheet.show { display:flex; overflow-y:auto; }
   .sheet .card { margin:auto; }
@@ -102,48 +115,324 @@
   .rules { text-align:left; margin-top:16px; font-size:13px; color:var(--sub); line-height:1.7; }
   .rules b { color:var(--ink); }
   #rotate { background:rgba(18,23,32,.86); z-index:30; }
+  #home .homeActs { display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+  #home button { font:inherit; font-weight:800; font-size:16px; min-height:52px; border:0; border-radius:14px; cursor:pointer; background:#E9ECF1; color:var(--ink); }
+  #home button.primary { background:#F7D774; box-shadow:0 4px 0 #CFA93C; }
+  #home button.link { min-height:44px; background:none; color:var(--sub); text-decoration:underline; text-underline-offset:4px; font-size:14px; }
+  #home label { display:block; text-align:left; font-size:13px; font-weight:800; color:var(--sub); margin:4px 0 6px; }
+  #home .codeRow { display:flex; gap:8px; }
+  #home input { flex:1; min-width:0; min-height:52px; font:inherit; font-size:20px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; border:2px solid var(--ink); border-radius:14px; padding:0 14px; }
+  #home .codeRow button { padding:0 18px; }
+  #homeCodeMsg { min-height:18px; font-size:13px; color:var(--danger) !important; }
+  #lobbyHome, #lobbyRetry { margin-top:14px; width:100%; min-height:48px; }
+  /* 앱 카드: 아이콘으로 같은 이름의 앱이라는 걸 알아보게 한다. 카드 어디를 눌러도 간다 */
+  #endApp { display:flex; align-items:center; gap:12px; margin-top:12px; padding:10px 12px; border-radius:14px; background:#F3F5F8; color:var(--ink); text-decoration:none; text-align:left; -webkit-tap-highlight-color:transparent; }
+  #endApp:active { background:#E9ECF1; }
+  #endApp img { width:48px; height:48px; border-radius:11px; flex:none; box-shadow:0 0 0 1px rgba(0,0,0,.06); }
+  #endApp .txt { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  #endApp b { font-size:15px; font-weight:900; }
+  #endApp .txt span { font-size:13px; font-weight:600; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #endApp .get { flex:none; font-size:14px; font-weight:800; padding:8px 14px; border-radius:999px; background:#fff; box-shadow:0 0 0 1.5px #C9CED6 inset; }
+  #inapp { z-index:25; background:rgba(18,23,32,.72); }
+  #inapp .acts { flex-direction:column; }
+  #inapp .acts button { min-height:48px; flex:none; font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; cursor:pointer; background:#E9ECF1; color:var(--ink); }
+  #inappOpen { background:#F7D774 !important; }
+  #inappStay { font:inherit; font-size:14px; font-weight:800; margin-top:10px; min-height:44px; border:0; background:none; color:var(--sub); text-decoration:underline; text-underline-offset:4px; cursor:pointer; }
   #rotate .card { width:min(84vw,320px); }
   #lobby input, #lobby button { font:inherit; font-weight:700; width:100%; min-height:48px; margin-top:12px; border-radius:12px; border:1px solid #C9CED6; padding:0 14px; background:#fff; color:var(--ink); }
-  #lobby button { border:0; background:var(--ink); color:#fff; }
-  #lobbyList { font-weight:700; color:var(--ink); }
+  #lobby button { border:0; }
+  #lobby label { display:block; margin-top:14px; font-size:13px; font-weight:800; color:var(--sub); text-align:left; }
+  #lobby input { margin-top:6px; }
+  #lobby button { background:var(--cheese,#F7D774); color:var(--ink); box-shadow:0 4px 0 #CFA93C; }
   [hidden] { display:none !important; }
   #rotate .phone { width:44px; height:72px; margin:0 auto 14px; border:5px solid var(--ink); border-radius:10px; animation:turn 1.8s ease-in-out infinite; }
   @keyframes turn { 0%,25% { transform:none; } 60%,100% { transform:rotate(90deg); } }
   #rotateSkip { font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; padding:12px; margin-top:14px; width:100%; background:#E9ECF1; color:var(--ink); }
   #endHero { height:92px; display:block; margin:0 auto 8px; }
-  #endHero.won { animation:pop .7s cubic-bezier(.22,1.5,.36,1) both; }
+  #endHero.won { height:120px; animation:pop .7s cubic-bezier(.22,1.5,.36,1) both; }
   #endHero.lost { filter:saturate(.6); }
   @keyframes pop { from { transform:scale(0); } to { transform:none; } }
-  #endBadge { display:inline-block; margin-top:12px; font-size:18px; font-weight:900; padding:8px 16px; border-radius:12px; background:var(--team); color:#fff; }
-  #endWin { font-size:15px; font-weight:800; margin-top:8px; }
+  #endTitle { font-size:30px; font-weight:900; } #endTitle.won { color:#1E7BF0; } #endTitle.lost { color:#E5484D; }
   #endStats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
   #endStats div { background:#F3F5F8; border-radius:12px; padding:10px 4px; } #endStats span { display:block; font-size:12px; color:var(--sub); font-weight:600; } #endStats b { font-size:18px; }
   .acts { display:flex; gap:8px; margin-top:16px; }
   .acts button { flex:1; font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; padding:13px; cursor:pointer; }
   #again { background:var(--team); color:#fff; } #swap { background:#E9ECF1; color:var(--ink); }
+
+  /* 오른손 버튼: 가장 많이 쓰는 버튼을 구석에 두고 사이를 띄운다 */
+  #btnCatch { width:92px; height:92px; font-size:19px; right:calc(18px + env(safe-area-inset-right)); bottom:calc(16px + env(safe-area-inset-bottom)); }
+  #btnCatch.ready { box-shadow:0 0 0 5px #FFD24D; }
+  #btnRun::after,#btnCatch::after { inset:-10px; }
+  body[data-role=police]:not(.lobby-mode) #btnRun { width:72px; height:72px; font-size:15px; right:calc(140px + env(safe-area-inset-right)); bottom:calc(30px + env(safe-area-inset-bottom)); }
+  #btnRun.down { background:#1D232B; box-shadow:0 0 0 3px #fff; }
+  /* 낮은 가로 화면에서 결과 창이 잘리지 않게 두 칸으로 편다 */
+  @media (max-height:560px) {
+    #end .card { width:min(94vw,700px); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); column-gap:18px; align-items:center; }
+    #endHead { grid-column:1; grid-row:1 / span 3; align-self:center; }
+    #endHero { height:58px; margin-bottom:2px; } #endHero.won { height:96px; } #end h1 { font-size:26px; } #end #endReason { margin-top:2px; font-size:12px; }
+    #endStats { grid-column:2; grid-row:1; margin-top:0; } #endStats div { padding:8px 4px; }
+    #end .acts { grid-column:2; grid-row:2; margin-top:10px; } #end .acts button { min-height:48px; padding:8px; }
+    #endApp { grid-column:2; grid-row:3; margin-top:8px; padding:6px 10px; gap:10px; } #endApp img { width:36px; height:36px; border-radius:8px; } #endApp b { font-size:13px; } #endApp .txt span { font-size:12px; } #endApp .get { font-size:13px; padding:6px 12px; }
+  }
+
+  /* ───────── 게임 화면 위 표시: 문장 대신 아이콘, 숫자, 게이지로 한눈에 읽게 한다 ───────── */
+  #sound { width:42px; height:42px; padding:0; display:grid; place-items:center; border-radius:14px; background:#fff; box-shadow:0 3px 0 rgba(29,35,43,.22); transition:transform .08s; }
+  #sound:active { transform:translateY(2px); box-shadow:0 1px 0 rgba(29,35,43,.22); }
+  #sound svg { width:24px; height:24px; fill:var(--ink); } #sound .off { display:none; } #sound.off .on { display:none; } #sound.off .off { display:block; } #sound.off svg { fill:#8A93A0; }
+  #reveal { position:relative; display:flex; align-items:center; gap:8px; padding:6px 14px 10px 6px; border-radius:16px; background:rgba(29,35,43,.88); color:#fff; border:2px solid rgba(255,255,255,.9); box-shadow:0 3px 0 rgba(29,35,43,.22); overflow:hidden; }
+  #reveal .ico { width:30px; height:30px; border-radius:50%; background:var(--team); display:grid; place-items:center; flex:none; }
+  #reveal .ico { position:relative; } #reveal .ico svg { width:20px; height:20px; position:relative; display:none; }
+  body[data-role=police] #reveal .i-siren, body[data-role=robber] #reveal .i-mask { display:block; } #reveal .i-siren { width:17px; }
+  #reveal.hot .i-mask { display:none !important; } #reveal.hot .i-light { display:block; }
+  #reveal .ico::after { content:""; position:absolute; inset:0; border-radius:50%; border:2px solid var(--team); animation:ping 1.8s ease-out infinite; }
+  @keyframes ping { from { transform:scale(1); opacity:.9; } to { transform:scale(1.7); opacity:0; } }
+  #revealLabel { font-size:13px; font-weight:700; opacity:.9; white-space:nowrap; }
+  #revealN { font-size:22px; font-weight:900; font-variant-numeric:tabular-nums; min-width:2.2ch; text-align:right; }
+  #revealN::after { content:"초"; font-size:12px; font-weight:700; margin-left:1px; opacity:.85; }
+  #reveal .bar { position:absolute; left:8px; right:8px; bottom:4px; height:4px; border-radius:9px; background:rgba(255,255,255,.18); }
+  #revealFill { display:block; height:100%; width:100%; border-radius:9px; background:var(--team); transition:width .25s linear; }
+  #reveal.soon { background:#FFD24D; color:var(--ink); border-color:#fff; } #reveal.soon .ico { background:var(--police); } #reveal.soon .ico::after { border-color:var(--ink); animation-duration:1s; } #reveal.soon #revealFill { background:var(--ink); } #reveal.soon .bar { background:rgba(29,35,43,.15); }
+  #reveal.hot { background:var(--danger); animation:shake .45s ease-in-out infinite; } #reveal.hot .ico { background:#fff; } #reveal.hot .ico::after { border-color:#fff; animation-duration:.9s; } #reveal.hot #revealFill { background:#fff; }
+  #revealN.bump { animation:bump .3s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes bump { from { transform:scale(1.5); } to { transform:none; } }
+  @keyframes shake { 0%,100% { transform:none; } 25% { transform:translateX(-2px) rotate(-1deg); } 75% { transform:translateX(2px) rotate(1deg); } }
+  #stam { display:flex; align-items:center; height:auto; background:none; border:0; overflow:visible; }
+  #stam .bolt { width:28px; height:28px; border-radius:50%; background:#fff; display:grid; place-items:center; flex:none; z-index:1; box-shadow:0 2px 0 rgba(29,35,43,.22); margin-right:-6px; }
+  #stam .bolt svg { width:20px; height:15px; color:var(--team); }
+  #stam .track { flex:1; height:14px; border-radius:99px; background:rgba(29,35,43,.55); border:2px solid #fff; overflow:hidden; }
+  #stamFill { box-shadow:inset 0 -3px 0 rgba(0,0,0,.14); transition:width .1s linear; }
+  #stam.tired .bolt svg { color:var(--danger); } #stam.tired .bolt { animation:shake .5s ease-in-out infinite; }
+  #hint { display:flex; gap:14px; align-items:center; background:rgba(29,35,43,.72); padding:8px 12px; border-radius:14px; border:2px solid rgba(255,255,255,.25); transition:opacity .6s; }
+  #hint.dim { opacity:.45; }
+  #hint .grp { display:flex; align-items:center; gap:3px; } #hint em { font-style:normal; font-size:12px; font-weight:700; margin-left:5px; }
+  #hint kbd { font:inherit; font-size:11px; font-weight:900; min-width:22px; height:22px; padding:0 5px; box-sizing:border-box; display:grid; place-items:center; border-radius:6px; background:#fff; color:var(--ink); box-shadow:0 3px 0 #9AA3B0; transform:translateY(-1px); transition:transform .05s,box-shadow .05s,background .05s; }
+  #hint kbd.wide { min-width:44px; }
+  #hint kbd.on { transform:translateY(2px); box-shadow:0 0 0 #9AA3B0; background:var(--team); color:#fff; }
+  body[data-role=robber] #hint .catch { display:none; }
+  #btnRun { flex-direction:column; align-items:center; justify-content:center; gap:1px; line-height:1.1; }
+  @media (pointer:coarse) { #btnRun { display:flex; } }
+  #btnRun .bolt svg { width:24px; height:18px; color:#fff; display:block; }
+  #pad { background:rgba(29,35,43,.22); border:3px solid rgba(255,255,255,.85); box-sizing:border-box; }
+  #knob { background:var(--team); border:3px solid #fff; box-shadow:0 3px 0 rgba(29,35,43,.3); box-sizing:border-box; }
+  @media (max-height:460px) { #reveal { padding:4px 12px 8px 4px; } #reveal .ico { width:26px; height:26px; } #revealN { font-size:19px; } #sound { width:38px; height:38px; } }
+  @media (max-width:640px) { #revealLabel { font-size:12px; } #hint { display:none; } }
+  @media (pointer:coarse) { #hint { display:none; } }
+
+  /* ───────── 열린 방 목록 ───────── */
+  #rooms .card { width:min(92vw,440px); }
+  .roomsHead { display:flex; align-items:center; justify-content:space-between; }
+  #roomsBack { font:inherit; font-size:14px; font-weight:800; min-height:44px; padding:0 4px; border:0; background:none; color:var(--sub); cursor:pointer; }
+  #roomsList { display:flex; flex-direction:column; gap:8px; margin-top:12px; max-height:min(60vh,380px); overflow-y:auto; padding-bottom:4px; }
+  .roomRow { display:flex; align-items:center; gap:12px; width:100%; min-height:64px; padding:10px 14px 10px 10px; border:0; border-radius:16px; background:#F3F5F8; box-shadow:0 3px 0 #DCE0E6; font:inherit; color:var(--ink); text-align:left; cursor:pointer; flex:none; }
+  .roomRow:active { transform:translateY(2px); box-shadow:0 1px 0 #DCE0E6; }
+  .roomRow[aria-disabled=true] { cursor:default; box-shadow:none; background:#F6F7F9; }
+  .roomRow[aria-disabled=true] .av, .roomRow[aria-disabled=true] .who b, .roomRow[aria-disabled=true] .cnt { opacity:.45; }
+  .roomRow .av { width:44px; height:44px; border-radius:50%; display:grid; place-items:center; flex:none; color:#fff; font-size:18px; font-weight:900; background:var(--police); box-shadow:inset 0 -3px 0 rgba(0,0,0,.12); }
+  .roomRow .av.c1 { background:var(--robber); } .roomRow .av.c2 { background:#F2B33D; } .roomRow .av.c3 { background:#7C6CF0; }
+  .roomRow .who { flex:1; min-width:0; }
+  .roomRow .who b { display:block; font-size:16px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .roomRow .who small { display:flex; align-items:center; gap:5px; margin-top:3px; font-size:12px; font-weight:700; color:var(--sub); }
+  .roomRow .who small::before { content:""; width:7px; height:7px; border-radius:50%; background:#B8BEC8; }
+  .roomRow.open .who small { color:#1F9A52; } .roomRow.open .who small::before { background:var(--robber); box-shadow:0 0 0 3px rgba(53,194,107,.2); }
+  .roomRow .cnt { display:flex; align-items:center; gap:5px; font-size:16px; font-weight:900; font-variant-numeric:tabular-nums; }
+  .roomRow .hc { width:18px; height:18px; }
+  #roomsEmpty { text-align:center; padding:18px 0 4px; } #roomsEmpty p { margin:0 0 14px; }
+  #roomsCreate { font:inherit; font-weight:800; font-size:16px; width:100%; min-height:52px; border:0; border-radius:14px; cursor:pointer; background:#F7D774; box-shadow:0 4px 0 #CFA93C; color:var(--ink); }
+  @media (max-height:460px) { #roomsList { max-height:calc(100vh - 110px); } .roomRow { min-height:54px; padding:7px 12px 7px 8px; } .roomRow .av { width:38px; height:38px; font-size:16px; } }
+
+  /* ───────── 첫 화면: 앱 홈과 같은 하늘, 글자 로고, 냥파와 도둥이 ───────── */
+  .sheet.brand { padding:0; background:none; }
+  #brandBg { position:absolute; inset:0; z-index:19; display:none; background:#A6D8FF; }
+  #brandBg svg { display:block; width:100%; height:100%; }
+  #stage:has(> .sheet.brand.show) #brandBg { display:block; }
+  #home .homeWrap { position:relative; z-index:1; }
+  .soloTile { display:flex !important; align-items:center; gap:12px; width:100%; min-height:60px !important; margin-top:4px; padding:8px 14px 8px 10px; text-align:left; border:2px solid #E3E7ED !important; background:#fff !important; box-shadow:0 3px 0 #E3E7ED; }
+  .soloTile:active { transform:translateY(2px); box-shadow:0 1px 0 #E3E7ED; }
+  .soloTile img { width:40px; height:40px; padding:6px; box-sizing:border-box; border-radius:12px; background:#EEF1FF; flex:none; }
+  .soloTile span { flex:1; } .soloTile b { display:block; font-size:15px; font-weight:800; } .soloTile small { display:block; margin-top:1px; font-size:12px; font-weight:700; color:var(--sub); }
+  .soloTile i { width:9px; height:9px; border-right:2.5px solid #9AA3B0; border-top:2.5px solid #9AA3B0; transform:rotate(45deg); margin-right:4px; }
+  /* 경찰 출동 전: 큰 숫자 위에 경찰차, 시계 글자 앞에도 작은 경찰차 */
+  #bigCount.show::before { content:""; display:block; width:.9em; height:.66em; margin:0 auto -.05em; background:url("data:image/svg+xml;base64,/*B64:car.svg*/") center/contain no-repeat; animation:rev .18s ease-in-out infinite alternate; }
+  #clock.wait #timerLabel::before { content:""; display:inline-block; width:22px; height:16px; margin-right:4px; vertical-align:-3px; background:url("data:image/svg+xml;base64,/*B64:car.svg*/") center/contain no-repeat; }
+  @keyframes rev { to { transform:translateY(-2px) rotate(-1deg); } }
+  /* 첫 화면 버튼: 앱 홈의 "게임 생성하기", "게임 참여하기"와 같은 색과 아이콘 */
+  #home .homeActs > button:not(.soloTile), #roomsCreate, #lobby button#lobbyJoin { display:flex; align-items:center; justify-content:center; gap:8px; }
+  #home .homeActs > button:not(.soloTile) img { height:20px; width:auto; }
+  #home button.primary, #roomsCreate, #lobby button#lobbyJoin { background:#0088FF; color:#fff; box-shadow:0 4px 0 #006ACC; }
+  #home button.primary:active, #roomsCreate:active, #lobby button#lobbyJoin:active { transform:translateY(3px); box-shadow:0 1px 0 #006ACC; }
+  #homeJoinOpen { background:#fff !important; color:#5D6F83 !important; border:2px solid #E3E7ED !important; box-shadow:0 3px 0 #E3E7ED; }
+  #homeJoinOpen:active { transform:translateY(2px); box-shadow:0 1px 0 #E3E7ED; }
+  /* 방장 프로필: 앱 커뮤니티 프로필 그림에 파스텔 배경 */
+  .roomRow .av { background:none !important; box-shadow:none !important; overflow:hidden; }
+  .roomRow .av svg { display:block; width:100%; height:100%; }
+  @media (prefers-reduced-motion:reduce) { .pair, #bigCount.show::before { animation:none; } }
+  .homeWrap { width:100%; min-height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:clamp(16px,5vw,72px); padding:max(14px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left)); }
+  .hero { display:flex; flex-direction:column; align-items:center; gap:clamp(6px,3vh,28px); }
+  .hero .logo { display:block; width:clamp(190px,min(34vw,66vh),400px); height:auto; }
+  .stage { position:relative; padding-top:clamp(26px,8vh,54px); }
+  .pair { display:block; height:clamp(108px,40vh,270px); width:auto; transform-origin:50% 100%; animation:idle 2.6s ease-in-out infinite; }
+  @keyframes idle { 0%,100% { transform:none; } 50% { transform:scaleY(.97) scaleX(1.015); } }
+  .bubble { position:absolute; left:-4%; top:0; background:#fff; color:var(--ink); border-radius:16px; padding:7px 12px 8px; font-size:clamp(11px,1.9vh,15px); font-weight:800; line-height:1.35; text-align:left; box-shadow:0 3px 0 rgba(29,35,43,.14); transform:rotate(-4deg); }
+  .bubble::after { content:""; position:absolute; left:34px; bottom:-8px; border:9px solid transparent; border-top-color:#fff; border-bottom:0; }
+  .homeCard { width:min(92vw,360px); margin:0 !important; padding:18px !important; text-align:left; box-shadow:0 6px 0 rgba(29,35,43,.14); }
+  #home .homeActs { margin-top:0; }
+  #homeLive { margin-top:2px; }
+  .liveHead { display:flex; align-items:center; justify-content:space-between; margin:2px 2px 6px; font-size:13px; }
+  .liveHead b { display:flex; align-items:center; gap:6px; } .liveHead b::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--robber); box-shadow:0 0 0 3px rgba(53,194,107,.22); animation:live 1.6s ease-in-out infinite; }
+  @keyframes live { 50% { box-shadow:0 0 0 6px rgba(53,194,107,0); } }
+  #home .liveHead .more { min-height:32px; padding:0 4px; background:none; color:var(--sub); font-size:13px; font-weight:800; }
+  #homeLiveList { display:flex; flex-direction:column; gap:6px; }
+  #homeLiveList .roomRow { min-height:52px; padding:6px 12px 6px 8px; } #homeLiveList .roomRow .av { width:34px; height:34px; font-size:15px; } #homeLiveList .roomRow .who b { font-size:15px; }
+  #rooms.brand .card { box-shadow:0 6px 0 rgba(29,35,43,.14); }
+  #lobby.brand .card { box-shadow:0 6px 0 rgba(29,35,43,.14); }
+  .cardLogo { display:block; height:30px; width:auto; margin:0 auto 10px; } #lobbyTitle:empty { display:none; }
+  #lobby button#lobbyBack { background:none; box-shadow:none; color:var(--sub); font-size:14px; min-height:44px; margin-top:6px; text-decoration:underline; text-underline-offset:4px; }
+  @media (max-height:460px) { .homeCard { padding:14px !important; } #home button { min-height:46px; font-size:15px; } #home .homeActs { gap:8px; } #homeLiveList .roomRow { min-height:46px; } }
+  @media (max-height:360px) { #homeLiveList .roomRow:nth-child(n+2) { display:none; } }
+  @media (max-aspect-ratio:4/5) {
+    .homeWrap { flex-direction:column; justify-content:flex-start; gap:14px; padding-top:max(36px,env(safe-area-inset-top)); }
+    .hero .logo { width:min(74vw,340px); } .pair { height:min(26vh,230px); }
+    .homeCard { width:min(100%,420px); }
+  }
+
+  /* ───────── 하는 방법: 작은 무대에서 게임 부품이 움직인다 ───────── */
+  #howto { z-index:24; }
+  .howCard { position:relative; width:min(92vw,480px); padding:14px !important; text-align:center; }
+  .howStage { position:relative; width:320px; height:180px; border-radius:16px; overflow:hidden; background:#F3EEE4; transform-origin:0 0; }
+  .howStage > * { position:absolute; left:0; top:0; will-change:transform; }
+  .hsRoad { width:320px; height:40px; top:62px !important; background:#E7DFD0; border-top:2px solid #D5CBB8; border-bottom:2px solid #D5CBB8; }
+  .hsRoad::after { content:""; position:absolute; left:0; right:0; top:18px; border-top:3px dashed rgba(255,255,255,.8); }
+  .hsBush { left:250px !important; top:112px !important; width:70px; height:40px; border-radius:50%; background:#78B194; box-shadow:-26px 10px 0 -6px #5E9A7D, 20px 12px 0 -4px #98CAAF; }
+  .hsCop, .hsRob { width:56px; height:auto; transform-origin:50% 100%; }
+  .hsShadow { width:34px; height:9px; border-radius:50%; background:rgba(29,35,43,.16); }
+  .hsAim { width:44px; height:16px; margin:-2px 0 0; border-radius:50%; border:3px solid #FFD24D; transition:opacity .12s; }
+  .hsPop { padding:3px 9px; border-radius:10px; background:var(--danger); color:#fff; font-size:13px; font-weight:900; transition:opacity .15s; }
+  .hsPad { left:16px !important; top:112px !important; width:56px; height:56px; border-radius:50%; border:2px solid rgba(255,255,255,.9); background:rgba(29,35,43,.22); box-sizing:border-box; }
+  .hsPad i { position:absolute; left:15px; top:15px; width:22px; height:22px; border-radius:50%; background:var(--police); border:2px solid #fff; box-sizing:border-box; }
+  .hsBtn { display:grid; place-items:center; border-radius:50%; color:#fff; font-size:10px; font-weight:800; transition:box-shadow .12s, transform .08s; }
+  .hsBtn.run { left:214px !important; top:132px !important; width:36px; height:36px; background:rgba(29,35,43,.75); }
+  .hsBtn.catch { left:262px !important; top:118px !important; width:48px; height:48px; background:var(--police); font-size:12px; }
+  .hsBtn.catch.ready { box-shadow:0 0 0 4px #FFD24D; } .hsBtn.down { transform:scale(.9); filter:brightness(1.15); }
+  .hsFinger { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,.55); border:2px solid #fff; box-shadow:0 2px 6px rgba(29,35,43,.3); transition:opacity .15s; opacity:0; }
+  .hsFinger.down::after { content:""; position:absolute; inset:-8px; border-radius:50%; border:2px solid rgba(255,255,255,.9); animation:tapRing .35s ease-out; }
+  @keyframes tapRing { from { transform:scale(.5); opacity:1; } to { transform:scale(1.2); opacity:0; } }
+  .hsKeys { left:12px !important; top:146px !important; display:flex; gap:4px; }
+  .hsKeys kbd { font:inherit; font-size:10px; font-weight:900; min-width:20px; height:20px; padding:0 4px; display:grid; place-items:center; border-radius:5px; background:#fff; color:var(--ink); box-shadow:0 2px 0 #9AA3B0; }
+  .hsKeys kbd.wide { min-width:40px; } .hsKeys kbd.on { transform:translateY(2px); box-shadow:none; background:var(--police); color:#fff; }
+  #howto:not(.touch) .hsPad, #howto:not(.touch) .hsBtn, #howto:not(.touch) .hsFinger { display:none; }
+  #howto.touch .hsKeys { display:none; }
+  .howLine { margin:12px 4px 0 !important; font-size:16px !important; font-weight:800; color:var(--ink) !important; min-height:2.6em; }
+  .howFoot { display:flex; align-items:center; justify-content:space-between; margin-top:8px; }
+  .howDots { display:flex; gap:6px; } .howDots i { width:7px; height:7px; border-radius:4px; background:#D5DAE1; transition:width .2s; } .howDots i.on { width:20px; background:var(--police); }
+  .howNext { font:inherit; font-size:15px; font-weight:800; min-height:44px; padding:0 18px; border:0; border-radius:12px; background:#0088FF; color:#fff; box-shadow:0 3px 0 #006ACC; cursor:pointer; }
+  .howClose { position:absolute; right:6px; top:6px; width:36px; height:36px; border:0; border-radius:50%; background:rgba(255,255,255,.85); cursor:pointer; }
+  .howClose::before, .howClose::after { content:""; position:absolute; left:11px; top:17px; width:14px; height:2.5px; border-radius:2px; background:var(--sub); transform:rotate(45deg); } .howClose::after { transform:rotate(-45deg); }
+  @media (max-height:460px) { .howLine { margin-top:8px !important; font-size:14px !important; min-height:0; } .howFoot { margin-top:4px; } }
+
+  /* 알림 띠: 앱의 추격 자세 냥파, 도둥이가 함께 달려 들어온다 */
+  #banner { display:flex; align-items:center; justify-content:center; gap:16px; }
+  #bannerArt { height:86px; width:auto; margin:-18px 0 -10px; filter:drop-shadow(0 4px 0 rgba(0,0,0,.15)); }
+  #banner.show #bannerArt { animation:dash .45s cubic-bezier(.2,1.4,.4,1) both; }
+  @keyframes dash { from { transform:translateX(-60px) rotate(-8deg); opacity:0; } to { transform:none; opacity:1; } }
+  #banner .txt { text-align:left; }
+  @media (max-height:460px) { #bannerArt { height:62px; } }
+  /* 감옥 소식 띠 */
+  #jailAlert { position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%); white-space:nowrap; display:flex; align-items:center; gap:8px; padding:7px 14px 11px 8px; border-radius:16px; color:#fff; font-size:14px; font-weight:800; border:2px solid rgba(255,255,255,.9); box-shadow:0 3px 0 rgba(29,35,43,.22); overflow:hidden; }
+  #jailAlert.bad { background:var(--danger); animation:shakeX .5s ease-in-out infinite; }
+  @keyframes shakeX { 0%,100% { transform:translateX(-50%); } 25% { transform:translateX(calc(-50% - 2px)) rotate(-1deg); } 75% { transform:translateX(calc(-50% + 2px)) rotate(1deg); } } #jailAlert.good { background:#2FAE62; }
+  #jailAlert img { width:26px; height:26px; padding:4px; box-sizing:border-box; border-radius:50%; background:rgba(0,0,0,.18); }
+  #jailAlert .bar { position:absolute; left:8px; right:8px; bottom:4px; height:4px; border-radius:9px; background:rgba(255,255,255,.3); }
+  #jailAlertFill { display:block; height:100%; width:0; border-radius:9px; background:#fff; }
+
+  /* ───────── 터치 버튼: 첫 화면 버튼과 같은 두께감, 누르면 눌려 들어간다 ───────── */
+  /* 아이폰 사파리는 왼쪽 가장자리에서 밀면 뒤로 가기가 먼저 잡혀서, 조이스틱 영역을 가장자리에서 띄운다 */
+  #padZone { left:calc(24px + env(safe-area-inset-left)); width:calc(50% - 24px - env(safe-area-inset-left)); }
+  #btnRun, #btnCatch { box-shadow:0 5px 0 rgba(0,0,0,.28); transition:transform .06s, box-shadow .06s, background .15s, opacity .15s; }
+  #btnRun.down, #btnCatch.down { transform:translateY(4px) scale(.96); box-shadow:0 1px 0 rgba(0,0,0,.28); filter:none; }
+  #btnRun { background:rgba(29,35,43,.82); border:3px solid rgba(255,255,255,.9) !important; }
+  #btnRun.latched { background:#FFB800; color:#1D232B; } #btnRun.latched .bolt svg { color:#1D232B; }
+  #btnRun.latched.down { box-shadow:0 5px 0 rgba(0,0,0,.28), 0 0 0 4px rgba(255,184,0,.35); transform:none; }
+  #btnRun.tired { opacity:.5; } #btnRun.tired .bolt svg { color:#FF8A80; }
+  #btnRunLabel { font-size:14px; white-space:nowrap; } #btnRun.latched #btnRunLabel { font-size:12px; }
+  #btnCatch { border:3px solid rgba(255,255,255,.9) !important; background:conic-gradient(var(--police) calc(var(--cd,1) * 360deg), #6E8AA6 0); }
+  #btnCatch.off { opacity:1; filter:saturate(.6); }
+  #btnCatch.ready { box-shadow:0 5px 0 rgba(0,0,0,.28), 0 0 0 5px #FFD24D; animation:ready 1s ease-in-out infinite; }
+  @keyframes ready { 50% { box-shadow:0 5px 0 rgba(0,0,0,.28), 0 0 0 9px rgba(255,210,77,.55); } }
+
+  /* ───────── 앱 디자인 규칙에 맞춘 정리 (2026-11-06) ─────────
+     앱은 테두리 없는 평평한 면, 옅게 퍼지는 그림자, 둥근 모서리 12~16 만 쓴다(app_shadows.dart ver2, app_button.dart).
+     굵은 흰 테두리, 아래로 딱딱하게 떨어지는 그림자, 깜빡임과 흔들림은 걷어 낸다. 색과 글자로만 알린다 */
+  :root { --soft:0 2px 10px rgba(29,35,43,.12); --app-blue:#0088FF; --app-ink:#1E232A; --app-sub:#5D6F83; }
+  #clock, #sound, #reveal, #jailAlert, #toast { box-shadow:var(--soft) !important; border:0 !important; }
+  #mini { border:0 !important; box-shadow:var(--soft); }
+  #sound:active { transform:scale(.94); box-shadow:var(--soft); }
+  /* 위치 공개: 흰 면에 아이콘과 숫자, 얇은 막대. 급할 때는 숫자와 막대만 빨개진다 */
+  #reveal { background:#fff !important; color:var(--app-ink) !important; padding:7px 14px 11px 10px !important; animation:none !important; }
+  #reveal .ico { width:24px !important; height:24px !important; background:none !important; }
+  #reveal .ico::after { display:none; }
+  #reveal .i-siren path, #reveal .i-siren rect { fill:var(--app-blue); }
+  #reveal .i-mask path { fill:#35A15F; }
+  #revealLabel { color:var(--app-sub); opacity:1; }
+  #reveal .bar { height:3px; background:#EEF1F4 !important; }
+  #revealFill { background:var(--team) !important; }
+  #reveal.soon #revealN { color:#E08A00; } #reveal.soon #revealFill { background:#FFB800 !important; }
+  #reveal.hot #revealN, #reveal.hot #revealLabel { color:var(--danger); } #reveal.hot #revealFill { background:var(--danger) !important; }
+  #reveal.hot .i-light { display:block; } #reveal.hot .i-mask { display:none !important; }
+  /* 감옥 소식: 흰 면에 빨강 또는 초록 글자 */
+  #jailAlert { background:#fff !important; animation:none !important; padding:8px 14px 11px 10px; }
+  #jailAlert.bad { color:var(--danger); } #jailAlert.good { color:#24985A; }
+  #jailAlert img { background:none; padding:0; width:22px; height:22px; }
+  #jailAlert .bar { height:3px; background:#EEF1F4; } #jailAlert.bad #jailAlertFill { background:var(--danger); } #jailAlert.good #jailAlertFill { background:#35C26B; }
+  #hint { border:0; background:rgba(30,35,42,.72); }
+  #stam .bolt { box-shadow:var(--soft); } #stam.tired .bolt { animation:none; }
+  /* 조이스틱: 반투명 받침과 흰 손잡이 */
+  #pad { border:2px solid rgba(255,255,255,.55) !important; background:rgba(30,35,42,.18) !important; }
+  #knob { background:#fff !important; border:0 !important; box-shadow:0 2px 8px rgba(29,35,43,.25) !important; }
+  /* 달리기, 잡기: 평평한 원. 누르면 살짝 작아진다 */
+  #btnRun, #btnCatch { border:0 !important; box-shadow:var(--soft) !important; }
+  #btnRun.down, #btnCatch.down { transform:scale(.94); box-shadow:var(--soft) !important; }
+  #btnRun { background:rgba(30,35,42,.78) !important; }
+  #btnRun.latched { background:#FFB800 !important; color:var(--app-ink); }
+  #btnRun.latched.down { transform:scale(.94); }
+  #btnCatch { background:conic-gradient(var(--police) calc(var(--cd,1) * 360deg), #8BA3BA 0) !important; }
+  #btnCatch.ready { box-shadow:0 0 0 4px #FFD24D, var(--soft) !important; animation:none !important; }
+  /* 첫 화면: 버튼과 카드는 앱처럼 평평하게 */
+  #home button.primary, #roomsCreate, #lobby button#lobbyJoin { box-shadow:none !important; background:var(--app-blue) !important; }
+  #home button.primary:active, #roomsCreate:active, #lobby button#lobbyJoin:active, #homeJoinOpen:active, .soloTile:active, .roomRow:active { transform:scale(.98); box-shadow:none; }
+  #homeJoinOpen { border:1px solid #E3E8ED !important; box-shadow:none !important; color:var(--app-sub) !important; }
+  .soloTile { border:1px solid #E3E8ED !important; box-shadow:none !important; }
+  .homeCard, #rooms.brand .card, #lobby.brand .card { box-shadow:0 0 10px rgba(0,0,0,.07) !important; }
+  .roomRow { box-shadow:none !important; background:#F4F7FA !important; }
+  .pair { animation:none; }
+  .liveHead b::before { animation:none; box-shadow:none; }
+  .howNext { box-shadow:none; background:var(--app-blue); }
 </style>
 </head>
 <body>
 <div id="stage">
   <div id="world"><canvas id="map"></canvas></div>
+  <div id="brandBg" aria-hidden="true">/*SVG:bg.svg*/</div>
   <canvas id="fx"></canvas>
   <canvas id="fog"></canvas>
   <div id="hud">
     <div id="top">
       <div id="clock"><div id="timerLabel"></div><div id="timer"></div><div id="pips"></div></div>
       <div id="status"></div>
+      <div id="jailAlert" hidden><img src="data:image/svg+xml;base64,/*B64:siren.svg*/" alt=""><span id="jailAlertText"></span><i class="bar"><i id="jailAlertFill"></i></i></div>
+      <div id="reveal" hidden><span class="ico"><svg class="i-siren" aria-hidden="true" viewBox="0 0 14 17" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M6.79395 4.54688C9.91771 4.54696 12.4551 7.12682 12.4551 10.3027V13.5459H9.49707V10.7168C9.49707 9.19975 8.28547 7.96894 6.79492 7.96875C5.30266 7.96875 4.0918 9.20121 4.0918 10.7168V13.5459H1.13281V10.3027C1.13281 7.12677 3.66857 4.54688 6.79395 4.54688Z" fill="white"/> <path d="M5.93649 10.6226C6.31779 10.6226 6.6269 10.3083 6.6269 9.92067C6.6269 9.53301 6.31779 9.21875 5.93649 9.21875C5.5552 9.21875 5.24609 9.53301 5.24609 9.92067C5.24609 10.3083 5.5552 10.6226 5.93649 10.6226Z" fill="white"/> <path d="M0 16.354C0 16.7112 0.284829 17.0008 0.636222 17.0008H12.952C13.3034 17.0008 13.5882 16.7112 13.5882 16.354V15.6914H0V16.354Z" fill="white"/> <path d="M13.5882 13.7204C13.5882 13.3872 13.3034 13.1172 12.952 13.1172H0.636222C0.284829 13.1172 0 13.3872 0 13.7204V14.4028H13.5882V13.7204Z" fill="white"/> <rect x="6.5752" width="1.69853" height="2.5712" rx="0.849263" fill="white"/> <rect width="1.7032" height="2.56424" rx="0.851598" transform="matrix(0.83543 0.549597 -0.542586 0.84 12.5771 1.45703)" fill="white"/> <rect width="1.7032" height="2.56424" rx="0.851598" transform="matrix(-0.83543 0.549597 0.542586 0.84 2.27246 1.45703)" fill="white"/> </svg><svg class="i-mask" aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M10.7 12.5C10.7 12.8 9.4 13.2 8.4 13.2C7.4 13.2 6.3 12.5 6.3 12.3C6.3 12 7 11.1 8.6 11C9.5 10.9 10.5 11.5 10.7 12.5ZM15.4 11C14.4 10.9 13.5 11.5 13.3 12.5C13.3 12.8 14.5 13.2 15.6 13.2C16.7 13.2 17.7 12.5 17.7 12.3C17.7 12.1 17 11.1 15.4 11ZM22 12C22 17.5 17.5 22 12 22C6.5 22 2 17.5 2 12C2 6.5 6.5 2 12 2C17.5 2 22 6.5 22 12ZM20 11.2C20 9.2 19.3 8.5 16.7 8.5C14.1 8.5 13.3 9.6 12 9.6C10.7 9.6 10 8.5 7.3 8.5C4.6 8.5 4 9.1 4 11.2C4 14.6 5.5 16.5 7.6 16.5C9.2 16.5 10.4 14.5 12 14.5C13.6 14.5 14.7 16.5 16.4 16.5C18.5 16.5 20 14.6 20 11.2Z" fill="white"/> </svg><svg class="i-light" aria-hidden="true" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M7.99974 1C11.678 1 14.6655 4.00967 14.6655 7.7153V14.1166H1.33398V7.7153C1.33398 4.00967 4.31963 1 7.99974 1Z" fill="#F5383B"/> <path d="M8.00086 4.99219C9.75616 4.99219 11.1834 6.42816 11.1834 8.19834V12.2749H4.81836V8.19834C4.81836 6.43 6.24374 4.99219 8.00086 4.99219Z" fill="#F76062"/> <path d="M6.99068 8.08719C7.43965 8.08719 7.80362 7.72051 7.80362 7.2682C7.80362 6.81589 7.43965 6.44922 6.99068 6.44922C6.5417 6.44922 6.17773 6.81589 6.17773 7.2682C6.17773 7.72051 6.5417 8.08719 6.99068 8.08719Z" fill="white"/> <path d="M0 14.2457C0 14.6626 0.335384 15.0004 0.749146 15.0004H15.2509C15.6646 15.0004 16 14.6626 16 14.2457V13.4727H0V14.2457Z" fill="#494949"/> <path d="M16 11.7313C16 11.3144 15.6646 10.9766 15.2509 10.9766H0.749146C0.335384 10.9766 0 11.3144 0 11.7313V12.5851H16V11.7313Z" fill="#494949"/> <path d="M16 12.5859H0V13.4729H16V12.5859Z" fill="#CFD6DD"/> </svg></span><span id="revealLabel"></span><b id="revealN"></b><i class="bar"><i id="revealFill"></i></i></div>
     </div>
     <canvas id="mini" width="336" height="252"></canvas>
-    <div id="stam"><div id="stamFill"></div></div>
-    <div id="hint">이동 WASD · 달리기 Shift · 잡기 Space</div>
+    <div id="stam"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><div class="track"><div id="stamFill"></div></div></div>
+    <div id="hint"><span class="grp"><kbd data-k="w">W</kbd><kbd data-k="a">A</kbd><kbd data-k="s">S</kbd><kbd data-k="d">D</kbd><em>이동</em></span><span class="grp"><kbd data-k="shift" class="wide">Shift</kbd><em>달리기</em></span><span class="grp catch"><kbd data-k=" " class="wide">Space</kbd><em>잡기</em></span></div>
     <div id="toast"></div>
     <div id="mission"></div>
-    <div id="banner"><div id="bannerLead"></div><div id="bannerMain"></div></div>
+    <div id="banner"><img id="bannerArt" alt=""><div class="txt"><div id="bannerLead"></div><div id="bannerMain"></div></div></div>
     <div id="lock">구역 안으로 돌아와요</div>
     <div id="bigCount"></div>
-    <button id="sound">소리 켜짐</button>
+    <button id="sound" aria-label="소리 끄기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="on" d="M3 10v4c0 .55.45 1 1 1h3l3.29 3.29c.63.63 1.71.18 1.71-.71V6.41c0-.89-1.08-1.34-1.71-.71L7 9H4c-.55 0-1 .45-1 1zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 4.45v.2c0 .38.25.71.6.85C17.18 6.53 19 9.06 19 12s-1.82 5.47-4.4 6.5c-.36.14-.6.47-.6.85v.2c0 .63.63 1.07 1.21.85C18.6 19.11 21 15.84 21 12s-2.4-7.11-5.79-8.4c-.58-.23-1.21.22-1.21.85z"/><path class="off" d="M3.63 3.63c-.39.39-.39 1.02 0 1.41L7.29 8.7 7 9H4c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h3l3.29 3.29c.63.63 1.71.18 1.71-.71v-4.17l4.18 4.18c-.49.37-1.02.68-1.6.91-.36.15-.58.53-.58.92 0 .72.73 1.18 1.39.91.8-.33 1.55-.77 2.22-1.31l1.34 1.34c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L5.05 3.63c-.39-.39-1.02-.39-1.42 0zM19 12c0 .82-.15 1.61-.41 2.34l1.53 1.53c.56-1.17.88-2.48.88-3.87 0-3.83-2.4-7.11-5.78-8.4-.59-.23-1.22.23-1.22.86v.19c0 .38.25.71.61.85C17.18 6.54 19 9.06 19 12zm-8.71-6.29l-.17.17L12 7.76V6.41c0-.89-1.08-1.33-1.71-.7zM16.5 12c0-1.77-1.02-3.29-2.5-4.03v1.79l2.48 2.48c.01-.08.02-.16.02-.24z"/></svg></button>
+    <div id="padZone"></div>
     <div id="pad"><div id="knob"></div></div>
-    <button id="btnRun">달리기</button>
+    <button id="btnRun"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><span id="btnRunLabel">달리기</span></button>
     <button id="btnCatch">잡기</button>
   </div>
   <div id="start" class="sheet show"><div class="card">
@@ -166,14 +455,52 @@
     </div>
   </div></div>
   <div id="lobby" class="sheet"><div class="card">
-    <h1>방 <span id="lobbyCode"></span></h1>
+    <img class="cardLogo" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
+    <h1 id="lobbyTitle"></h1>
     <p id="lobbyMsg"></p>
+    <button id="lobbyHome" hidden>처음 화면으로</button>
+    <button id="lobbyRetry" hidden>다시 해 보기</button>
     <div id="lobbyForm">
-      <input id="lobbyName" maxlength="12" placeholder="이름" autocomplete="off">
-      <button id="lobbyJoin">들어가기</button>
+      <label for="lobbyName">이름</label>
+      <input id="lobbyName" maxlength="6" autocomplete="off">
+      <button id="lobbyJoin">같이 하기</button>
+      <button id="lobbyBack" class="link">처음 화면으로</button>
     </div>
-    <p id="lobbyList"></p>
-    <button id="lobbyStart" hidden>시작</button>
+  </div></div>
+  <div id="home" class="sheet brand"><div class="homeWrap">
+    <div class="hero">
+      <img class="logo" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
+      <div class="stage"><div class="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
+    </div>
+    <div class="card homeCard"><div class="homeActs">
+      <button id="homeCreate" class="primary"><img src="data:image/svg+xml;base64,/*B64:siren.svg*/" alt="">방 만들기</button>
+      <button id="homeJoinOpen"><img src="data:image/svg+xml;base64,/*B64:door.svg*/" alt="">코드로 들어가기</button>
+      <div id="homeJoin" hidden>
+        <label for="homeCode">방 코드</label>
+        <div class="codeRow"><input id="homeCode" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="homeJoinGo" class="primary">들어가기</button></div>
+        <p id="homeCodeMsg"></p>
+      </div>
+      <div id="homeLive" hidden>
+        <div class="liveHead"><b>지금 열린 방</b><button id="homeAll" class="more">모두 보기</button></div>
+        <div id="homeLiveList" role="list"></div>
+      </div>
+      <button id="homeSolo" class="soloTile"><img src="data:image/svg+xml;base64,/*B64:console.svg*/" alt=""><span><b>혼자 해 보기</b><small>봇이랑 바로 한 판</small></span><i aria-hidden="true"></i></button>
+    </div></div>
+  </div></div>
+  <div id="rooms" class="sheet brand"><div class="card">
+    <div class="roomsHead"><h1>열린 방</h1><button id="roomsBack">뒤로</button></div>
+    <div id="roomsList" role="list"></div>
+    <div id="roomsEmpty" hidden><p id="roomsEmptyMsg"></p><button id="roomsCreate">방 만들기</button></div>
+    <template id="roomRowT"><button class="roomRow" role="listitem"><span class="av"></span><span class="who"><b></b><small></small></span><span class="cnt"><svg class="hc" aria-hidden="true" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"> <g clip-path="url(#clip0_6275_15913)"> <path d="M10.8935 5.49583C11.3134 5.02056 11.5656 4.4072 11.5656 3.73764C11.5656 2.22511 10.2794 1 8.6912 1C7.49131 1 6.46402 1.70167 6.03418 2.69557C7.43156 3.16603 8.43728 4.43289 8.43728 5.92294C8.43728 6.31311 8.36592 6.69847 8.23149 7.06135C9.70355 7.8433 10.6595 9.33335 10.6595 10.9984C10.6595 11.1654 10.6412 11.3292 10.613 11.4897H11.7017C12.9713 11.4897 14.0003 10.5087 14.0003 9.29963C14.0003 7.46437 12.6776 5.92775 10.8935 5.49583Z" fill="#339DFF"/> <path d="M6.83257 7.52823C7.21428 7.0947 7.44496 6.53433 7.44496 5.92418C7.44496 4.54492 6.27494 3.42578 4.83109 3.42578C3.38724 3.42578 2.21722 4.54492 2.21722 5.92418C2.21722 6.53593 2.44791 7.0947 2.82962 7.52823C1.20321 7.92161 0 9.32496 0 10.9997C0 12.1027 0.936014 12.9987 2.09109 12.9987H7.56611C8.72119 12.9987 9.65721 12.1043 9.65721 10.9997C9.65721 9.32496 8.454 7.92322 6.83091 7.52823H6.83257Z" fill="#69B6FF"/> </g> <defs> <clipPath id="clip0_6275_15913"> <rect width="14" height="14" fill="white"/> </clipPath> </defs> </svg><b></b></span></button></template>
+  </div></div>
+  <div id="inapp" class="sheet"><div class="card">
+    <h1>크롬이나 사파리에서 열어 주세요</h1>
+    <p id="inappBody"></p>
+    <div class="acts inapp">
+      <button id="inappOpen">브라우저로 열기</button>
+      <button id="inappCopy">링크 복사</button>
+    </div>
+    <button id="inappStay">여기서 할게요</button>
   </div></div>
   <div id="rotate" class="sheet"><div class="card">
     <div class="phone"></div>
@@ -182,13 +509,19 @@
     <button id="rotateSkip">세로로 할게요</button>
   </div></div>
   <div id="end" class="sheet"><div class="card">
-    <img id="endHero" alt="">
-    <h1 id="endTitle"></h1>
-    <p id="endReason"></p>
-    <div id="endWin"></div>
-    <div id="endBadge"></div>
+    <div id="endHead">
+      <img id="endHero" alt="">
+      <h1 id="endTitle"></h1>
+      <p id="endReason"></p>
+    </div>
     <div id="endStats"></div>
     <div class="acts"><button id="again">한 판 더</button><button id="swap">역할 바꾸기</button></div>
+    <!-- 다음 판이 먼저라 버튼 아래 작은 카드로 둔다. 아이콘은 앱의 한국어 아이콘(app_icon_ko)을 96px 로 줄여 넣었다(2026-11-06). /download 가 폰을 보고 맞는 스토어로 보내며 어디서 왔는지 남긴다 -->
+    <a id="endApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=result&amp;utm_campaign=webgame_test&amp;utm_content=card" target="_blank" rel="noopener">
+      <img src="data:image/webp;base64,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" alt="" width="48" height="48">
+      <span class="txt"><b>경찰과 도둑 앱</b><span>동네에서 직접 잡고 도망가요</span></span>
+      <span class="get">앱 받기</span>
+    </a>
   </div></div>
 </div>
 <script>/*ENGINE*/</script>
