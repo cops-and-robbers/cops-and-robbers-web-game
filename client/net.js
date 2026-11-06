@@ -11,6 +11,7 @@ const INPUT_GAP_MS = 100;
 const INPUT_IDLE_MS = 1000;
 const RETRY_MS = 2000;
 const RETRY_MAX = 15;
+const ROOMS_EVERY_MS = 5000;
 
 const store = {
   get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
@@ -291,6 +292,45 @@ function showHome() {
   $("homeJoinGo").onclick = join;
   $("homeCode").onkeydown = e => { if (e.key === "Enter") join(); };
   $("homeSolo").onclick = () => { $("home").className = "sheet"; $("start").className = "sheet show"; };
+  $("homeRooms").onclick = showRooms;
+}
+
+// 열린 방 목록. 보고 있는 동안에만 다시 받아 온다
+const ROOM_STATE = { open: "들어갈 수 있어요", full: "꽉 찼어요", playing: "게임 중" };
+function showRooms() {
+  $("home").className = "sheet"; $("rooms").className = "sheet show";
+  let timer = 0, alive = true, failed = false;
+  const list = $("roomsList"), empty = $("roomsEmpty"), tpl = $("roomRowT").content.firstElementChild;
+  const render = rooms => {
+    list.replaceChildren(...rooms.map(r => {
+      const row = tpl.cloneNode(true), off = r.state !== "open";
+      row.classList.toggle("open", !off);
+      row.setAttribute("aria-disabled", off);
+      const av = row.querySelector(".av");
+      av.textContent = Array.from(r.host || "?")[0];
+      av.classList.add(`c${[...r.code].reduce((h, c) => h + c.charCodeAt(0), 0) % 4}`);
+      row.querySelector(".who b").textContent = `${r.host} 님의 방`;
+      row.querySelector(".who small").textContent = ROOM_STATE[r.state] || "";
+      row.querySelector(".cnt b").textContent = `${r.n}/${r.max}`;
+      row.setAttribute("aria-label", `${r.host} 님의 방, ${r.n}/${r.max}, ${ROOM_STATE[r.state] || ""}`);
+      row.onclick = () => { if (!off) { alive = false; goRoom(r.code, false); } };
+      return row;
+    }));
+    empty.hidden = rooms.length > 0;
+    $("roomsEmptyMsg").textContent = failed ? "목록을 불러오지 못했어요" : "지금 열린 방이 없어요";
+    $("roomsCreate").textContent = failed ? "다시 해 보기" : "방 만들기";
+  };
+  const load = async () => {
+    try {
+      const res = await fetch(`/rooms?key=${encodeURIComponent(NET_KEY)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      failed = false; render((await res.json()).rooms || []);
+    } catch { failed = true; if (!list.children.length) render([]); }
+  };
+  const loop = () => { if (!alive) return; if (!document.hidden) load(); timer = setTimeout(loop, ROOMS_EVERY_MS); };
+  loop();
+  $("roomsBack").onclick = () => { alive = false; clearTimeout(timer); $("rooms").className = "sheet"; $("home").className = "sheet show"; };
+  $("roomsCreate").onclick = () => (failed ? load() : $("homeCreate").click());
 }
 
 // 카카오톡 같은 앱 안 브라우저는 전체 화면이 안 되고 화면도 좁아서 바깥 브라우저로 내보낸다

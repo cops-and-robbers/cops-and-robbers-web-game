@@ -47,6 +47,9 @@ body.lobby-mode #stam { bottom:max(14px,env(safe-area-inset-bottom)); width:min(
 .switch i::after { content:""; position:absolute; left:2px; top:2px; width:19px; height:19px; border-radius:50%; background:#fff; transition:transform .15s; }
 .switch[aria-checked=true] i { background:var(--ink); }
 .switch[aria-checked=true] i::after { transform:translateX(15px); }
+.srow.tall { height:auto; min-height:60px; } #lob .srow.tall .switch { height:auto; min-height:60px; padding:8px 0; gap:10px; text-align:left; }
+.switch span small { display:block; margin-top:2px; font-size:11px; font-weight:600; color:var(--sub); }
+.code small em.pub { font-style:normal; font-size:10px; font-weight:900; color:#fff; background:var(--robber); border-radius:6px; padding:1px 5px; }
 .tray { position:absolute; left:calc(164px + env(safe-area-inset-left)); bottom:calc(18px + env(safe-area-inset-bottom)); padding:4px; display:flex; flex-wrap:wrap; gap:2px; max-width:calc(100vw - 460px); }
 .tray button { font-size:13px !important; font-weight:800 !important; min-height:44px; padding:0 10px !important; border-radius:10px; white-space:nowrap; }
 .tray button:hover { background:#F3F1EC !important; }

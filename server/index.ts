@@ -1,6 +1,7 @@
 // workers.dev 입구. 규칙은 room.ts 가 돌린다.
 import { routeToRoom, type RouteEnv } from "./route";
 export { Room } from "./room";
+export { Directory } from "./directory";
 
 export interface Env extends RouteEnv {
   WAIT_SEC: string;

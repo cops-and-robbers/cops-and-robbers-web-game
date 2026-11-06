@@ -97,6 +97,19 @@ function connect(base, key, code) {
   return c;
 }
 
+// 열린 방 목록에서 이 방을 찾는다. 입구가 목록을 몇 초씩 나눠 쓰니 바뀔 때까지 기다린다
+async function listedAs(base, key, code, want, ms = 9000) {
+  const until = Date.now() + ms;
+  let found;
+  while (Date.now() < until) {
+    const res = await fetch(`${base}/rooms?key=${encodeURIComponent(key)}`);
+    found = res.ok ? (await res.json()).rooms.find(r => r.code === code) : undefined;
+    if (want(found)) return found;
+    await sleep(700);
+  }
+  return found;
+}
+
 async function waitFor(condition, ms, label) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
@@ -200,9 +213,27 @@ try {
     check(extra.errors.includes("kicked"), "방장이 내보내면 그 사람은 방에서 나가요");
   }
 
+  // 비밀 방은 목록에 나오지 않고, 방장이 공개로 바꾸면 방장 이름과 인원이 나온다
+  if (!REMOTE) {
+    const refused = await fetch(`${env.base}/rooms?key=wrong`);
+    check(refused.status === 403, "열쇠가 틀리면 방 목록을 못 봐요");
+    check(!(await listedAs(env.base, env.key, code, r => !r, 1500)), "비밀 방은 목록에 나오지 않아요");
+    const L = clients[0].lobby;
+    clients[0].sendJson({ t: "seats", cops: L.cops, robs: L.robs, bots: L.bots, open: true });
+    sentMessages++;
+    await waitFor(() => clients.every(c => c.lobby?.open), 3000, "공개로 바꾸기");
+    check(clients.every(c => c.lobby.open), "방장이 공개로 바꾸면 모두 알아요");
+    const shown = await listedAs(env.base, env.key, code, r => r?.n === PLAYERS);
+    check(shown?.n === PLAYERS && shown.host === clients[0].lobby.players[0].name && shown.state === "open", `공개 방은 방장 이름과 인원으로 목록에 나와요 (${JSON.stringify(shown)})`);
+  }
+
   clients[0].sendJson({ t: "start" });
   sentMessages++;
   await waitFor(() => clients.every(c => c.start), 9000, "시작");
+  if (!REMOTE) {
+    const playing = await listedAs(env.base, env.key, code, r => r?.state === "playing");
+    check(playing?.state === "playing", "판이 시작하면 목록에 게임 중으로 바뀌어요");
+  }
   if (PLAYERS >= 3) {
     check(clients[1].start.team === "police" && clients[0].start.team === "robber", "고른 편은 시작해도 그대로예요");
     check(clients[0].start.police + clients[0].start.robbers === PLAYERS, "봇을 끄면 들어온 사람 수만큼만 판이 열려요");
@@ -305,6 +336,10 @@ try {
 
   for (const c of clients) if (c.ws.readyState === WebSocket.OPEN) c.ws.close();
   if (stranger.ws.readyState === WebSocket.OPEN) stranger.ws.close();
+  if (!REMOTE) {
+    const gone = await listedAs(env.base, env.key, code, r => !r);
+    check(!gone, "모두 나가면 목록에서 빠져요");
+  }
 } catch (error) {
   problems.push(String(error));
   console.error("오류", error);

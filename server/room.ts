@@ -4,6 +4,7 @@ import { DurableObject } from "cloudflare:workers";
 import "../shared/logic.js";
 import { eventsFor, viewFor } from "../shared/view.js";
 import type { Env } from "./index";
+import { DIRECTORY_NAME } from "./directory";
 
 const MAX_PLAYERS = 8;
 const COUNT_MS = 3000;
@@ -15,7 +16,10 @@ const REVEAL_SEC = 35;
 const CATCH_RANGE = 90;
 const CATCH_HIT_SEC = 0.16;
 const SAY_LINES = 5;
-const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false };
+// 처음에는 비밀 방이다. 친구끼리 하는 게임이라 모르는 사람이 갑자기 들어오지 않게 한다
+const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false };
+// 공개 방은 이 간격으로 목록에 살아 있다고 알린다. 목록은 5분 동안 소식이 없는 방을 지운다
+const LIST_BEAT_MS = 2 * 60_000;
 const TICK_MS = 50;
 const TICK_SEC = TICK_MS / 1000;
 const MAX_MESSAGE = 200;
@@ -29,6 +33,7 @@ interface Seats {
   cops: number;
   robs: number;
   bots: boolean;
+  open: boolean;
 }
 // 대기실 상태는 접속에 붙여 둔다. 방이 잠들어도 남고 저장 비용이 들지 않는다
 interface Attachment {
@@ -63,11 +68,13 @@ export class Room extends DurableObject<Env> {
   private rates = new Map<WebSocket, Rate>();
   private colo: string | null = null;
   private counting: ReturnType<typeof setTimeout> | null = null;
+  private code: string | null = null;
+  private listed = "";
 
   async fetch(request: Request): Promise<Response> {
     const pair = new WebSocketPair();
     // 잠들 수 있는 방식으로 받는다. 대기실에서 기다리는 동안 실행 시간이 잡히지 않는다.
-    this.ctx.acceptWebSocket(pair[1], [`entry:${request.headers.get("X-Entry-Colo") ?? "unknown"}`]);
+    this.ctx.acceptWebSocket(pair[1], [`entry:${request.headers.get("X-Entry-Colo") ?? "unknown"}`, `room:${request.headers.get("X-Room-Code") ?? ""}`]);
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -144,10 +151,47 @@ export class Room extends DurableObject<Env> {
   }
 
   private seats(): Seats {
-    return this.members()[0]?.me.seats ?? DEFAULT_SEATS;
+    return { ...DEFAULT_SEATS, ...this.members()[0]?.me.seats };
   }
 
-  private broadcastLobby(): void {
+  // 방 코드는 접속에 붙여 둔 표에서 읽는다. 방은 자기 이름을 모른다
+  private roomCode(): string | null {
+    if (!this.code) {
+      for (const ws of this.ctx.getWebSockets()) {
+        const tag = this.ctx.getTags(ws).find(t => t.startsWith("room:"))?.slice("room:".length);
+        if (tag) { this.code = tag; break; }
+      }
+    }
+    return this.code;
+  }
+
+  // 공개 방이면 목록에 지금 상태를 알린다. 바뀐 게 없으면 보내지 않는다.
+  // 비밀 방은 아무것도 보내지 않고, 공개였다가 닫히거나 모두 나가면 목록에서 빼 달라고 한다
+  private report(wasOpen = false, beat = false): void {
+    const code = this.roomCode();
+    if (!code) return;
+    const members = this.members();
+    const seats = this.seats();
+    const open = seats.open && members.length > 0;
+    const max = seats.cops + seats.robs;
+    const body = open
+      ? { code, open: true, host: members[0].me.name, n: members.length, max, state: this.game || this.counting ? "playing" : members.length >= max ? "full" : "open" }
+      : { code, open: false };
+    const key = JSON.stringify(body);
+    if (!beat && key === this.listed) return;
+    if (!open && !wasOpen && !this.listed.includes('"open":true')) return;
+    this.listed = key;
+    const dir = this.env.DIRECTORY;
+    if (!dir) return;
+    dir.get(dir.idFromName(DIRECTORY_NAME)).fetch("https://directory/set", { method: "POST", body: key }).catch(() => {});
+    if (open) this.ctx.storage.setAlarm(Date.now() + LIST_BEAT_MS).catch(() => {});
+  }
+
+  async alarm(): Promise<void> {
+    if (this.seats().open && this.members().length) this.report(false, true);
+  }
+
+  private broadcastLobby(wasOpen = false): void {
     const members = this.members();
     const hostToken = members[0]?.me.token;
     const seats = this.seats();
@@ -160,9 +204,11 @@ export class Room extends DurableObject<Env> {
         cops: seats.cops,
         robs: seats.robs,
         bots: seats.bots,
+        open: seats.open,
         max: MAX_PLAYERS,
       });
     }
+    this.report(wasOpen);
   }
 
   private inLobby(): boolean {
@@ -200,14 +246,15 @@ export class Room extends DurableObject<Env> {
     const cops = Number(msg.cops), robs = Number(msg.robs);
     if (!Number.isInteger(cops) || !Number.isInteger(robs) || cops < 1 || robs < 1) return;
     if (cops + robs > MAX_PLAYERS || cops + robs < members.length) return;
-    const seats: Seats = { cops, robs, bots: !!msg.bots };
+    const before = this.seats();
+    const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open };
     const left: Record<Side, number> = { cop: cops, rob: robs, any: Infinity };
     for (const { ws: w, me: m } of members) {
       const side: Side = left[m.side] > 0 ? m.side : "any";
       left[side]--;
       w.serializeAttachment({ ...m, side, seats } satisfies Attachment);
     }
-    this.broadcastLobby();
+    this.broadcastLobby(before.open);
   }
 
   // 방장이 내보낸다. 내보낸 사람은 이번에 받은 표로 돌아오지 못한다
@@ -307,6 +354,7 @@ export class Room extends DurableObject<Env> {
       if (this.canStart(now)) this.begin(now);
       else this.broadcastLobby();
     }, COUNT_MS);
+    this.report();
   }
 
   private begin(members: { ws: WebSocket; me: Attachment }[]): void {
@@ -363,6 +411,7 @@ export class Room extends DurableObject<Env> {
     seat(robs, G.robbers);
 
     this.timer = setInterval(() => this.tick(), TICK_MS);
+    this.report();
   }
 
   private sendStart(ws: WebSocket, agent: any): void {
@@ -418,7 +467,7 @@ export class Room extends DurableObject<Env> {
       this.lost.set(me.token, { agentId: me.agentId, at: Date.now() });
     } else if (!this.game) {
       this.lobbyLost.set(me.token, { pid: me.pid, joinedAt: me.joinedAt, side: me.side, at: Date.now() });
-      this.broadcastLobby();
+      this.broadcastLobby(!!me.seats.open);
     }
   }
 

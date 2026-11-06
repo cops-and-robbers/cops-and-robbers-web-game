@@ -86,6 +86,7 @@ function createLobbyScene(net) {
     hint: "하고 싶은 편으로 걸어가요", wait: n => `${n} 님이 시작하면 바로 넘어가요`, full: "자리가 다 찼어요",
     start: "시작하기", needOne: "친구가 오거나 봇을 켜면 시작할 수 있어요", needCop: "경찰이 한 명은 있어야 해요", needRob: "도둑이 한 명은 있어야 해요",
     bots: "빈자리 봇으로 채우기", bot: "봇", host: "방장", me: "나", kick: "내보내기",
+    open: "공개 방", openSub: "열린 방 목록에 보여요", pub: "공개",
     say: ["시작할까요", "잠깐만요", "경찰 하고 싶어요", "도둑 하고 싶어요", "친구 부르고 있어요"], isCop: "경찰이에요", isRob: "도둑이에요",
   };
   const MAX_TOTAL = 8, HOME = { cop: "police", rob: "robber" };
@@ -145,7 +146,7 @@ function createLobbyScene(net) {
     if (!active) return;
     const st = startState(), total = S.cops + S.robs, n = people.size, alone = n === 1 && !S.bots, hostName = [...people.values()].find(p => p.hostMark)?.name || "";
     const line = !moved ? COPY.hint : (S.host ? "" : COPY.wait(""));
-    let h = `<div class="row1"><div class="lp code"><div><small>${COPY.code}<b>${n}/${total}</b></small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="방 코드 복사">${codeDone ? ICON.check : ICON.copy}</button></div>
+    let h = `<div class="row1"><div class="lp code"><div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="방 코드 복사">${codeDone ? ICON.check : ICON.copy}</button></div>
       <button class="bt ${S.host && alone ? "main" : ""}" data-act="invite">${copied ? COPY.copied : COPY.invite}</button>
       <button class="bt ic" data-act="say" aria-label="정해진 말 열기" aria-expanded="${sayOpen}">${ICON.say}</button>
       <div class="grow">${line ? `<div class="line" data-line></div>` : ""}</div>
@@ -155,6 +156,7 @@ function createLobbyScene(net) {
       <div class="srow cop"><span class="nm">${COPY.copN}</span>${stepBtn("cop", -1)}<span class="num">${S.cops}</span>${stepBtn("cop", 1)}</div>
       <div class="srow rob"><span class="nm">${COPY.robN}</span>${stepBtn("rob", -1)}<span class="num">${S.robs}</span>${stepBtn("rob", 1)}</div>
       <div class="srow"><button class="switch" role="switch" data-act="bots" aria-checked="${S.bots}"><span>${COPY.bots}</span><i></i></button></div>
+      <div class="srow tall"><button class="switch" role="switch" data-act="open" aria-checked="${!!S.open}"><span>${COPY.open}<small>${COPY.openSub}</small></span><i></i></button></div>
       ${S.players.slice(1).map(p => `<div class="srow kick"><span class="nm" data-name="${p.id}"></span><button class="bt quiet" data-act="kick-${p.id}">${COPY.kick}</button></div>`).join("")}</div>`;
     if (sayOpen) h += `<div class="lp tray">${COPY.say.map((t, i) => `<button data-act="said-${i}">${t}</button>`).join("")}</div>`;
     if (S.host) { h += `<button id="startBtn" class="${flash ? "shake" : ""}" data-act="start" aria-disabled="${!st.ok}">${COPY.start}</button>`; if (!st.ok) h += `<div class="why ${flash ? "flash" : ""}">${st.why}</div>`; }
@@ -173,6 +175,7 @@ function createLobbyScene(net) {
     if (seat) { if (b.getAttribute("aria-disabled") === "true") return; const d = Number(seat[2]); net.send({ t: "seats", cops: S.cops + (seat[1] === "cop" ? d : 0), robs: S.robs + (seat[1] === "rob" ? d : 0), bots: S.bots }); return; }
     if (a.startsWith("kick-")) { net.kick(a.slice(5)); return; }
     if (a === "bots") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: !S.bots }); return; }
+    if (a === "open") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, open: !S.open }); return; }
     if (a === "seats") { seatsOpen = !seatsOpen; return renderHud(); }
     if (a === "say") { sayOpen = !sayOpen; return renderHud(); }
     if (a.startsWith("said-")) { sayOpen = false; net.send({ t: "say", i: +a.slice(5) }); return renderHud(); }
