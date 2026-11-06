@@ -394,7 +394,8 @@ function showGate(mode, st) {
   $("start").className = "sheet";
   const wrap = $("gate").querySelector(".homeWrap");
   if (!wrap.querySelector(".hero")) wrap.prepend($("home").querySelector(".hero").cloneNode(true));
-  const soon = mode === "soon", until = !soon && st?.until ? untilText(st.until) : "";
+  // 예정 시각이 지났는데 아직 점검 중이면 지난 시각을 보여 주지 않는다
+  const soon = mode === "soon", until = !soon && st?.until && Date.parse(st.until) > Date.now() ? untilText(st.until) : "";
   $("gateTitle").textContent = soon ? "경찰과 도둑 온라인 게임을 만들고 있어요" : "점검하고 있어요";
   $("gateMsg").textContent = soon ? "동네에서 직접 뛰는 경찰과 도둑도 눈여겨봐 주세요"
     : [st?.message, until ? `${until} 다시 와 주세요` : st?.message ? "" : "조금 뒤에 다시 와 주세요"].filter(Boolean).join("\n");
