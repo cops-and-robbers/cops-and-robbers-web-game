@@ -162,7 +162,10 @@ function createLobbyScene(net) {
     if (S.host) { h += `<button id="startBtn" class="${flash ? "shake" : ""}" data-act="start" aria-disabled="${!st.ok}">${COPY.start}</button>`; if (!st.ok) h += `<div class="why ${flash ? "flash" : ""}">${st.why}</div>`; }
     if (countN) h += `<div class="count3">${countN}</div>`;
     const focus = lob.contains(document.activeElement) ? document.activeElement.dataset.act : null;
+    // 누가 들어오거나 인원을 바꿀 때마다 새로 그린다. 방장 설정 창을 내려 둔 자리는 지킨다
+    const keepScroll = lob.querySelector(".sheetR")?.scrollTop ?? 0;
     lob.innerHTML = h;
+    const sheet = lob.querySelector(".sheetR"); if (sheet) sheet.scrollTop = keepScroll;
     lob.querySelectorAll("[data-name]").forEach(e => { e.textContent = S.players.find(p => p.id === e.dataset.name)?.name ?? ""; });
     const lineEl = lob.querySelector("[data-line]"); if (lineEl) lineEl.textContent = !moved ? COPY.hint : COPY.wait(hostName);
     if (focus) { const b = lob.querySelector(`[data-act="${focus}"]`); if (b) b.focus({ preventScroll: true }); }
