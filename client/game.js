@@ -624,10 +624,10 @@ function drawHud(dt) {
 function showEnd() {
   ended = true;
   const p = G.player, won = G.over.winner === p.team;
-  $("endTitle").textContent = "게임 종료!";
+  // 결과 창에서 제일 먼저 봐야 하는 건 이겼는지 졌는지다. 색으로 한 번 더 알린다
+  $("endTitle").textContent = won ? "이겼어요!" : "졌어요";
+  $("endTitle").className = won ? "won" : "lost";
   $("endReason").textContent = G.over.reason === "allArrested" ? "도둑이 모두 체포됐어요!" : "제한 시간이 끝났어요!";
-  $("endWin").textContent = won ? "우리 팀이 이겼어요" : "이번 판은 졌어요";
-  $("endBadge").textContent = titleOf(p);
   $("endHero").src = p.team === "police" ? POLICE_ICON : ROBBER_ICON;
   $("endHero").className = won ? "won" : "lost";
   const s = p.s;
@@ -637,15 +637,6 @@ function showEnd() {
   ).map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("");
   setTimeout(() => $("end").className = "sheet show " + role, 500);
 }
-function titleOf(p) {
-  const s = p.s, won = G.over && G.over.winner === p.team;
-  if (p.team === "police") return s.catches >= 3 ? "드디어 검거율 상승" : s.catches >= 1 ? "오늘도 순찰 완료" : "발자국만 봤어요";
-  if (s.rescued >= 1) return "감옥 문 여는 친구";
-  if (s.caught >= 3) return "감옥 단골손님";
-  if (!won) return "다음엔 꼭 도망쳐요";
-  return s.caught === 0 ? "끝까지 안 잡힌 도둑" : "아슬아슬 도주 성공";
-}
-
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random";
 function start(r, seed) {

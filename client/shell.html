@@ -152,8 +152,7 @@
   #endHero.won { animation:pop .7s cubic-bezier(.22,1.5,.36,1) both; }
   #endHero.lost { filter:saturate(.6); }
   @keyframes pop { from { transform:scale(0); } to { transform:none; } }
-  #endBadge { display:inline-block; margin-top:12px; font-size:18px; font-weight:900; padding:8px 16px; border-radius:12px; background:var(--team); color:#fff; }
-  #endWin { font-size:15px; font-weight:800; margin-top:8px; }
+  #endTitle { font-size:30px; font-weight:900; } #endTitle.won { color:#1E7BF0; } #endTitle.lost { color:#E5484D; }
   #endStats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
   #endStats div { background:#F3F5F8; border-radius:12px; padding:10px 4px; } #endStats span { display:block; font-size:12px; color:var(--sub); font-weight:600; } #endStats b { font-size:18px; }
   .acts { display:flex; gap:8px; margin-top:16px; }
@@ -169,12 +168,11 @@
   /* 낮은 가로 화면에서 결과 창이 잘리지 않게 두 칸으로 편다 */
   @media (max-height:560px) {
     #end .card { width:min(94vw,700px); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); column-gap:18px; align-items:center; }
-    #end #endHero,#end h1,#end #endReason,#end #endWin,#end #endBadge { grid-column:1; }
-    #endHero { height:58px; margin-bottom:2px; } #end h1 { font-size:20px; } #end #endReason { margin-top:2px; font-size:12px; } #endWin { margin-top:2px; font-size:13px; }
-    #endBadge { margin:6px auto 0; font-size:14px; padding:5px 12px; justify-self:center; }
-    #endStats { grid-column:2; grid-row:1 / span 3; margin-top:0; } #endStats div { padding:8px 4px; }
-    #end .acts { grid-column:2; grid-row:4 / span 2; margin-top:10px; } #end .acts button { min-height:48px; padding:8px; }
-    #endApp { grid-column:2; margin-top:8px; padding:6px 10px; gap:10px; } #endApp img { width:36px; height:36px; border-radius:8px; } #endApp b { font-size:13px; } #endApp .txt span { font-size:12px; } #endApp .get { font-size:13px; padding:6px 12px; }
+    #endHead { grid-column:1; grid-row:1 / span 3; align-self:center; }
+    #endHero { height:58px; margin-bottom:2px; } #end h1 { font-size:26px; } #end #endReason { margin-top:2px; font-size:12px; }
+    #endStats { grid-column:2; grid-row:1; margin-top:0; } #endStats div { padding:8px 4px; }
+    #end .acts { grid-column:2; grid-row:2; margin-top:10px; } #end .acts button { min-height:48px; padding:8px; }
+    #endApp { grid-column:2; grid-row:3; margin-top:8px; padding:6px 10px; gap:10px; } #endApp img { width:36px; height:36px; border-radius:8px; } #endApp b { font-size:13px; } #endApp .txt span { font-size:12px; } #endApp .get { font-size:13px; padding:6px 12px; }
   }
 </style>
 </head>
@@ -261,11 +259,11 @@
     <button id="rotateSkip">세로로 할게요</button>
   </div></div>
   <div id="end" class="sheet"><div class="card">
-    <img id="endHero" alt="">
-    <h1 id="endTitle"></h1>
-    <p id="endReason"></p>
-    <div id="endWin"></div>
-    <div id="endBadge"></div>
+    <div id="endHead">
+      <img id="endHero" alt="">
+      <h1 id="endTitle"></h1>
+      <p id="endReason"></p>
+    </div>
     <div id="endStats"></div>
     <div class="acts"><button id="again">한 판 더</button><button id="swap">역할 바꾸기</button></div>
     <!-- 다음 판이 먼저라 버튼 아래 작은 카드로 둔다. 아이콘은 앱의 한국어 아이콘(app_icon_ko)을 96px 로 줄여 넣었다(2026-11-06). /download 가 폰을 보고 맞는 스토어로 보내며 어디서 왔는지 남긴다 -->
