@@ -25,9 +25,9 @@
 | `lobby` | `players` 명단(`id`, `name`, `side`), `you`, `host` 내가 방장인지, `cops`, `robs`, `bots`, `open`, `max` |
 | `count` | `ms` 시작까지 남은 시간 |
 | `say` | `id` 말한 사람, `i` 정해진 말 번호 |
-| `start` | `seed` 같은 지도를 만드는 값, `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값 |
-| `s` | 갱신. `time`, `phase`, `me`, `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel` |
-| `e` | 사건 목록. 위치는 싣지 않아요 |
+| `start` | `seed` 같은 지도를 만드는 값, `scale` 지도 크기(인원 4명까지 1, 8명이면 1.2), `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값 |
+| `s` | 갱신. `time`, `phase`, `me`(도둑은 `out` 구역 밖에 있은 초), `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel` |
+| `e` | 사건 목록. 위치는 싣지 않아요. 구역 밖 공개가 시작되면 `outReveal`(`r` 그 도둑) 한 번 |
 | `over` | `winner`, `reason`, `stats`, `mine` 내 기록 |
 | `pong` | `n` |
 | `where` | `entry` 들어온 Cloudflare 위치, `room` 방 서버 위치 |
@@ -52,6 +52,6 @@
 | --- | --- |
 | 내 시야 안의 상대 | 그 사람만 |
 | 같은 팀 | 같은 팀 |
-| 위치 공개 표시 | 경찰 전체, 도둑은 자기 표시만 |
+| 위치 공개 표시(35초마다, 구역 밖 5초 넘으면 1초마다) | 경찰 전체, 도둑은 자기 표시만 |
 | 잡기 시도와 실패 | 그 장면이 보이는 사람 |
 | 체포, 탈옥, 구조, 남은 시간, 승패 | 전체 |

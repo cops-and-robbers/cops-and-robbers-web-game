@@ -172,6 +172,7 @@ function createOnline() {
     me.breakT = s.me.breakT;
     me.catchCd = s.me.catchCd;
     for (const a of G.agents) {
+    me.outT = s.me.out || 0;
       if (a.seenAt === net.snap) continue;
       a.vx = a.vy = a.ix = a.iy = 0;
       a.inBush = false;

@@ -59,7 +59,8 @@
   #bannerLead { font-size:16px; font-weight:700; } #bannerMain { font-size:44px; font-weight:900; line-height:1.1; }
   #mission { position:absolute; left:50%; top:66%; transform:translateX(-50%); background:rgba(29,35,43,.86); color:#fff; font-size:19px; font-weight:800; padding:12px 22px; border-radius:16px; opacity:0; transition:opacity .25s; white-space:nowrap; }
   #mission.show { opacity:1; }
-  #lock { position:absolute; left:50%; top:46%; transform:translateX(-50%); background:var(--danger); color:#fff; font-size:18px; font-weight:800; padding:12px 20px; border-radius:14px; display:none; white-space:nowrap; }
+  /* 구역 밖 안내는 체력 막대 위에 둔다. 가운데 두면 내 캐릭터와 내 위치 공개 표시를 가린다 */
+  #lock { position:absolute; left:50%; bottom:calc(max(20px,env(safe-area-inset-bottom)) + 30px); transform:translateX(-50%); background:var(--danger); color:#fff; font-size:18px; font-weight:800; padding:12px 20px; border-radius:14px; display:none; white-space:nowrap; }
   #lock.show { display:block; }
   #padZone { position:absolute; left:0; bottom:0; width:50%; height:78%; pointer-events:auto; touch-action:none; display:none; }
   #pad { pointer-events:none !important; transition:opacity .12s; opacity:.75; }
@@ -455,7 +456,8 @@
       <b>위치 공개</b> 도둑 위치가 주기적으로 경찰에게 공개돼요. 공개되면 바로 자리를 옮겨요.<br>
       <b>숨을 곳</b> 덤불에 숨으면 멀리서 안 보여요. 달리면 흔들려 들켜요. 나무와 쓰레기통 뒤도 시야를 가려요.<br>
       <b>달리기</b> 체력이 다 떨어지면 잠깐 못 달려요. 골목을 돌면 따돌릴 수 있어요.<br>
-      <b>감옥</b> 동료가 감옥 앞에 서 있으면 문이 열려요. 밖에서 3초 동안 안 잡히면 탈옥해요.
+      <b>구역</b> 도둑이 구역 밖에 5초 넘게 있으면 위치가 경찰에게 보여요.<br>
+      <b>감옥</b> 동료가 감옥 앞에 서 있으면 문이 열려요. 밖으로 나가 3초가 지나면 탈옥해요. 그동안은 잡히지 않아요.
     </div>
   </div></div>
   <div id="lobby" class="sheet"><div class="card">

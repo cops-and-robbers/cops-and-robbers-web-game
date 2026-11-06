@@ -11,7 +11,9 @@ function createGameLogic() {
     VISION: 510, NEAR: 150, CONE: 1.15, TURN: 7, BUSH_SEE: 120,
     CATCH_R: 74, CATCH_CD: 1.6, CATCH_DASH: 230, CATCH_HIT_AT: 0.24, CATCH_LEN: 0.6, CATCH_ASSIST: false, CATCH_GRACE: 35,
     JAIL: { x: 1800, y: 1350, r: 175 }, GATE_R: 235, RESCUE_SEC: 2.2,
-    LOCK_BASE: 16, LOCK_STEP: 5, LOCK_MAX: 32, BREAK_SEC: 3, AUTO_ESCAPE: true, PROTECT_SEC: 2,
+    LOCK_BASE: 16, LOCK_STEP: 5, LOCK_MAX: 32, BREAK_SEC: 3, AUTO_ESCAPE: true, PROTECT_SEC: 3,
+    // 구역 밖: 도둑이 이만큼 넘게 밖에 있으면 1초마다 위치를 경찰에게 보인다. 안으로 1초 돌아와야 다시 센다(경계에서 들락날락해도 초가 풀리지 않게)
+    OUT_GRACE: 5, OUT_BACK: 1, OUT_PING_EVERY: 1, OUT_PING_SHOW: 1.6,
     POLICE: 2, ROBBERS: 4,
   };
 
@@ -296,7 +298,7 @@ function createGameLogic() {
     const theme = opts.theme && THEMES[opts.theme] ? opts.theme : names[Math.floor(rnd() * names.length)];
     const th = THEMES[theme];
     const map = makeMap(seed ^ 0x51ED27, { scale: opts.scale ?? side.scale, cover: opts.cover ?? side.cover, theme });
-    const G = { t: 0, rnd, over: null, phase: "wait", agents: [], police: [], robbers: [], intel: new Map(), pings: [], revealEvery: opts.reveal ?? side.reveal, rescueT: 0, events: [], playerRole: opts.role || null, stats: { catches: 0, rescues: 0, reveals: 0 }, map, theme, th, diff: opts.diff || "normal", vision: CFG.VISION * th.vision };
+    const G = { t: 0, rnd, over: null, phase: "wait", agents: [], police: [], robbers: [], intel: new Map(), pings: [], revealEvery: opts.reveal ?? side.reveal, rescueT: 0, events: [], playerRole: opts.role || null, stats: { catches: 0, rescues: 0, reveals: 0, outReveals: 0 }, map, theme, th, diff: opts.diff || "normal", vision: CFG.VISION * th.vision };
     G.nextReveal = CFG.WAIT + G.revealEvery;
     const mk = (team, name, x, y, isPlayer) => {
       const enemy = opts.role && team !== opts.role;
@@ -445,6 +447,19 @@ function createGameLogic() {
       if (dist(r, CFG.JAIL) <= CFG.JAIL.r) { r.state = "inJail"; }
       else { r.breakT -= dt; if (r.breakT <= 0) { r.state = "free"; emit(G, "freed", { r }); } }
     }
+  }
+
+  // 구역 밖에 오래 있는 도둑은 위치가 드러난다. 숨을 곳이 구역 밖으로 넓어지지 않게 하는 규칙이다(앱의 구역 이탈 알림과 같은 결)
+  function updateOut(G, r, dt) {
+    if (G.phase !== "play" || r.state !== "free") { r.outT = 0; r.inT = 0; r.outSeen = false; return; }
+    const out = !inZone(r.x, r.y);
+    if (out) { r.outT = (r.outT || 0) + dt; r.inT = 0; }
+    else if (r.outT > 0) { r.inT = (r.inT || 0) + dt; if (r.inT >= CFG.OUT_BACK) { r.outT = 0; r.inT = 0; r.outSeen = false; } }
+    if (!out || r.outT < CFG.OUT_GRACE || G.t - (r.outPingT ?? -99) < CFG.OUT_PING_EVERY) return;
+    r.outPingT = G.t;
+    G.intel.set(r.id, { x: r.x, y: r.y, t: G.t });
+    G.pings.push({ x: r.x, y: r.y, t: G.t, id: r.id, out: 1 });
+    if (!r.outSeen) { r.outSeen = true; G.stats.outReveals++; emit(G, "outReveal", { r }); }
   }
 
   function updateRescue(G, dt) {
@@ -638,7 +653,7 @@ function createGameLogic() {
       emit(G, "dispatch", {});
     }
     if (G.phase === "play" && G.t >= G.nextReveal) { G.nextReveal += G.revealEvery; reveal(G); }
-    G.pings = G.pings.filter(p => G.t - p.t < CFG.REVEAL_SHOW);
+    G.pings = G.pings.filter(p => G.t - p.t < (p.out ? CFG.OUT_PING_SHOW : CFG.REVEAL_SHOW));
     G.agents.forEach((a, i) => {
       if (a.catchCd > 0) a.catchCd -= dt;
       if (!a.isPlayer) {
@@ -651,7 +666,7 @@ function createGameLogic() {
       }
       updateAction(G, a, dt);
       move(G, a, dt);
-      if (a.team === "robber") updateRobberState(G, a, dt);
+      if (a.team === "robber") { updateRobberState(G, a, dt); updateOut(G, a, dt); }
     });
     // 몸끼리 통과하지 않게 살짝 밀어낸다
     const body = G.agents.filter(a => a.state !== "jailed" && a.state !== "caught" && a.state !== "waiting");
