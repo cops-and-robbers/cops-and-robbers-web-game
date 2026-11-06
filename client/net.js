@@ -220,7 +220,7 @@ function createOnline() {
     if (m.stats) G.stats = m.stats;
     if (m.mine) G.player.s = m.mine;
     showEnd();
-    sfx(m.winner === G.player.team ? "win" : "lose");
+    play(m.winner === G.player.team ? "win" : "lose"); haptic([0, 200, 100, 200, 100, 500]);
   }
 
   // 그리기 한 번. 받은 자리를 부드럽게 따라가고, 내 캐릭터는 받은 뒤 지난 시간만큼 앞서 그린다

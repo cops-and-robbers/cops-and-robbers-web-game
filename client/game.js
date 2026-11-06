@@ -550,28 +550,26 @@ function catchTarget() {
   return best;
 }
 const inPlayView = () => G.phase === "play" && !ended && !document.body.classList.contains("lobby-mode");
-let beatT = 0, spottedAt = new Map();
+let beatT = 0, spottedAt = new Map(), lastEndTick = -1;
 function tensionSound(dt) {
   const p = G?.player;
   if (!p || !inPlayView() || p.state !== "free") { beatT = 0; return; }
   const visible = G.agents.filter(a => a.team !== p.team && (online ? online.sees(a) : sees(p, a)) && (a.state === "free" || a.state === "breaking"));
-  if (p.team === "robber") {
-    const near = Math.min(...visible.map(a => dist(p, a)), Infinity);
-    if (near === Infinity) { beatT = 0; return; }
-    if (beatT === 0) haptic(25);
-    beatT -= dt;
-    if (beatT <= 0) {
-      // 가까울수록 빨라진다
-      beatT = 0.38 + Math.min(1, Math.max(0, (near - 120) / 400)) * 0.52;
-      tone(78, 52, 0.12, "sine", 0.2); tone(70, 48, 0.1, "sine", 0.14, 0.15);
-    }
-  } else {
-    const now = G.t;
-    for (const a of visible) {
-      if (now - (spottedAt.get(a.id) ?? -99) > 5) { tone(660, 990, 0.09, "square", 0.05); tone(880, 1320, 0.1, "square", 0.04, 0.08); haptic(12); }
-      spottedAt.set(a.id, now);
-    }
+  const near = Math.min(...visible.map(a => dist(p, a)), Infinity), close = near === Infinity ? 0 : Math.max(0, Math.min(1, 1 - (near - 120) / 520));
+  const now = G.t;
+  // 5초 넘게 못 보다가 다시 보인 순간에만 알린다
+  for (const a of visible) {
+    if (now - (spottedAt.get(a.id) ?? -99) > 5) { if (p.team === "robber") { play("spotted"); haptic(40); beatT = 0.5; } else { play("found"); haptic(12); } }
+    spottedAt.set(a.id, now);
   }
+  // 도둑: 경찰이 보이는 동안 심장. 가까울수록 빠르다
+  if (p.team === "robber" && near !== Infinity) {
+    beatT -= dt;
+    if (beatT <= 0) { beatT = 0.42 + (1 - close) * 0.5; play("heart", 0.95 + close * 0.15); }
+  } else beatT = 0;
+  // 마지막 5초는 둘 다 시계
+  const left = Math.ceil(CFG.DURATION - G.t);
+  if (G.phase === "play" && left >= 1 && left <= 5 && left !== lastEndTick) { lastEndTick = left; play("tick", left <= 2 ? 1.12 : 1); }
 }
 function drawCatchAid() {
   const t = catchTarget(), p = G?.player, btn = $("btnCatch");
@@ -653,12 +651,13 @@ const fmt = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:
 function handleEvents() {
   const p = G.player;
   for (const e of G.events.splice(0)) {
-    if (e.type === "catchStart") { startAction(chars[e.a.id], "catch", e.a.action?.dx ?? Math.cos(e.a.faceA)); if (e.a === p) sfx("swing"); }
+    if (e.type === "catchStart") startAction(chars[e.a.id], "catch", e.a.action?.dx ?? Math.cos(e.a.faceA));
     if (e.type === "jailed") { burst(e.r.x, e.r.y - 40, "#FFFFFF", 12); if (e.r === p) shake = 5; }
-    if (e.type === "catchMiss" && e.a === p) toast("놓쳤어요", "bad");
+    if (e.type === "catchMiss" && e.a === p) { toast("놓쳤어요", "bad"); play("miss"); }
     if (e.type === "caught") {
       startAction(chars[e.r.id], "jail");
-      if (e.r === p || e.by === p || seen(e.r)) { burst(e.r.x, e.r.y - 40, "#FFC93C", 16); sfx("catch"); }
+      if (e.r === p || e.by === p || seen(e.r)) burst(e.r.x, e.r.y - 40, "#FFC93C", 16);
+      if (e.by === p) { play("catch"); haptic(80); } else if (e.r === p) { play("caught"); haptic(500); }
       if (e.r === p || e.by === p) { shake = 12; hitStop = 0.08; }
       if (e.r === p) toast("잡혔어요. 감옥으로 가요", "bad");
       else if (e.by === p) toast(`${e.r.name}을 잡았어요`, "good");
@@ -666,20 +665,20 @@ function handleEvents() {
       else toast(`${e.r.name}이 잡혔어요`, "bad");
     }
     if (e.type === "unlocked") {
-      startAction(chars[e.r.id], "escape"); if (seen(e.r) || e.r === p) sfx("free");
+      startAction(chars[e.r.id], "escape"); if (e.r === p || (p.team === "robber" && e.rescued)) play("free");
       if (e.r === p) toast(e.rescued ? "동료가 문을 열었어요. 밖으로 뛰어요" : "문이 열렸어요. 밖으로 뛰어요", "good");
     }
     if (e.type === "rescued" && e.by === p) toast(`동료 ${e.n}명을 구했어요`, "good");
     if (e.type === "rescued" && p.team === "police") toast("도둑이 감옥 문을 열었어요", "bad");
     if (e.type === "freed" && e.r === p) toast("탈옥했어요. 다시 숨어요", "good");
-    if (e.type === "dispatch") sfx("go");
+    if (e.type === "dispatch") { play("go"); haptic(role === "police" ? [0, 90, 90, 90] : 600); }
     if (e.type === "dispatch") banner(role === "police" ? "시간이 됐어요" : "경찰이 출동했어요", role === "police" ? "출동!" : "조심!");
     if (e.type === "reveal") {
-      sfx("ping");
+      if (role === "police" || p.state === "free") { play("reveal"); haptic(250); }
       if (role === "police") toast("도둑 위치가 공개됐어요. 빨간 표시가 있는 곳으로 가요", "good");
       else if (p.state === "free") toast("내 위치가 공개됐어요. 지금 자리를 옮겨요", "bad");
     }
-    if (e.type === "over") { showEnd(); sfx(G.over.winner === p.team ? "win" : "lose"); }
+    if (e.type === "over") { showEnd(); play(G.over.winner === p.team ? "win" : "lose"); }
   }
 }
 
@@ -877,25 +876,36 @@ function wobbleBushes(dt) {
     b.el.style.transform = b.wob > 0.02 ? `rotate(${Math.sin(t * 22 + b.x) * 2.6 * b.wob}deg) scale(${1 + 0.02 * b.wob * Math.sin(t * 17)},1)` : "";
   }
 }
-// 효과음: 파일 없이 소리를 만든다
+// 효과음: CC0 소리 파일을 다듬어 쓴다(docs/sound.md)
 let audio = null, muted = false;
-function tone(f0, f1, len, type = "sine", vol = 0.12, delay = 0) {
-  if (!audio || muted) return;
-  const t = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
-  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + len);
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + len);
-  o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + len);
+// 모든 소리는 한 줄기(bus)로 모아 낸다. 소리 끄기와 크기를 한곳에서 다룬다
+let bus = null;
+function ensureBus() { if (audio && !bus) { bus = audio.createGain(); bus.connect(audio.destination); } }
+const SOUND_SRC = { spotted: "data:audio/mpeg;base64,/*B64:sound/spotted.mp3*/", heart: "data:audio/mpeg;base64,/*B64:sound/heart.mp3*/", found: "data:audio/mpeg;base64,/*B64:sound/found.mp3*/", catch: "data:audio/mpeg;base64,/*B64:sound/catch.mp3*/", caught: "data:audio/mpeg;base64,/*B64:sound/caught.mp3*/", miss: "data:audio/mpeg;base64,/*B64:sound/miss.mp3*/", reveal: "data:audio/mpeg;base64,/*B64:sound/reveal.mp3*/", free: "data:audio/mpeg;base64,/*B64:sound/free.mp3*/", go: "data:audio/mpeg;base64,/*B64:sound/go.mp3*/", alert: "data:audio/mpeg;base64,/*B64:sound/alert.mp3*/", tick: "data:audio/mpeg;base64,/*B64:sound/tick.mp3*/", win: "data:audio/mpeg;base64,/*B64:sound/win.mp3*/", lose: "data:audio/mpeg;base64,/*B64:sound/lose.mp3*/" };
+// 순간마다 크기(0~1)와 같은 소리 사이 최소 간격(초). 파일마다 귀에 들리는 크기(LUFS)를 재서 맞췄다. 잡기와 들킴이 기준(1), 사이렌은 같은 최고점이어도 8dB 크게 들려 낮췄다
+const SOUND_MIX = { spotted: [1, 4], heart: [0.68, 0.2], found: [0.45, 3], catch: [0.9, 0.3], caught: [1, 1], miss: [0.78, 0.4], reveal: [0.74, 2], free: [0.65, 1], go: [0.36, 2], alert: [0.36, 4], tick: [0.93, 0.5], win: [0.78, 2], lose: [0.48, 2] };
+// 자주 반복되는 소리만 높이를 조금씩 흔든다. 멜로디가 있는 소리는 흔들면 음이 틀어져 들린다
+const JITTER = new Set(["heart", "miss", "tick"]);
+const sounds = {}, lastPlayed = {};
+async function loadSounds() {
+  if (!audio || sounds.go) return;
+  for (const [k, src] of Object.entries(SOUND_SRC)) {
+    try { sounds[k] = await audio.decodeAudioData(await (await fetch(src)).arrayBuffer()); } catch { /* 못 읽은 소리는 조용히 넘어간다 */ }
+  }
 }
-function sfx(n) {
-  if (n === "swing") tone(520, 180, 0.14, "triangle", 0.1);
-  if (n === "catch") { tone(180, 70, 0.22, "square", 0.1); tone(900, 500, 0.12, "triangle", 0.08, 0.03); }
-  if (n === "free") { tone(420, 840, 0.18, "triangle", 0.09); tone(620, 1240, 0.18, "triangle", 0.07, 0.09); }
-  if (n === "ping") { tone(1320, 1320, 0.22, "sine", 0.07); tone(990, 990, 0.3, "sine", 0.06, 0.16); }
-  if (n === "go") { tone(392, 392, 0.12, "square", 0.06); tone(587, 587, 0.24, "square", 0.06, 0.13); }
-  if (n === "win") [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.2, "triangle", 0.09, i * 0.11));
-  if (n === "lose") [392, 330, 262].forEach((f, i) => tone(f, f * 0.97, 0.26, "triangle", 0.08, i * 0.16));
+function play(name, rate = 1) {
+  if (!audio || muted || !sounds[name]) return;
+  ensureBus();
+  const [vol, gap] = SOUND_MIX[name] || [0.6, 0.2], now = audio.currentTime;
+  if (now - (lastPlayed[name] ?? -9) < gap) return;
+  lastPlayed[name] = now;
+  const s = audio.createBufferSource(), g = audio.createGain();
+  s.buffer = sounds[name];
+  s.playbackRate.value = rate * (JITTER.has(name) ? 1 + (Math.random() - 0.5) * 0.08 : 1);
+  g.gain.value = vol * (1 + (Math.random() - 0.5) * 0.2);
+  s.connect(g); g.connect(bus); s.start();
 }
-function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch { audio = null; } }
+function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); loadSounds(); } catch { audio = null; } }
 $("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").setAttribute("aria-label", muted ? "소리 켜기" : "소리 끄기"); });
 addEventListener("pointerdown", unlockAudio); addEventListener("keydown", unlockAudio);
 
