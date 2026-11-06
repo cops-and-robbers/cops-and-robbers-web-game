@@ -26,6 +26,7 @@ pnpm run build   # dist/game.html
 | 구조 파악, 파일 위치 | `docs/architecture.md` |
 | 서버와 화면이 주고받는 내용 | `docs/protocol.md` |
 | 배포, 사용량, 비용 | `docs/deploy.md`, `docs/cost-guard.md` |
+| 공개 전, 점검, 어드민 연결, 웹사이트 입구 | `docs/ops.md` |
 | 이슈, 브랜치, 커밋, PR | `docs/conventions.md` |
 | 무엇을 어떤 순서로 만드는지 | `docs/roadmap.md` |
 
