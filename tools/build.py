@@ -8,7 +8,7 @@ svgs = re.search(r"const SVGS = \{.*?\};\n", pg, re.S).group(0)
 shell = (ROOT / "client/shell.html").read_text(encoding="utf-8")
 logic = (ROOT / "shared/logic.js").read_text(encoding="utf-8")
 game = (ROOT / "client/game.js").read_text(encoding="utf-8")
-net = (ROOT / "client/lobby.js").read_text(encoding="utf-8") + (ROOT / "client/net.js").read_text(encoding="utf-8")
+net = (ROOT / "client/tutorial.js").read_text(encoding="utf-8") + (ROOT / "client/lobby.js").read_text(encoding="utf-8") + (ROOT / "client/net.js").read_text(encoding="utf-8")
 css = (ROOT / "client/lobby.css").read_text(encoding="utf-8")
 out = shell.replace("</head>", "<style>" + css + "</style>\n</head>", 1).replace("/*ENGINE*/", engine).replace("/*SVGS*/", svgs).replace("/*LOGIC*/", logic).replace("/*GAME*/", game).replace("/*NET*/", net)
 # 앱과 같은 그림(로고, 캐릭터, 배경, 경찰차)은 client/brand 에 두고 파일 하나에 묶어 넣는다.

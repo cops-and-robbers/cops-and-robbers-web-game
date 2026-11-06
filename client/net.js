@@ -380,3 +380,6 @@ function leaveInApp() {
 if (NET_ROOM && NET_KEY) { online = createOnline(); leaveInApp(); }
 else if (NET_KEY) { showHome(); leaveInApp(); }
 window.__game.online = () => online;
+// 시안 보기: ?howto=police 로 하는 방법 안내만 띄운다
+const HOWTO_PREVIEW = new URLSearchParams(location.search).get("howto");
+if (HOWTO_PREVIEW) createHowTo().open(HOWTO_PREVIEW);
