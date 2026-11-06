@@ -1,0 +1,9 @@
+{
+  "name": "경찰과 도둑",
+  "short_name": "경도",
+  "start_url": "/play",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#F3EEE4",
+  "theme_color": "#F3EEE4"
+}

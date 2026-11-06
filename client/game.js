@@ -10,6 +10,7 @@ if (QS.get("reveal")) CFG.REVEAL_EVERY = Number(QS.get("reveal"));
 const $ = id => document.getElementById(id);
 const stage = $("stage"), world = $("world"), fog = $("fog"), fctx = fog.getContext("2d"), mini = $("mini"), mctx = mini.getContext("2d");
 const CS = 0.5; // 캐릭터 크기
+let camTarget = null; // 대기실처럼 시점을 따로 잡을 때 쓴다
 let G = null, chars = [], role = null, zoom = 1, camX = 0, camY = 0, W = 0, H = 0, ended = false, lastSeenBy = false;
 // 사람끼리 할 때는 net.js 가 채운다. 비어 있으면 이 파일 안에서 봇과 규칙을 돌린다
 let online = null;
@@ -225,8 +226,9 @@ function makeChar(a) {
   }
   const headTop = -(kind === "police" ? 200 : 145) * base;
   let tag = null;
-  if (a.team === (G.player && G.player.team)) {
-    tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? "나" : a.name; tag.style.top = (headTop - 46) + "px"; el.append(tag);
+  // 사람끼리 할 때는 상대 이름도 보여 준다. 시야 밖 상대는 캐릭터째 숨고 이름도 받지 않는다
+  if (G.player && (online || a.team === G.player.team)) {
+    tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? "나" : a.name; tag.style.top = (headTop - 66) + "px"; el.append(tag);
   }
   const c = { a, kind, el, views, tag, face: 1, faceS: new Spring(420, 34), pop: new Spring(300, 14), view: null, prev: null, tr: 1, trMode: "fade", mot: {}, mkey: {}, phase: 0, facing: "front", want: null, wantT: 0, stillT: 0, action: null, hopY: 0, input: { x: 0, y: 0 }, hide: 0, wasVisible: false };
   c.faceS.x = 1;
@@ -434,15 +436,108 @@ addEventListener("keydown", e => {
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => keys.clear());
-const pad = $("pad"), knob = $("knob");
-function padMove(e) { const r = pad.getBoundingClientRect(); let x = (e.clientX - r.left - r.width / 2) / (r.width / 2), y = (e.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; } padVec = m < 0.12 ? { x: 0, y: 0 } : { x, y }; knob.style.transform = `translate(${x * 40}px, ${y * 40}px)`; }
-function padEnd() { padVec = { x: 0, y: 0 }; knob.style.transform = ""; }
-pad.addEventListener("pointerdown", e => { pad.setPointerCapture(e.pointerId); padMove(e); });
-pad.addEventListener("pointermove", e => { if (e.buttons) padMove(e); });
-pad.addEventListener("pointerup", padEnd); pad.addEventListener("pointercancel", padEnd);
-const hold = (el, on, off) => { el.addEventListener("pointerdown", e => { e.preventDefault(); on(); }); for (const t of ["pointerup", "pointercancel", "pointerleave"]) el.addEventListener(t, off); };
-hold($("btnRun"), () => sprintBtn = true, () => sprintBtn = false);
-$("btnCatch").addEventListener("pointerdown", e => { e.preventDefault(); wantCatch = true; });
+// 터치 조작. 왼쪽 어디를 잡아도 그 자리에서 조이스틱이 시작된다. 손가락마다 따로 따라가서 걷기와 달리기를 함께 누를 수 있다
+const pad = $("pad"), knob = $("knob"), padZone = $("padZone");
+const PAD_DEAD = 0.12;
+let padId = null, padCx = 0, padCy = 0, padFsAt = 0;
+const haptic = ms => { try { navigator.vibrate?.(ms); } catch { /* 진동이 없는 기기는 넘어간다 */ } };
+function padMove(e) {
+  const R = pad.offsetWidth / 2 || 66;
+  let x = (e.clientX - padCx) / R, y = (e.clientY - padCy) / R;
+  const m = Math.hypot(x, y), lim = Math.min(1, m);
+  if (m > 1) { x /= m; y /= m; }
+  knob.style.transform = `translate(${x * R * .62}px, ${y * R * .62}px)`;
+  // 살짝 건드린 흔들림은 무시하고, 그 위로는 처음부터 부드럽게 커진다
+  const k = lim < PAD_DEAD ? 0 : (lim - PAD_DEAD) / (1 - PAD_DEAD) / (lim || 1);
+  padVec = { x: x * k * (m > 1 ? 1 : 1), y: y * k };
+}
+// 지금 누르면 잡히는 도둑을 찾는다. 판정은 서버가 하고 화면은 알려 주기만 한다
+function catchTarget() {
+  const p = G?.player;
+  if (!p || p.team !== "police" || p.state !== "free" || !inPlayView()) return null;
+  let best = null, bd = CFG.CATCH_R + CFG.CATCH_GRACE;
+  for (const r of G.robbers) { if ((r.state !== "free" && r.state !== "breaking") || !(online ? online.sees(r) : sees(p, r))) continue; const d = dist(p, r); if (d < bd && L.lineOfSight(p, r)) { bd = d; best = r; } }
+  return best;
+}
+const inPlayView = () => G.phase === "play" && !ended && !document.body.classList.contains("lobby-mode");
+let beatT = 0, spottedAt = new Map();
+function tensionSound(dt) {
+  const p = G?.player;
+  if (!p || !inPlayView() || p.state !== "free") { beatT = 0; return; }
+  const visible = G.agents.filter(a => a.team !== p.team && (online ? online.sees(a) : sees(p, a)) && (a.state === "free" || a.state === "breaking"));
+  if (p.team === "robber") {
+    const near = Math.min(...visible.map(a => dist(p, a)), Infinity);
+    if (near === Infinity) { beatT = 0; return; }
+    if (beatT === 0) haptic(25);
+    beatT -= dt;
+    if (beatT <= 0) {
+      // 가까울수록 빨라진다
+      beatT = 0.38 + Math.min(1, Math.max(0, (near - 120) / 400)) * 0.52;
+      tone(78, 52, 0.12, "sine", 0.2); tone(70, 48, 0.1, "sine", 0.14, 0.15);
+    }
+  } else {
+    const now = G.t;
+    for (const a of visible) {
+      if (now - (spottedAt.get(a.id) ?? -99) > 5) { tone(660, 990, 0.09, "square", 0.05); tone(880, 1320, 0.1, "square", 0.04, 0.08); haptic(12); }
+      spottedAt.set(a.id, now);
+    }
+  }
+}
+function drawCatchAid() {
+  const t = catchTarget(), p = G?.player, btn = $("btnCatch");
+  btn.classList.toggle("ready", !!t && p.catchCd <= 0);
+  if (!t) return;
+  // 대상 발밑에 표시를 한다. 곤봉이 그쪽으로 간다는 걸 누르기 전에 알 수 있다
+  const [x, y] = toScreen(t.x, t.y), rx = 50 * zoom, ry = 22 * zoom;
+  fx2.save(); fx2.strokeStyle = "#FFD24D"; fx2.lineWidth = Math.max(3, 6 * zoom); fx2.globalAlpha = p.catchCd > 0 ? .35 : .95;
+  fx2.beginPath(); fx2.ellipse(x, y + 4 * zoom, rx, ry, 0, 0, 7); fx2.stroke(); fx2.restore();
+}
+function padEnd() { padId = null; padVec = { x: 0, y: 0 }; knob.style.transform = ""; pad.style.transform = ""; pad.classList.remove("on"); }
+padZone.addEventListener("pointerdown", e => {
+  if (padId !== null) return;
+  e.preventDefault();
+  padId = e.pointerId; padZone.setPointerCapture(padId);
+  const rest = pad.getBoundingClientRect(), R = rest.width / 2 || 66, m = 8;
+  // 화면 밖으로 잘리지 않게 안쪽으로 당긴다
+  padCx = clamp(e.clientX, R + m, innerWidth - R - m); padCy = clamp(e.clientY, R + m, innerHeight - R - m);
+  pad.style.transform = `translate(${padCx - (rest.left + R)}px, ${padCy - (rest.top + R)}px)`;
+  pad.classList.add("on"); padMove(e);
+  // 전체 화면이 풀렸으면 다음 터치에 다시 시도한다
+  if (document.fullscreenEnabled && !document.fullscreenElement && Date.now() - padFsAt > 5000) { padFsAt = Date.now(); tryLandscape(); }
+});
+padZone.addEventListener("pointermove", e => { if (e.pointerId === padId) { e.preventDefault(); padMove(e); } });
+for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) padZone.addEventListener(t, e => { if (e.pointerId === padId) padEnd(); });
+const hold = (el, on, off) => {
+  let id = null;
+  el.addEventListener("pointerdown", e => { e.preventDefault(); id = e.pointerId; el.setPointerCapture(id); el.classList.add("down"); on(); });
+  for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) el.addEventListener(t, e => { if (e.pointerId === id) { id = null; el.classList.remove("down"); off(); } });
+};
+// 달리기: 누르고 있으면 그동안, 짧게 누르면 켜 둔다. 켜 두면 엄지를 잡기로 옮길 수 있다
+let runDownAt = 0, runLatched = false;
+const runBtn = $("btnRun");
+hold(runBtn, () => { runDownAt = Date.now(); sprintBtn = true; haptic(8); }, () => {
+  const tap = Date.now() - runDownAt < 180;
+  runLatched = tap && !runLatched;
+  sprintBtn = runLatched;
+  runBtn.classList.toggle("down", runLatched);
+});
+hold($("btnCatch"), () => { wantCatch = true; haptic(15); }, () => {});
+// 다른 앱으로 나갔다 오면 눌린 채로 남지 않게 푼다
+const releaseAll = () => { padEnd(); sprintBtn = false; runLatched = false; keys.clear(); document.querySelectorAll("#btnRun.down,#btnCatch.down").forEach(b => b.classList.remove("down")); };
+addEventListener("blur", releaseAll);
+document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); else keepAwake(); });
+// 판 도중 화면이 꺼지지 않게 한다. 안 되는 브라우저는 넘어간다
+let wakeLock = null;
+async function keepAwake() { try { if (online && !wakeLock) { wakeLock = await navigator.wakeLock?.request("screen"); wakeLock?.addEventListener("release", () => wakeLock = null); } } catch { wakeLock = null; } }
+// 브라우저 기본 동작이 게임을 방해하지 않게 막는다: 당겨서 새로고침, 두 손가락 확대, 길게 눌러 메뉴, 글자 선택
+const typing = e => e.target instanceof HTMLInputElement;
+// 안내 창과 결과 창은 화면보다 길면 스크롤할 수 있어야 한다
+document.addEventListener("touchmove", e => { if (!typing(e) && !e.target.closest?.(".sheet.show")) e.preventDefault(); }, { passive: false });
+document.addEventListener("gesturestart", e => e.preventDefault());
+document.addEventListener("dblclick", e => e.preventDefault());
+document.addEventListener("contextmenu", e => { if (!typing(e)) e.preventDefault(); });
+document.addEventListener("selectstart", e => { if (!typing(e)) e.preventDefault(); });
+window.visualViewport?.addEventListener("resize", () => fitStage());
 function readInput() {
   let x = 0, y = 0;
   if (keys.has("arrowleft") || keys.has("a")) x -= 1; if (keys.has("arrowright") || keys.has("d")) x += 1;
@@ -503,6 +598,7 @@ function drawHud(dt) {
   if (pipKey !== lastPip) { lastPip = pipKey; $("pips").innerHTML = pips.map(free => `<i class="${free ? "free" : "out"}" style="background-image:url('${ROBBER_ICON}')"></i>`).join(""); }
   let line = "";
   if (G.phase === "wait") line = role === "police" ? "도둑이 도망치는 중이에요" : "경찰에게서 멀어지는 중이에요";
+  else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = "같은 편이 감옥 앞에 오면 나갈 수 있어요";
   else if (p.state === "jailed") line = `${Math.ceil(p.lock)}초 뒤 풀려나요. 동료가 감옥 앞에 오면 더 빨리 나갈 수 있어요`;
   else if (p.state === "inJail") line = "감옥 밖에서 3초 동안 안 잡히면 탈옥해요";
   else if (p.state === "breaking") line = `탈옥까지 ${Math.ceil(p.breakT)}초. 잡히면 다시 감옥에 가요`;
@@ -517,7 +613,9 @@ function drawHud(dt) {
   $("stamFill").style.width = (p.stam * 100) + "%"; $("stamFill").className = p.tired ? "tired" : "";
   const out = !inZone(p.x, p.y);
   $("lock").className = out ? "show" : "";
-  if (role === "police") $("btnCatch").className = p.catchCd > 0 || p.state !== "free" ? "off" : "";
+  if (role === "police") $("btnCatch").classList.toggle("off", p.catchCd > 0 || p.state !== "free");
+  // 지치면 켜 둔 달리기도 꺼 준다
+  if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down"); }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $("toast").className = ""; }
   if (missionT > 0) { missionT -= dt; if (missionT <= 0) $("mission").className = ""; }
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $("banner").className = ""; }
@@ -610,7 +708,7 @@ function frame(dt) {
     drawHud(dt);
   }
   // 카메라: 살짝 늦게 따라가고 달리는 쪽을 조금 더 보여 준다
-  const tx = p.x + p.vx * 0.22 - W / 2 / zoom, ty = p.y - 30 + p.vy * 0.22 - H / 2 / zoom, k = Math.min(1, dt * 6);
+  const [tx, ty] = camTarget ? camTarget(p) : [p.x + p.vx * 0.22 - W / 2 / zoom, p.y - 30 + p.vy * 0.22 - H / 2 / zoom], k = Math.min(1, dt * 6);
   camX += (tx - camX) * k; camY += (ty - camY) * k;
   shake = Math.max(0, shake - dt * 30);
   const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
@@ -625,6 +723,8 @@ function frame(dt) {
     drawChar(c, dt);
   }
   drawFx(dt);
+  drawCatchAid();
+  tensionSound(dt);
   drawFog();
   drawMini();
 }

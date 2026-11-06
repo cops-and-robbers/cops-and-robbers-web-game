@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>경찰과 도둑 시제품</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
@@ -9,6 +12,10 @@
   :root { --ink:#1D232B; --sub:#545E6E; --police:#2A9BEF; --robber:#35C26B; --danger:#E2574C; --team:var(--police); }
   body[data-role=robber] { --team:var(--robber); }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { overscroll-behavior:none; -webkit-touch-callout:none; -webkit-text-size-adjust:100%; }
+  body { position:fixed; inset:0; }
+  button { touch-action:manipulation; }
+  input { -webkit-user-select:text; user-select:text; }
   html,body { margin:0; height:100%; overflow:hidden; background:#1D232B; color:var(--ink); font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif; user-select:none; -webkit-user-select:none; }
   #stage { position:fixed; inset:0; overflow:hidden; touch-action:none; }
   #world { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; width:3200px; height:2400px; }
@@ -18,7 +25,7 @@
   .char svg { position:absolute; left:0; bottom:0; display:none; overflow:visible; }
   .char svg.on { display:block; }
   .char .shadow { position:absolute; left:0; bottom:-14px; width:96px; height:26px; margin-left:-48px; border-radius:50%; background:rgba(29,35,43,.16); }
-  .tag { position:absolute; left:0; transform:translateX(-50%); white-space:nowrap; font-size:30px; font-weight:800; padding:3px 16px; border-radius:999px; background:#fff; color:var(--ink); box-shadow:0 2px 0 rgba(29,35,43,.12); }
+  .tag { position:absolute; left:0; transform:translateX(-50%); white-space:nowrap; font-size:46px; font-weight:800; padding:4px 22px 6px; border-radius:999px; background:#fff; color:var(--ink); box-shadow:0 2px 0 rgba(29,35,43,.12); }
   .tag.me { background:var(--team); color:#fff; }
   #fog { position:absolute; inset:0; pointer-events:none; z-index:5; }
   #fx { position:absolute; inset:0; pointer-events:none; z-index:4; }
@@ -53,7 +60,13 @@
   #mission.show { opacity:1; }
   #lock { position:absolute; left:50%; top:46%; transform:translateX(-50%); background:var(--danger); color:#fff; font-size:18px; font-weight:800; padding:12px 20px; border-radius:14px; display:none; white-space:nowrap; }
   #lock.show { display:block; }
-  #pad,#btnRun,#btnCatch { pointer-events:auto; display:none; touch-action:none; }
+  #padZone { position:absolute; left:0; bottom:0; width:50%; height:78%; pointer-events:auto; touch-action:none; display:none; }
+  #pad { pointer-events:none !important; transition:opacity .12s; opacity:.75; }
+  #pad.on { opacity:1; }
+  #btnRun,#btnCatch { pointer-events:auto; display:none; touch-action:none; -webkit-user-select:none; user-select:none; }
+  #pad { display:none; touch-action:none; }
+  #btnRun::after,#btnCatch::after { content:""; position:absolute; inset:-14px; border-radius:50%; }
+  #btnRun.down,#btnCatch.down { transform:scale(.92); filter:brightness(1.15); }
   #pad { position:absolute; left:18px; bottom:calc(18px + env(safe-area-inset-bottom)); width:132px; height:132px; border-radius:50%; background:rgba(255,255,255,.55); }
   #knob { position:absolute; left:50%; top:50%; width:54px; height:54px; margin:-27px 0 0 -27px; border-radius:50%; background:rgba(29,35,43,.75); }
   #btnRun,#btnCatch { position:absolute; border:0; border-radius:50%; font:inherit; font-weight:800; color:#fff; width:84px; height:84px; font-size:17px; }
@@ -81,7 +94,7 @@
     #pad { width:112px; height:112px; left:calc(14px + env(safe-area-inset-left)); bottom:12px; } #knob { width:46px; height:46px; margin:-23px 0 0 -23px; }
     #btnRun { width:72px; height:72px; right:calc(14px + env(safe-area-inset-right)); bottom:12px; font-size:15px; } #btnCatch { width:72px; height:72px; right:calc(94px + env(safe-area-inset-right)); bottom:30px; font-size:15px; }
   }
-  @media (pointer:coarse) { #pad,#btnRun { display:block; } #btnCatch { display:block; } #hint { display:none; } #mini { width:112px; height:84px; } #toast { top:112px; font-size:14px; } }
+  @media (pointer:coarse) { #padZone,#pad,#btnRun { display:block; } #btnCatch { display:block; } #hint { display:none; } #mini { width:112px; height:84px; } #toast { top:112px; font-size:14px; } }
   .sheet { position:absolute; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(18,23,32,.55); }
   .sheet.show { display:flex; overflow-y:auto; }
   .sheet .card { margin:auto; }
@@ -102,10 +115,28 @@
   .rules { text-align:left; margin-top:16px; font-size:13px; color:var(--sub); line-height:1.7; }
   .rules b { color:var(--ink); }
   #rotate { background:rgba(18,23,32,.86); z-index:30; }
+  #home .homeActs { display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+  #home button { font:inherit; font-weight:800; font-size:16px; min-height:52px; border:0; border-radius:14px; cursor:pointer; background:#E9ECF1; color:var(--ink); }
+  #home button.primary { background:#F7D774; box-shadow:0 4px 0 #CFA93C; }
+  #home button.link { min-height:44px; background:none; color:var(--sub); text-decoration:underline; text-underline-offset:4px; font-size:14px; }
+  #home label { display:block; text-align:left; font-size:13px; font-weight:800; color:var(--sub); margin:4px 0 6px; }
+  #home .codeRow { display:flex; gap:8px; }
+  #home input { flex:1; min-width:0; min-height:52px; font:inherit; font-size:20px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; border:2px solid var(--ink); border-radius:14px; padding:0 14px; }
+  #home .codeRow button { padding:0 18px; }
+  #homeCodeMsg { min-height:18px; font-size:13px; color:var(--danger) !important; }
+  #lobbyHome, #lobbyRetry { margin-top:14px; width:100%; min-height:48px; }
+  #endApp { display:block; margin-top:10px; font-size:13px; font-weight:800; color:var(--sub); }
+  #inapp { z-index:25; background:rgba(18,23,32,.72); }
+  #inapp .acts { flex-direction:column; }
+  #inapp .acts button { min-height:48px; flex:none; font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; cursor:pointer; background:#E9ECF1; color:var(--ink); }
+  #inappOpen { background:#F7D774 !important; }
+  #inappStay { font:inherit; font-size:14px; font-weight:800; margin-top:10px; min-height:44px; border:0; background:none; color:var(--sub); text-decoration:underline; text-underline-offset:4px; cursor:pointer; }
   #rotate .card { width:min(84vw,320px); }
   #lobby input, #lobby button { font:inherit; font-weight:700; width:100%; min-height:48px; margin-top:12px; border-radius:12px; border:1px solid #C9CED6; padding:0 14px; background:#fff; color:var(--ink); }
-  #lobby button { border:0; background:var(--ink); color:#fff; }
-  #lobbyList { font-weight:700; color:var(--ink); }
+  #lobby button { border:0; }
+  #lobby label { display:block; margin-top:14px; font-size:13px; font-weight:800; color:var(--sub); text-align:left; }
+  #lobby input { margin-top:6px; }
+  #lobby button { background:var(--cheese,#F7D774); color:var(--ink); box-shadow:0 4px 0 #CFA93C; }
   [hidden] { display:none !important; }
   #rotate .phone { width:44px; height:72px; margin:0 auto 14px; border:5px solid var(--ink); border-radius:10px; animation:turn 1.8s ease-in-out infinite; }
   @keyframes turn { 0%,25% { transform:none; } 60%,100% { transform:rotate(90deg); } }
@@ -121,6 +152,22 @@
   .acts { display:flex; gap:8px; margin-top:16px; }
   .acts button { flex:1; font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; padding:13px; cursor:pointer; }
   #again { background:var(--team); color:#fff; } #swap { background:#E9ECF1; color:var(--ink); }
+
+  /* 오른손 버튼: 가장 많이 쓰는 버튼을 구석에 두고 사이를 띄운다 */
+  #btnCatch { width:92px; height:92px; font-size:19px; right:calc(18px + env(safe-area-inset-right)); bottom:calc(16px + env(safe-area-inset-bottom)); }
+  #btnCatch.ready { box-shadow:0 0 0 5px #FFD24D; }
+  #btnRun::after,#btnCatch::after { inset:-10px; }
+  body[data-role=police]:not(.lobby-mode) #btnRun { width:72px; height:72px; font-size:15px; right:calc(140px + env(safe-area-inset-right)); bottom:calc(30px + env(safe-area-inset-bottom)); }
+  #btnRun.down { background:#1D232B; box-shadow:0 0 0 3px #fff; }
+  /* 낮은 가로 화면에서 결과 창이 잘리지 않게 두 칸으로 편다 */
+  @media (max-height:560px) {
+    #end .card { width:min(94vw,700px); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); column-gap:18px; align-items:center; }
+    #end #endHero,#end h1,#end #endReason,#end #endWin,#end #endBadge { grid-column:1; }
+    #endHero { height:58px; margin-bottom:2px; } #end h1 { font-size:20px; } #end #endReason { margin-top:2px; font-size:12px; } #endWin { margin-top:2px; font-size:13px; }
+    #endBadge { margin:6px auto 0; font-size:14px; padding:5px 12px; justify-self:center; }
+    #endStats { grid-column:2; grid-row:1 / span 3; margin-top:0; } #endStats div { padding:8px 4px; }
+    #end .acts { grid-column:2; grid-row:4 / span 2; margin-top:10px; } #end .acts button { min-height:48px; padding:8px; }
+  }
 </style>
 </head>
 <body>
@@ -142,6 +189,7 @@
     <div id="lock">구역 안으로 돌아와요</div>
     <div id="bigCount"></div>
     <button id="sound">소리 켜짐</button>
+    <div id="padZone"></div>
     <div id="pad"><div id="knob"></div></div>
     <button id="btnRun">달리기</button>
     <button id="btnCatch">잡기</button>
@@ -166,14 +214,37 @@
     </div>
   </div></div>
   <div id="lobby" class="sheet"><div class="card">
-    <h1>방 <span id="lobbyCode"></span></h1>
+    <h1 id="lobbyTitle"></h1>
     <p id="lobbyMsg"></p>
+    <button id="lobbyHome" hidden>처음 화면으로</button>
+    <button id="lobbyRetry" hidden>다시 해 보기</button>
     <div id="lobbyForm">
-      <input id="lobbyName" maxlength="12" placeholder="이름" autocomplete="off">
-      <button id="lobbyJoin">들어가기</button>
+      <label for="lobbyName">이름</label>
+      <input id="lobbyName" maxlength="6" autocomplete="off">
+      <button id="lobbyJoin">같이 하기</button>
     </div>
-    <p id="lobbyList"></p>
-    <button id="lobbyStart" hidden>시작</button>
+  </div></div>
+  <div id="home" class="sheet"><div class="card">
+    <h1>경찰과 도둑</h1>
+    <div class="homeActs">
+      <button id="homeCreate" class="primary">방 만들기</button>
+      <button id="homeJoinOpen">코드로 들어가기</button>
+      <div id="homeJoin" hidden>
+        <label for="homeCode">방 코드</label>
+        <div class="codeRow"><input id="homeCode" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="homeJoinGo" class="primary">들어가기</button></div>
+        <p id="homeCodeMsg"></p>
+      </div>
+      <button id="homeSolo" class="link">혼자 해 보기</button>
+    </div>
+  </div></div>
+  <div id="inapp" class="sheet"><div class="card">
+    <h1>크롬이나 사파리에서 열어 주세요</h1>
+    <p id="inappBody"></p>
+    <div class="acts inapp">
+      <button id="inappOpen">브라우저로 열기</button>
+      <button id="inappCopy">링크 복사</button>
+    </div>
+    <button id="inappStay">여기서 할게요</button>
   </div></div>
   <div id="rotate" class="sheet"><div class="card">
     <div class="phone"></div>
@@ -189,6 +260,7 @@
     <div id="endBadge"></div>
     <div id="endStats"></div>
     <div class="acts"><button id="again">한 판 더</button><button id="swap">역할 바꾸기</button></div>
+    <a id="endApp" hidden href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=result&amp;utm_campaign=webgame_test" target="_blank" rel="noopener">동네에서 경도 하기</a>
   </div></div>
 </div>
 <script>/*ENGINE*/</script>
