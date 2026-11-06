@@ -20,6 +20,7 @@ if (REMOTE && (PLAYERS > REMOTE_MAX.players || INPUT_PER_SEC > REMOTE_MAX.rate |
   process.exit(2);
 }
 
+const SITE = "http://site.test";
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const problems = [];
 const check = (ok, message) => {
@@ -33,6 +34,8 @@ async function startLocal() {
     config: "wrangler.toml",
     bindings: {
       ACCESS_KEY: { type: "plain_text", value: "local-check" },
+      ADMIN_KEY: { type: "plain_text", value: "local-admin" },
+      ALLOWED_ORIGINS: { type: "plain_text", value: SITE },
       WAIT_SEC: { type: "plain_text", value: "2" },
       GAME_SEC: { type: "plain_text", value: String(SECONDS - 4) },
     },
@@ -339,6 +342,7 @@ try {
   if (!REMOTE) {
     const gone = await listedAs(env.base, env.key, code, r => !r);
     check(!gone, "모두 나가면 목록에서 빠져요");
+    await checkControl(env);
   }
 } catch (error) {
   problems.push(String(error));
@@ -349,3 +353,27 @@ try {
 
 console.log(problems.length ? `\n문제 ${problems.length}건` : "\n문제 0건");
 process.exit(problems.length ? 1 : 0);
+
+// 운영 상태: 곧 열려요는 열쇠가 있어야, 누구나는 허용한 사이트에서 연 접속만, 점검 중은 아무도 못 들어온다
+async function checkControl(env) {
+  const status = async () => (await fetch(`${env.base}/status`)).json();
+  const put = (body, key = "local-admin") => fetch(`${env.base}/admin/control`, { method: "PUT", headers: { Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
+  const opens = (key, headers) => new Promise(resolve => {
+    const ws = new WebSocket(`${env.base.replace(/^http/, "ws")}/room/CTRL1?key=${encodeURIComponent(key)}`, headers ? { headers } : undefined);
+    ws.addEventListener("open", () => { ws.close(); resolve(true); }, { once: true });
+    ws.addEventListener("error", () => resolve(false), { once: true });
+  });
+  check((await status()).mode === "soon", "아무도 정하지 않았으면 곧 열려요예요");
+  check(!(await opens("")) && (await opens(env.key)), "곧 열려요에는 열쇠가 있어야 들어와요");
+  check((await put({ mode: "open" }, "wrong")).status === 403, "어드민 비밀값이 틀리면 상태를 못 바꿔요");
+  check((await put({ mode: "late" })).status === 400, "없는 상태로는 못 바꿔요");
+  check((await put({ mode: "open", by: "검사" })).ok && (await status()).mode === "open", "어드민이 누구나로 바꾸면 바로 읽혀요");
+  check((await fetch(`${env.base}/rooms`)).ok, "누구나일 때는 열쇠 없이 목록을 봐요");
+  check(await opens("", { Origin: SITE }), "누구나일 때는 허용한 사이트에서 열쇠 없이 들어와요");
+  check(!(await opens("")) && !(await opens("", { Origin: "https://other.test" })), "누구나여도 다른 사이트나 Origin 없는 접속은 열쇠가 있어야 해요");
+  await put({ mode: "pause", message: "서버를 고치고 있어요", until: "2026-11-06T13:00:00Z" });
+  const paused = await status();
+  check(paused.mode === "pause" && paused.message === "서버를 고치고 있어요" && paused.until === "2026-11-06T13:00:00.000Z" && !("by" in paused), "점검 중과 안내를 읽고, 바꾼 사람은 내보내지 않아요");
+  check(!(await opens(env.key)) && (await fetch(`${env.base}/rooms?key=${env.key}`)).status === 403, "점검 중에는 열쇠가 있어도 못 들어와요");
+  await put({ mode: "soon" });
+}

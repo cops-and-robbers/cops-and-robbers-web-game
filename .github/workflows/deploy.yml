@@ -61,17 +61,17 @@ jobs:
         run: >
           pnpm exec wrangler deploy
           --var WAIT_SEC:15 --var GAME_SEC:180
-          --var "ALLOWED_ORIGINS:${SITE}"
+          --var "ALLOWED_ORIGINS:${SITE},https://play.copsandrobbers.app"
 
       - name: Gateway
         working-directory: gateway
         run: pnpm exec wrangler pages deploy --project-name cops-and-robbers-game --branch main --commit-hash "${GITHUB_SHA}"
 
-      # 게임 화면이 뜨고, 입구가 방 서버까지 이어지는지(열쇠 없이는 막히는지) 봐요
+      # 게임 화면이 뜨고, 입구가 운영 상태 서버까지 이어지는지 봐요
       - name: Smoke test
         run: |
           sleep 5
           play=$(curl -s -o /dev/null -w '%{http_code}' "${SITE}/play")
-          rooms=$(curl -s -o /dev/null -w '%{http_code}' "${SITE}/rooms")
-          echo "play ${play}, rooms ${rooms}"
-          test "$play" = 200 && test "$rooms" = 403
+          status=$(curl -s "${SITE}/status")
+          echo "play ${play}, status ${status}"
+          test "$play" = 200 && echo "$status" | grep -Eq '"mode":"(open|soon|pause)"'

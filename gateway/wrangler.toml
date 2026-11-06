@@ -13,5 +13,10 @@ name = "DIRECTORY"
 class_name = "Directory"
 script_name = "cops-and-robbers-web-game"
 
+[[durable_objects.bindings]]
+name = "CONTROL"
+class_name = "Control"
+script_name = "cops-and-robbers-web-game"
+
 [vars]
-ALLOWED_ORIGINS = "https://cops-and-robbers-game.pages.dev"
+ALLOWED_ORIGINS = "https://cops-and-robbers-game.pages.dev,https://play.copsandrobbers.app"

@@ -274,6 +274,9 @@
   @keyframes idle { 0%,100% { transform:none; } 50% { transform:scaleY(.97) scaleX(1.015); } }
   .bubble { position:absolute; left:-4%; top:0; background:#fff; color:var(--ink); border-radius:16px; padding:7px 12px 8px; font-size:clamp(11px,1.9vh,15px); font-weight:800; line-height:1.35; text-align:left; box-shadow:0 3px 0 rgba(29,35,43,.14); transform:rotate(-4deg); }
   .bubble::after { content:""; position:absolute; left:34px; bottom:-8px; border:9px solid transparent; border-top-color:#fff; border-bottom:0; }
+  .gateCard h1 { font-size:24px; word-break:keep-all; } .gateCard p { word-break:keep-all; } .gateCard p { font-size:15px; margin-top:6px; white-space:pre-line; }
+  #gateApp { display:flex; align-items:center; justify-content:center; min-height:52px; margin-top:18px; border-radius:14px; background:var(--app-blue, #0088FF); color:#fff; font-weight:800; font-size:16px; text-decoration:none; }
+  #gateApp:active { transform:scale(.98); }
   .homeCard { width:min(92vw,360px); margin:0 !important; padding:18px !important; text-align:left; box-shadow:0 6px 0 rgba(29,35,43,.14); }
   #home .homeActs { margin-top:0; }
   #homeLive { margin-top:2px; }
@@ -486,6 +489,14 @@
       </div>
       <button id="homeSolo" class="soloTile"><img src="data:image/svg+xml;base64,/*B64:console.svg*/" alt=""><span><b>혼자 해 보기</b><small>봇이랑 바로 한 판</small></span><i aria-hidden="true"></i></button>
     </div></div>
+  </div></div>
+  <!-- 공개 전, 점검 중. 그림은 첫 화면 것을 그대로 옮겨 쓴다(net.js showGate) -->
+  <div id="gate" class="sheet brand"><div class="homeWrap">
+    <div class="card homeCard gateCard">
+      <h1 id="gateTitle"></h1>
+      <p id="gateMsg"></p>
+      <a id="gateApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=gate&amp;utm_campaign=webgame_soon" target="_blank" rel="noopener">앱 구경하기</a>
+    </div>
   </div></div>
   <div id="rooms" class="sheet brand"><div class="card">
     <div class="roomsHead"><h1>열린 방</h1><button id="roomsBack">뒤로</button></div>

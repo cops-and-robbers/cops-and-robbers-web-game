@@ -9,7 +9,7 @@
 3. 빌드(`pnpm run build`)
 4. 방 서버(Worker). 대기 15초, 판 180초, 허용 사이트는 `pages.dev` 입구
 5. `pages.dev` 입구
-6. 확인: `/play` 가 뜨고 `/rooms` 가 열쇠 없이 막히는지
+6. 확인: `/play` 가 뜨고 `/status` 가 운영 상태를 돌려주는지
 
 게임 화면, 서버, 입구, 빌드, 의존성을 바꾼 머지만 올려요. 문서만 바꾼 머지는 올리지 않아요. Actions 탭의 Deploy 에서 손으로 다시 돌릴 수도 있어요(`Run workflow`).
 
@@ -25,7 +25,7 @@
 3. `production` 환경 비밀값 두 개
    - `CLOUDFLARE_API_TOKEN`: 1번에서 만든 토큰
    - `CLOUDFLARE_ACCOUNT_ID`: Cloudflare 대시보드 오른쪽 아래 계정 ID
-4. 방 열쇠(`ACCESS_KEY`)는 이미 Cloudflare 에 들어 있어서 GitHub 에 넣지 않아요
+4. 방 열쇠(`ACCESS_KEY`)와 어드민 비밀값(`ADMIN_KEY`)은 Cloudflare 에만 넣고 GitHub 에는 넣지 않아요. 방 서버와 입구 둘 다 넣어요(`docs/ops.md`)
 
 ## 멈췄을 때
 

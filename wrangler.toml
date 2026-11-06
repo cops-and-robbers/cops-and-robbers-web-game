@@ -11,6 +11,10 @@ class_name = "Room"
 name = "DIRECTORY"
 class_name = "Directory"
 
+[[durable_objects.bindings]]
+name = "CONTROL"
+class_name = "Control"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
@@ -18,6 +22,10 @@ new_sqlite_classes = ["Room"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Directory"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["Control"]
 
 [vars]
 WAIT_SEC = "15"
