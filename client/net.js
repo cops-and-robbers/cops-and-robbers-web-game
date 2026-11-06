@@ -191,6 +191,7 @@ function createOnline() {
     a.faceA = o.face;
     a.state = o.state;
     a.inBush = !!o.bush;
+    a.protect = o.safe ? 1 : 0;
     if (o.catching) a.action ||= { name: "catch", dx: Math.cos(o.face) };
     else a.action = null;
     if (a !== G.player) {

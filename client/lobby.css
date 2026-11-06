@@ -1,5 +1,5 @@
 /* 대기실: 게임 화면 위에 올리는 것만 여기 둔다. 조이스틱과 달리기는 게임 것을 그대로 쓴다 */
-:root { --cheese:#F7D774; --cheese-d:#CFA93C; --cop-chalk:#1C72B8; --rob-chalk:#1C8A4B; --plate:0 3px 0 rgba(29,35,43,.16); --press:0 4px 0 rgba(29,35,43,.18); }
+:root { --cheese:#F7D774; --cheese-d:#CFA93C; --cop-chalk:#1C72B8; --rob-chalk:#1C8A4B; --plate:0 2px 10px rgba(29,35,43,.12); --press:0 4px 0 rgba(29,35,43,.18); }
 body.lobby-mode #top, body.lobby-mode #mini, body.lobby-mode #hint, body.lobby-mode #sound, body.lobby-mode #fog, body.lobby-mode #lock, body.lobby-mode #mission, body.lobby-mode #bigCount, body.lobby-mode #btnCatch, body.lobby-mode #start { display:none !important; }
 body.lobby-mode #padZone, body.lobby-mode #pad, body.lobby-mode #btnRun { display:block !important; }
 body.lobby-mode #stam { bottom:max(14px,env(safe-area-inset-bottom)); width:min(26vw,200px); left:44%; }
@@ -71,6 +71,6 @@ body.lobby-mode #stam { bottom:max(14px,env(safe-area-inset-bottom)); width:min(
 @media (prefers-reduced-motion:reduce) { #startBtn.shake { animation:none; } }
 
 /* 가운데는 회색, 칸에 들어가면 색이 차오른다 */
-body.lobby-mode .char svg { filter:grayscale(0) contrast(1) brightness(1); transition:filter .28s ease-out; }
-body.lobby-mode .char.shade svg { filter:grayscale(1) contrast(.6) brightness(1.02); }
+body.lobby-mode .char svg { filter:saturate(1) contrast(1) brightness(1); opacity:1; transition:filter .28s ease-out, opacity .28s; }
+body.lobby-mode .char.shade svg { filter:saturate(.55) contrast(.78) brightness(1.16); opacity:.92; }
 @media (prefers-reduced-motion:reduce) { body.lobby-mode .char svg { transition:none; } }

@@ -15,8 +15,24 @@ out = shell.replace("</head>", "<style>" + css + "</style>\n</head>", 1).replace
 # 작은 그림은 base64 로, 큰 배경은 압축이 잘 되게 SVG 그대로 넣는다
 import base64
 brand = lambda name: (ROOT / "client/brand" / name).read_bytes()
-out = re.sub(r"/\*B64:([\w.-]+)\*/", lambda m: base64.b64encode(brand(m.group(1))).decode(), out)
+out = re.sub(r"/\*B64:([\w./-]+)\*/", lambda m: base64.b64encode(brand(m.group(1))).decode(), out)
 out = re.sub(r"/\*SVG:([\w.-]+)\*/", lambda m: brand(m.group(1)).decode("utf-8"), out)
+import xml.etree.ElementTree as ET, json
+def map_art(p):
+    root = ET.parse(p).getroot(); vb = [float(v) for v in root.get("viewBox").split()]
+    fx, fy = [float(v) for v in (root.get("data-foot") or f"{vb[2] / 2},{vb[3]}").split(",")]
+    shapes = []
+    for el in root.iter():
+        tag, g = el.tag.split("}")[-1], el.get
+        if tag == "path": d = g("d")
+        elif tag in ("circle", "ellipse"):
+            cx, cy = float(g("cx")), float(g("cy")); rx = float(g("r") or g("rx")); ry = float(g("r") or g("ry"))
+            d = f"M{cx - rx},{cy}a{rx},{ry} 0 1,0 {2 * rx},0a{rx},{ry} 0 1,0 {-2 * rx},0"
+        else: continue
+        shapes.append([d, g("fill"), g("stroke"), float(g("stroke-width") or 0), float(g("opacity") or 1)])
+    return {"w": vb[2], "h": vb[3], "fx": fx, "fy": fy, "shapes": shapes}
+art = {p.stem: map_art(p) for p in sorted((ROOT / "client/brand/map").glob("*.svg"))}
+out = out.replace("/*MAPART*/{}", json.dumps(art, ensure_ascii=False, separators=(",", ":")))
 (ROOT / "dist").mkdir(exist_ok=True)
 (ROOT / "dist/game.html").write_text(out, encoding="utf-8", newline="\n")
 # pages.dev 입구가 같은 주소에서 내려준다. 생성물이라 커밋하지 않는다

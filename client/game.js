@@ -22,6 +22,30 @@ const fitStage = () => {
 fitStage(); addEventListener("resize", fitStage);
 
 // ───────── 맵 ─────────
+// 앱 배경과 같은 결의 지도 부품(나무, 수풀, 꽃). client/brand/map 의 SVG 를 빌드할 때 경로로 바꿔 넣는다
+const MAP_ART = /*MAPART*/{};
+const ART_PATHS = new Map();
+// 낮 색으로 그린 부품을 테마 색으로 바꾼다
+function artColors(T) {
+  const [lo, mid, hi] = T.bushes, dark = G.theme === "night";
+  return {
+    "#86C687": lo, "#A6DA97": mid, "#C9EBB4": hi,
+    "#7DBE7E": dark ? "#17234A" : lo, "#93CF8C": dark ? "#22305E" : "#93CF8C", "#B7E3A1": dark ? "#2F3F70" : "#B7E3A1", "#D6F0C2": dark ? "#4A5D88" : "#D6F0C2",
+    "#F4FBEF": dark ? "#5C6E9C" : "#F4FBEF", "#C99A73": T.trunk, "#AE7F5B": dark ? "#463232" : "#AE7F5B", "#FFD36B": dark ? "#E0B040" : "#FFD36B",
+  };
+}
+function drawArt(x, name, cx, foot, w, colors) {
+  const a = MAP_ART[name]; if (!a) return;
+  const s = w / a.w;
+  x.save(); x.translate(cx - a.fx * s, foot - a.fy * s); x.scale(s, s); x.lineCap = "round";
+  for (const [d, fill, stroke, sw, op] of a.shapes) {
+    let p = ART_PATHS.get(d); if (!p) ART_PATHS.set(d, p = new Path2D(d));
+    x.globalAlpha = op;
+    if (fill && fill !== "none") { x.fillStyle = colors[fill] || fill; x.fill(p); }
+    if (stroke) { x.strokeStyle = colors[stroke] || stroke; x.lineWidth = sw; x.stroke(p); }
+  }
+  x.restore();
+}
 function hash(n) { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
 function bakeMap() {
   const c = $("map"); c.width = CFG.W; c.height = CFG.H; const x = c.getContext("2d"), T = G.th, seed = G.map.seed % 1000;
@@ -34,19 +58,27 @@ function bakeMap() {
   // 큰길: 인도 턱, 차로, 중앙선
   for (const r of L.ROADS) { x.fillStyle = T.curb; x.fillRect(r.x - 10, r.y - 10, r.w + 20, r.h + 20); }
   x.fillStyle = T.road; for (const r of L.ROADS) x.fillRect(r.x, r.y, r.w, r.h);
-  x.strokeStyle = T.line; x.lineWidth = 5; x.setLineDash([34, 30]);
-  for (const r of L.ROADS) { x.beginPath(); if (r.w > r.h) { x.moveTo(r.x, r.y + r.h / 2); x.lineTo(r.x + r.w, r.y + r.h / 2); } else { x.moveTo(r.x + r.w / 2, r.y); x.lineTo(r.x + r.w / 2, r.y + r.h); } x.stroke(); }
-  x.setLineDash([]);
+  x.strokeStyle = T.line; x.lineWidth = 3;
+  for (const r of L.ROADS) { const hor = r.w > r.h, cell = 64; x.beginPath(); for (let k = cell; k < (hor ? r.w : r.h); k += cell) { if (hor) { x.moveTo(r.x + k, r.y); x.lineTo(r.x + k, r.y + r.h); } else { x.moveTo(r.x, r.y + k); x.lineTo(r.x + r.w, r.y + k); } } for (let k = cell; k < (hor ? r.h : r.w); k += cell) { if (hor) { x.moveTo(r.x, r.y + k); x.lineTo(r.x + r.w, r.y + k); } else { x.moveTo(r.x + k, r.y); x.lineTo(r.x + k, r.y + r.h); } } x.stroke(); }
   // 교차로: 가운데를 지우고 횡단보도를 그린다
   const hs = L.ROADS.filter(r => r.w > r.h), vs = L.ROADS.filter(r => r.w <= r.h); let crossN = 0;
   for (const h of hs) for (const v of vs) {
     if (v.x + v.w < h.x || v.x > h.x + h.w || h.y + h.h < v.y || h.y > v.y + v.h) continue;
     x.fillStyle = T.road; x.fillRect(v.x, h.y, v.w, h.h);
     crossN++;
-    if (crossN % 3) continue;
+    continue;
     x.fillStyle = T.cross;
     for (let k = 0; k < v.w - 12; k += 26) x.fillRect(v.x + 6 + k, h.y - 34, 13, 28);
     for (let k = 0; k < h.h - 12; k += 26) x.fillRect(v.x + v.w + 6, h.y + 6 + k, 28, 13);
+  }
+  // 잔디 마당과 빈터에 흰 꽃과 짧은 풀 자국을 뿌린다. 길과 감옥 마당은 피한다
+  const artCol = artColors(T), onRoad = (px, py) => L.ROADS.some(r => px > r.x - 20 && px < r.x + r.w + 20 && py > r.y - 20 && py < r.y + r.h + 20);
+  for (let k = 0; k < 420; k++) {
+    const px = hash(k * 3.1 + seed) * CFG.W, py = hash(k * 7.7 + seed * 1.3) * CFG.H;
+    if (onRoad(px, py) || Math.hypot(px - CFG.JAIL.x, py - CFG.JAIL.y) < CFG.GATE_R + 30 || L.solidAt(px, py)) continue;
+    const inPark = L.PARKS.some(p => Math.hypot((px - p.x) / p.rx, (py - p.y) / p.ry) < 1);
+    if (k % 3 === 0 || inPark) drawArt(x, "flower", px, py + 10, 18 + hash(k) * 8, artCol);
+    else { x.strokeStyle = T.speck; x.lineWidth = 4; x.beginPath(); x.moveTo(px - 9, py + 4); x.quadraticCurveTo(px - 6, py - 6, px - 3, py + 4); x.moveTo(px + 1, py + 4); x.quadraticCurveTo(px + 4, py - 8, px + 7, py + 4); x.stroke(); }
   }
   // 감옥 마당: 울타리를 세우면 통과할 때 어색해서 바닥에 그린다
   const J = CFG.JAIL;
@@ -68,24 +100,43 @@ function bakeMap() {
   }
   // 감옥 글자
   x.font = "800 30px Pretendard, 'Noto Sans KR', sans-serif"; x.textAlign = "center";
-  const w = x.measureText("감옥").width + 34; x.fillStyle = "#1D232B"; rr(x, J.x - w / 2, J.y - J.r - 58, w, 44, 14); x.fill(); x.fillStyle = "#fff"; x.fillText("감옥", J.x, J.y - J.r - 25);
+  const w = x.measureText("감옥").width + 78, sy = J.y - J.r - 62;
+  x.fillStyle = "rgba(29,35,43,.18)"; rr(x, J.x - w / 2 + 4, sy + 6, w, 50, 16); x.fill();
+  x.fillStyle = "#1D232B"; rr(x, J.x - w / 2, sy, w, 50, 16); x.fill();
+  x.fillStyle = "#E2574C"; x.beginPath(); x.arc(J.x - w / 2 + 28, sy + 25, 15, 0, 7); x.fill();
+  if (SIREN_IMG.complete) x.drawImage(SIREN_IMG, J.x - w / 2 + 19, sy + 14, 18, 22);
+  x.fillStyle = "#fff"; x.fillText("감옥", J.x + 16, sy + 36);
 }
+const SIREN_IMG = new Image(); SIREN_IMG.src = "data:image/svg+xml;base64,/*B64:siren.svg*/";
 function drawBuilding(x, b, T, i, seed) {
-    const [roof, wall] = T.roofs[(i * 7 + seed) % T.roofs.length], wh = Math.min(66, Math.max(40, b.h * 0.34)), h = hash(i + seed);
-    x.fillStyle = "rgba(29,35,43,.14)"; rr(x, b.x + 8, b.y + 14, b.w + 6, b.h + 4, 14); x.fill();
-    x.fillStyle = wall; rr(x, b.x, b.y, b.w, b.h, 12); x.fill();
-    x.fillStyle = "rgba(0,0,0,.14)"; x.fillRect(b.x + 3, b.y + b.h - 8, b.w - 6, 8);
-    x.fillStyle = roof; rr(x, b.x, b.y, b.w, b.h - wh, 12); x.fill();
-    x.fillStyle = "rgba(0,0,0,.10)"; x.fillRect(b.x, b.y + b.h - wh - 7, b.w, 7);
-    const rh = b.h - wh;
-    if (h < 0.4) { x.strokeStyle = "rgba(0,0,0,.07)"; x.lineWidth = 3; for (let k = b.y + 24; k < b.y + rh - 10; k += 20) { x.beginPath(); x.moveTo(b.x + 6, k); x.lineTo(b.x + b.w - 6, k); x.stroke(); } }
+    const [roof, wall] = T.roofs[(i * 7 + seed) % T.roofs.length], wh = Math.min(84, Math.max(46, b.h * 0.4)), rh = b.h - wh, night = G.theme === "night";
+    x.fillStyle = night ? "rgba(8,14,34,.35)" : "rgba(70,110,160,.14)"; rr(x, b.x + 10, b.y + 14, b.w + 4, b.h + 4, 16); x.fill();
+    // 벽(앞면)
+    x.fillStyle = wall; rr(x, b.x, b.y, b.w, b.h, 14); x.fill();
+    x.fillStyle = night ? "rgba(0,0,0,.18)" : "rgba(60,100,150,.10)"; rr(x, b.x, b.y + b.h - 10, b.w, 10, 6); x.fill();
+    // 지붕(윗면): 가장자리 턱과 작은 실외기
+    // 지붕: 위와 왼쪽은 빛을 받아 밝고, 벽과 만나는 아래는 그늘이 진다. 안쪽 테두리를 두르면 화면처럼 보여서 두지 않는다
+    x.fillStyle = roof; rr(x, b.x, b.y, b.w, rh, 14); x.fill();
+    x.save(); rr(x, b.x, b.y, b.w, rh, 14); x.clip();
+    x.fillStyle = "rgba(255,255,255,.45)"; x.fillRect(b.x, b.y, b.w, 7); x.fillRect(b.x, b.y, 7, rh);
+    x.fillStyle = night ? "rgba(0,0,0,.22)" : "rgba(60,100,150,.16)"; x.fillRect(b.x, b.y + rh - 9, b.w, 9);
+    x.restore();
     if (T.roofEdge) { x.fillStyle = T.roofEdge; x.fillRect(b.x + 4, b.y + rh - 8, b.w - 8, 5); }
-    const n = Math.max(1, Math.floor((b.w - 30) / 58)), door = n > 1 ? Math.floor(hash(i * 9 + seed) * n) : -1;
-    for (let k = 0; k < n; k++) {
-      const wx = b.x + (b.w - n * 58 + 22) / 2 + k * 58, wy = b.y + b.h - wh + 11, ww = wh - 26;
-      if (k === door) { x.fillStyle = "rgba(29,35,43,.5)"; x.fillRect(wx + 4, wy, 28, wh - 15); continue; }
-      x.fillStyle = hash(i * 13 + k) < T.winOn ? T.win : T.winOff; x.fillRect(wx, wy, 36, ww);
+    if (hash(i + seed) < 0.55 && b.w > 120) { const ax = b.x + 22 + hash(i * 3 + seed) * (b.w - 90), ay = b.y + 22 + hash(i * 5) * Math.max(0, rh - 70); x.fillStyle = wall; rr(x, ax, ay, 46, 30, 6); x.fill(); x.fillStyle = roof; x.beginPath(); x.arc(ax + 23, ay + 15, 9, 0, 7); x.fill(); }
+    // 창문: 둥근 칸이 격자로. 문은 하나
+    const cols = Math.max(1, Math.floor((b.w - 24) / 40)), rows = Math.max(1, Math.floor((wh - 22) / 30)), cw = 26, ch = 20;
+    const gx = b.x + (b.w - (cols * 40 - 14)) / 2, gy = b.y + rh + (wh - 10 - (rows * 30 - 10)) / 2;
+    const clear = k => { const fx = gx + k * 40 + 13, fy = b.y + b.h + 46; return !L.solidAt(fx, fy) && !L.BUSHES.some(u => Math.hypot((u.x - fx) / (u.rx + 30), (u.y - fy) / (u.ry + 40)) < 1); };
+    const doors = [...Array(cols).keys()].filter(clear), door = cols > 1 && doors.length ? doors[Math.floor(hash(i * 9 + seed) * doors.length)] : -1;
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      const wx = gx + k * 40, wy = gy + r * 30;
+      if (k === door && r === rows - 1) continue;
+      const lit = night && hash(i * 13 + k + r * 7) < T.winOn;
+      if (lit) { x.fillStyle = "rgba(255,217,120,.25)"; rr(x, wx - 4, wy - 4, cw + 8, ch + 8, 8); x.fill(); }
+      x.fillStyle = lit ? T.win : T.winOff; rr(x, wx, wy, cw, ch, 5); x.fill();
+      if (!night) { x.fillStyle = "rgba(120,170,220,.22)"; rr(x, wx, wy + ch - 6, cw, 6, 3); x.fill(); }
     }
+    if (door >= 0) { const dx = gx + door * 40 - 2, dh = Math.min(wh - 16, 40); x.fillStyle = night ? "#2E3C5E" : "#A9C9E8"; rr(x, dx, b.y + b.h - 10 - dh, 30, dh, 8); x.fill(); }
 }
 function rr(x, a, b, w, h, r) { x.beginPath(); x.roundRect(a, b, w, h, r); }
 // 윤곽은 낮은 주파수로만 흔들어 납작한 실루엣으로 둔다. 잎을 하나하나 찍지 않는다(앱 그림체가 면 위주다)
@@ -104,27 +155,26 @@ function crown(x, cx, cy, rx, ry, pal, seed, snow) {
   x.restore();
 }
 // 그림자는 건물과 같은 방향(오른쪽 아래)으로 떨어진다
-const groundShadow = (x, cx, cy, rx, ry) => { x.fillStyle = "rgba(29,35,43,.15)"; x.beginPath(); x.ellipse(cx + rx * 0.1, cy + ry * 0.25, rx, ry, 0, 0, 7); x.fill(); };
+const groundShadow = (x, cx, cy, rx, ry) => { x.fillStyle = G.theme === "night" ? "rgba(8,14,34,.32)" : G.theme === "snow" ? "rgba(29,35,43,.15)" : "rgba(52,96,72,.17)"; x.beginPath(); x.ellipse(cx + rx * 0.1, cy + ry * 0.25, rx, ry, 0, 0, 7); x.fill(); };
 function drawBush(x, b, w, h, foot, pal, seed, snow) {
   const cx = w / 2;
-  if (b.hedge) {
-    // 생울타리: 건물처럼 윗면과 앞면이 있다. 가장자리만 잎처럼 울퉁불퉁하다
-    const fh = Math.min(b.r * 0.42, 26), topH = b.ry * 1.5, y0 = foot - fh - topH, hw = b.rx;
-    groundShadow(x, cx, foot - 2, hw * 1.02, b.r * 0.15);
-    const leafy = (px, py, pw, ph, col, sd) => {
-      x.fillStyle = col; rr(x, px, py, pw, ph, 6); x.fill();
-      const dot = 11, step = 15; let k = sd * 7;
-      const bump = (bx, by) => { k = (k * 16807 + 11) % 2147483647; x.beginPath(); x.arc(bx, by, dot * (0.72 + (k % 100) / 260), 0, 7); x.fill(); };
-      for (let q = px + 4; q <= px + pw - 4; q += step) { bump(q, py + 3); bump(q + 5, py + ph - 3); }
-      for (let q = py + 8; q <= py + ph - 8; q += step) { bump(px + 3, q); bump(px + pw - 3, q + 4); }
-    };
-    leafy(cx - hw, y0 + topH * 0.45, hw * 2, topH * 0.55 + fh, pal[0], seed + 1);
-    leafy(cx - hw, y0, hw * 2, topH, snow ? "#FFFFFF" : pal[1], seed + 2);
-    if (!snow) { x.save(); rr(x, cx - hw, y0, hw * 2, topH, 6); x.clip(); x.fillStyle = pal[2]; lobed(x, cx - hw * 0.3, y0 + topH * 0.24, hw * 0.62, topH * 0.3, seed, 0.1); x.fill(); x.restore(); }
-  } else {
+  if (b.hedge && !snow) {
+    // 생울타리도 수풀 부품을 이어 붙인 둥근 덩이 줄. 들어가 숨을 수 있는 풀숲으로 보이게 한다
+    // 숨는 범위를 그림이 빈틈없이 덮도록 덩이를 겹친다. 뒤(위)부터 그려 앞 덩이가 덮게 한다
+    const long = b.rx >= b.ry, col = artColors(G.th);
+    groundShadow(x, cx, foot - 3, b.rx * 1.05, Math.max(b.ry, 18) * 0.3);
+    if (long) {
+      const n = Math.max(2, Math.round(b.rx * 2 / 90)), pw = b.rx * 2 / n * 1.5;
+      for (let k = 0; k < n; k++) drawArt(x, "bush", cx - b.rx + pw * 0.45 + k * (b.rx * 2 - pw * 0.9) / (n - 1), foot, pw, col);
+    } else {
+      const pw = Math.max(b.rx * 2.6, 70), top = foot - b.ry * 1.5, n = Math.max(2, Math.ceil((foot - top) / (pw * 0.56 * 0.45)) + 1);
+      for (let k = 0; k < n; k++) drawArt(x, "bush", cx, top + k * (foot - top) / (n - 1), pw, col);
+    }
+  } else if (b.hedge) {
     // 둥근 관목: 낮은 무더기
     groundShadow(x, cx, foot - 3, b.rx * 1.02, b.r * 0.2);
-    crown(x, cx, foot - b.ry * 0.86, b.rx, b.ry * 0.9, pal, seed, snow);
+    if (snow) crown(x, cx, foot - b.ry * 0.86, b.rx, b.ry * 0.9, pal, seed, snow);
+    else drawArt(x, "bush", cx, foot, b.rx * 2.2, artColors(G.th));
   }
 }
 function drawTree(x, b, w, h, foot, pal, seed, T) {
@@ -141,13 +191,8 @@ function drawTree(x, b, w, h, foot, pal, seed, T) {
     }
     return;
   }
-  const oval = b.species === "oval", rx = oval ? r * 0.7 : r, ry = oval ? r * 1 : r * 0.76, trunkH = r * (oval ? 0.5 : 0.46);
-  // 그림자는 줄기 밑이 아니라 잎이 드리운 만큼 넓다
-  groundShadow(x, cx, foot - 3, rx * 0.86, r * 0.26);
-  // 짧은 줄기가 낮은 곳에서 갈라진다. 위는 잎이 덮는다
-  x.fillStyle = T.trunk; x.beginPath(); x.moveTo(cx - 11, foot); x.quadraticCurveTo(cx - 7, foot - trunkH * 0.5, cx - 8, foot - trunkH); x.lineTo(cx + 8, foot - trunkH); x.quadraticCurveTo(cx + 7, foot - trunkH * 0.5, cx + 11, foot); x.closePath(); x.fill();
-  x.strokeStyle = T.trunk; x.lineCap = "round"; x.lineWidth = 7; x.beginPath(); x.moveTo(cx - 2, foot - trunkH * 0.72); x.lineTo(cx - rx * 0.32, foot - trunkH * 1.5); x.moveTo(cx + 2, foot - trunkH * 0.78); x.lineTo(cx + rx * 0.3, foot - trunkH * 1.55); x.stroke();
-  crown(x, cx, foot - trunkH - ry * 0.68, rx, ry, pal, seed);
+  groundShadow(x, cx, foot - 3, r * 0.8, r * 0.24);
+  drawArt(x, b.species === "oval" || r < 70 ? "tree-small" : "tree", cx, foot, r * 2.3, artColors(T));
 }
 // 건물과 쓰레기통은 부딪히는 칸보다 위로 높게 그린다. 그 뒤로 가면 몸 아래쪽이 가려지고 머리는 보인다
 const RISE = 70, BIN_RISE = 30;
@@ -169,7 +214,7 @@ function bakeBushes() {
   bakeSolids();
   const pal = G.th.bushes, snow = G.theme === "snow";
   L.BUSHES.forEach((b, i) => {
-    const c = document.createElement("canvas"); c.className = "bush"; const w = Math.round(b.rx * 2 + 40), h = Math.round(b.ry * 2 + b.r * 0.9 + 30), foot = h - 12, by = b.y + b.ry * 0.82;
+    const c = document.createElement("canvas"); c.className = "bush"; const w = Math.round(Math.max(b.rx * 2.6 + 20, b.rx * 2 + 60)), h = Math.round(b.ry * 2 + b.r * 1.6 + 60), foot = h - 12, by = b.y + b.ry * 0.82;
     c.width = w; c.height = h; c.style.left = (b.x - w / 2) + "px"; c.style.top = (by - foot) + "px"; c.style.zIndex = Math.round(by);
     drawBush(c.getContext("2d"), b, w, h, foot, pal, i * 1.7 + 3, snow);
     c.style.transformOrigin = "50% 90%"; b.el = c;
@@ -373,11 +418,46 @@ function drawFog() {
     ctx.globalCompositeOperation = "source-over";
   }
   drawPings(ctx);
-  // 감옥 구출 진행
-  if (G.rescueT > 0) {
-    const [x, y] = toScreen(CFG.JAIL.x, CFG.JAIL.y);
-    ctx.strokeStyle = "#35C26B"; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(x, y, CFG.JAIL.r * zoom, -Math.PI / 2, -Math.PI / 2 + G.rescueT / CFG.RESCUE_SEC * Math.PI * 2); ctx.stroke();
+  const [jx, jy] = toScreen(CFG.JAIL.x, CFG.JAIL.y), jailedN = jailedCount();
+  // 구출 자리와 진행을 문 앞 원 하나로 보여 준다. 갇힌 친구가 있으면 도둑에게 옅은 초록 원, 구출 중이면 같은 원이 차오른다
+  const gr = CFG.GATE_R * zoom, rescuing = G.rescueT > 0, showGate = rescuing || (G.player?.team === "robber" && G.player.state === "free" && jailedN > 0 && G.phase === "play");
+  if (showGate) {
+    ctx.save(); ctx.lineCap = "round";
+    ctx.strokeStyle = rescuing ? "rgba(255,255,255,.8)" : "rgba(53,194,107,.45)"; ctx.lineWidth = rescuing ? 10 : 6; ctx.beginPath(); ctx.arc(jx, jy, gr, 0, 7); ctx.stroke();
+    if (rescuing) { ctx.strokeStyle = "#35C26B"; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(jx, jy, gr, -Math.PI / 2, -Math.PI / 2 + Math.min(1, G.rescueT / CFG.RESCUE_SEC) * Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
   }
+}
+// 갇힌 도둑 수. 사람끼리 할 때는 남은 수만 받아서 거기서 센다
+function jailedCount() {
+  if (online) return Math.max(0, G.robbers.length - online.free - G.robbers.filter(r => r.state === "breaking" || r.state === "inJail").length);
+  return G.robbers.filter(r => r.state === "jailed").length;
+}
+// 보호 중인 도둑은 비눗방울 같은 막이 깜빡인다
+function drawShields() {
+  for (const c of chars) {
+    const a = c.a;
+    if (!(a.protect > 0) || c.el.style.display === "none") continue;
+    const [x, y] = toScreen(a.x, a.y - 34), r = 46 * zoom, blink = 0.55 + Math.sin(performance.now() / 90) * 0.25;
+    fx2.save(); fx2.globalAlpha = blink;
+    fx2.fillStyle = "rgba(170,230,255,.22)"; fx2.strokeStyle = "#FFFFFF"; fx2.lineWidth = Math.max(2, 4 * zoom);
+    fx2.beginPath(); fx2.arc(x, y, r, 0, 7); fx2.fill(); fx2.stroke();
+    fx2.globalAlpha = blink * 0.9; fx2.fillStyle = "#FFFFFF"; fx2.beginPath(); fx2.ellipse(x - r * 0.38, y - r * 0.42, r * 0.18, r * 0.1, -0.6, 0, 7); fx2.fill();
+    fx2.restore();
+  }
+}
+// 감옥 소식 띠: 경찰은 문이 열리는 중이면 경고, 갇힌 도둑은 구하러 오는 중이면 알림
+let jailAlertWas = false;
+function drawJailAlert() {
+  const p = G.player, el = $("jailAlert");
+  const on = G.phase === "play" && G.rescueT > 0 && (p.team === "police" || p.state === "jailed");
+  el.hidden = !on;
+  if (!on) { jailAlertWas = false; return; }
+  el.className = p.team === "police" ? "bad" : "good";
+  $("jailAlertText").textContent = p.team === "police" ? "감옥 문이 열리고 있어요" : "친구가 문을 열고 있어요";
+  $("jailAlertFill").style.width = Math.min(100, G.rescueT / CFG.RESCUE_SEC * 100) + "%";
+  if (!jailAlertWas && p.team === "police") { play("alert"); haptic([0, 200, 100, 200]); }
+  jailAlertWas = true;
 }
 function drawPings(ctx) {
   for (const k of G.pings) {
@@ -447,6 +527,13 @@ const haptic = ms => { try { navigator.vibrate?.(ms); } catch { /* 진동이 없
 function padMove(e) {
   const R = pad.offsetWidth / 2 || 66;
   let x = (e.clientX - padCx) / R, y = (e.clientY - padCy) / R;
+  if (Math.hypot(x, y) > 1.15) {
+    const over = Math.hypot(x, y) - 1.15, m0 = Math.hypot(x, y);
+    padCx += x / m0 * over * R; padCy += y / m0 * over * R;
+    const rest = pad.getBoundingClientRect(), cur = pad.style.transform.match(/-?[\d.]+/g)?.map(Number) || [0, 0];
+    pad.style.transform = `translate(${cur[0] + (padCx - (rest.left + R))}px, ${cur[1] + (padCy - (rest.top + R))}px)`;
+    x = (e.clientX - padCx) / R; y = (e.clientY - padCy) / R;
+  }
   const m = Math.hypot(x, y), lim = Math.min(1, m);
   if (m > 1) { x /= m; y /= m; }
   knob.style.transform = `translate(${x * R * .62}px, ${y * R * .62}px)`;
@@ -459,7 +546,7 @@ function catchTarget() {
   const p = G?.player;
   if (!p || p.team !== "police" || p.state !== "free" || !inPlayView()) return null;
   let best = null, bd = CFG.CATCH_R + CFG.CATCH_GRACE;
-  for (const r of G.robbers) { if ((r.state !== "free" && r.state !== "breaking") || !(online ? online.sees(r) : sees(p, r))) continue; const d = dist(p, r); if (d < bd && L.lineOfSight(p, r)) { bd = d; best = r; } }
+  for (const r of G.robbers) { if ((r.state !== "free" && r.state !== "breaking") || r.protect > 0 || !(online ? online.sees(r) : sees(p, r))) continue; const d = dist(p, r); if (d < bd && L.lineOfSight(p, r)) { bd = d; best = r; } }
   return best;
 }
 const inPlayView = () => G.phase === "play" && !ended && !document.body.classList.contains("lobby-mode");
@@ -523,10 +610,12 @@ hold(runBtn, () => { runDownAt = Date.now(); sprintBtn = true; haptic(8); }, () 
   runLatched = tap && !runLatched;
   sprintBtn = runLatched;
   runBtn.classList.toggle("down", runLatched);
+  runBtn.classList.toggle("latched", runLatched);
+  $("btnRunLabel").textContent = runLatched ? "달리는 중" : "달리기";
 });
 hold($("btnCatch"), () => { wantCatch = true; haptic(15); }, () => {});
 // 다른 앱으로 나갔다 오면 눌린 채로 남지 않게 푼다
-const releaseAll = () => { padEnd(); sprintBtn = false; runLatched = false; keys.clear(); document.querySelectorAll("#btnRun.down,#btnCatch.down").forEach(b => b.classList.remove("down")); };
+const releaseAll = () => { padEnd(); sprintBtn = false; runLatched = false; runBtn.classList.remove("latched"); $("btnRunLabel").textContent = "달리기"; keys.clear(); document.querySelectorAll("#btnRun.down,#btnCatch.down").forEach(b => b.classList.remove("down")); };
 addEventListener("blur", releaseAll);
 document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); else keepAwake(); });
 // 판 도중 화면이 꺼지지 않게 한다. 안 되는 브라우저는 넘어간다
@@ -557,7 +646,8 @@ const ROBBER_ICON = svgUrl("robber-front"), POLICE_ICON = svgUrl("police-front")
 const WIN_ICON = { police: "data:image/svg+xml;base64,/*B64:win-cop.svg*/", robber: "data:image/svg+xml;base64,/*B64:win-rob.svg*/" };
 $("imgPolice").src = POLICE_ICON; $("imgRobber").src = ROBBER_ICON;
 const toast = (t, kind = "") => { const n = $("toast"); n.textContent = t; n.className = "show " + kind; toastT = 3; };
-const banner = (lead, main) => { $("bannerLead").textContent = lead; $("bannerMain").textContent = main; $("banner").className = "show " + role; bannerT = 1.8; };
+const CHASE_ART = { police: "data:image/svg+xml;base64,/*B64:police-chase.svg*/", robber: "data:image/svg+xml;base64,/*B64:robber-chase.svg*/" };
+const banner = (lead, main) => { $("bannerLead").textContent = lead; $("bannerMain").textContent = main; $("bannerArt").src = CHASE_ART[role] || CHASE_ART.police; $("banner").className = "show " + role; bannerT = 1.8; };
 const fmt = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 function handleEvents() {
@@ -616,7 +706,7 @@ function drawHud(dt) {
   $("stam").classList.toggle("tired", !!p.tired);
   let line = "";
   if (G.phase === "wait") line = role === "police" ? "도둑이 도망치는 중이에요" : "경찰에게서 멀어지는 중이에요";
-  else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = "같은 편이 감옥 앞에 오면 나갈 수 있어요";
+  else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = "같은 편이 감옥 앞 초록 원에 서면 나갈 수 있어요";
   else if (p.state === "jailed") line = `${Math.ceil(p.lock)}초 뒤 풀려나요. 동료가 감옥 앞에 오면 더 빨리 나갈 수 있어요`;
   else if (p.state === "inJail") line = "감옥 밖에서 3초 동안 안 잡히면 탈옥해요";
   else if (p.state === "breaking") line = `탈옥까지 ${Math.ceil(p.breakT)}초. 잡히면 다시 감옥에 가요`;
@@ -632,7 +722,10 @@ function drawHud(dt) {
   $("lock").className = out ? "show" : "";
   if (role === "police") $("btnCatch").classList.toggle("off", p.catchCd > 0 || p.state !== "free");
   // 지치면 켜 둔 달리기도 꺼 준다
-  if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down"); }
+  if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down", "latched"); $("btnRunLabel").textContent = "달리기"; }
+  runBtn.classList.toggle("tired", !!p.tired);
+  // 잡기를 다시 쓸 수 있을 때까지 버튼 위로 시계처럼 차오른다
+  if (role === "police") $("btnCatch").style.setProperty("--cd", p.catchCd > 0 ? (1 - p.catchCd / CFG.CATCH_CD).toFixed(3) : "1");
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $("toast").className = ""; }
   if (missionT > 0) { missionT -= dt; if (missionT <= 0) $("mission").className = ""; }
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $("banner").className = ""; }
@@ -731,6 +824,8 @@ function frame(dt) {
     drawChar(c, dt);
   }
   drawFx(dt);
+  drawShields();
+  drawJailAlert();
   drawCatchAid();
   tensionSound(dt);
   drawFog();
