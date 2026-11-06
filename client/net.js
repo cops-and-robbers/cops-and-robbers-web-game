@@ -262,7 +262,6 @@ function createOnline() {
 
   $("start").className = "sheet";
   $("swap").hidden = true;
-  $("endApp").hidden = false;
   $("lobbyName").value = store.get("name") || "";
   $("lobbyTitle").textContent = NET_FROM ? `${NET_FROM.slice(0, 6)} 님이 경도 하재요` : "경찰과 도둑";
   lobby(true, "");

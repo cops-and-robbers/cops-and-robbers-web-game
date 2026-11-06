@@ -125,7 +125,14 @@
   #home .codeRow button { padding:0 18px; }
   #homeCodeMsg { min-height:18px; font-size:13px; color:var(--danger) !important; }
   #lobbyHome, #lobbyRetry { margin-top:14px; width:100%; min-height:48px; }
-  #endApp { display:block; margin-top:10px; font-size:13px; font-weight:800; color:var(--sub); }
+  /* 앱 카드: 아이콘으로 같은 이름의 앱이라는 걸 알아보게 한다. 카드 어디를 눌러도 간다 */
+  #endApp { display:flex; align-items:center; gap:12px; margin-top:12px; padding:10px 12px; border-radius:14px; background:#F3F5F8; color:var(--ink); text-decoration:none; text-align:left; -webkit-tap-highlight-color:transparent; }
+  #endApp:active { background:#E9ECF1; }
+  #endApp img { width:48px; height:48px; border-radius:11px; flex:none; box-shadow:0 0 0 1px rgba(0,0,0,.06); }
+  #endApp .txt { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  #endApp b { font-size:15px; font-weight:900; }
+  #endApp .txt span { font-size:13px; font-weight:600; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #endApp .get { flex:none; font-size:14px; font-weight:800; padding:8px 14px; border-radius:999px; background:#fff; box-shadow:0 0 0 1.5px #C9CED6 inset; }
   #inapp { z-index:25; background:rgba(18,23,32,.72); }
   #inapp .acts { flex-direction:column; }
   #inapp .acts button { min-height:48px; flex:none; font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; cursor:pointer; background:#E9ECF1; color:var(--ink); }
@@ -167,6 +174,7 @@
     #endBadge { margin:6px auto 0; font-size:14px; padding:5px 12px; justify-self:center; }
     #endStats { grid-column:2; grid-row:1 / span 3; margin-top:0; } #endStats div { padding:8px 4px; }
     #end .acts { grid-column:2; grid-row:4 / span 2; margin-top:10px; } #end .acts button { min-height:48px; padding:8px; }
+    #endApp { grid-column:2; margin-top:8px; padding:6px 10px; gap:10px; } #endApp img { width:36px; height:36px; border-radius:8px; } #endApp b { font-size:13px; } #endApp .txt span { font-size:12px; } #endApp .get { font-size:13px; padding:6px 12px; }
   }
 </style>
 </head>
@@ -260,7 +268,12 @@
     <div id="endBadge"></div>
     <div id="endStats"></div>
     <div class="acts"><button id="again">한 판 더</button><button id="swap">역할 바꾸기</button></div>
-    <a id="endApp" hidden href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=result&amp;utm_campaign=webgame_test" target="_blank" rel="noopener">동네에서 경도 하기</a>
+    <!-- 다음 판이 먼저라 버튼 아래 작은 카드로 둔다. 아이콘은 앱의 한국어 아이콘(app_icon_ko)을 96px 로 줄여 넣었다(2026-11-06). /download 가 폰을 보고 맞는 스토어로 보내며 어디서 왔는지 남긴다 -->
+    <a id="endApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=result&amp;utm_campaign=webgame_test&amp;utm_content=card" target="_blank" rel="noopener">
+      <img src="data:image/webp;base64,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" alt="" width="48" height="48">
+      <span class="txt"><b>경찰과 도둑 앱</b><span>동네에서 직접 잡고 도망가요</span></span>
+      <span class="get">앱 받기</span>
+    </a>
   </div></div>
 </div>
 <script>/*ENGINE*/</script>
