@@ -149,7 +149,7 @@
   @keyframes turn { 0%,25% { transform:none; } 60%,100% { transform:rotate(90deg); } }
   #rotateSkip { font:inherit; font-weight:800; font-size:15px; border:0; border-radius:12px; padding:12px; margin-top:14px; width:100%; background:#E9ECF1; color:var(--ink); }
   #endHero { height:92px; display:block; margin:0 auto 8px; }
-  #endHero.won { animation:pop .7s cubic-bezier(.22,1.5,.36,1) both; }
+  #endHero.won { height:120px; animation:pop .7s cubic-bezier(.22,1.5,.36,1) both; }
   #endHero.lost { filter:saturate(.6); }
   @keyframes pop { from { transform:scale(0); } to { transform:none; } }
   #endTitle { font-size:30px; font-weight:900; } #endTitle.won { color:#1E7BF0; } #endTitle.lost { color:#E5484D; }
@@ -169,7 +169,7 @@
   @media (max-height:560px) {
     #end .card { width:min(94vw,700px); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); column-gap:18px; align-items:center; }
     #endHead { grid-column:1; grid-row:1 / span 3; align-self:center; }
-    #endHero { height:58px; margin-bottom:2px; } #end h1 { font-size:26px; } #end #endReason { margin-top:2px; font-size:12px; }
+    #endHero { height:58px; margin-bottom:2px; } #endHero.won { height:96px; } #end h1 { font-size:26px; } #end #endReason { margin-top:2px; font-size:12px; }
     #endStats { grid-column:2; grid-row:1; margin-top:0; } #endStats div { padding:8px 4px; }
     #end .acts { grid-column:2; grid-row:2; margin-top:10px; } #end .acts button { min-height:48px; padding:8px; }
     #endApp { grid-column:2; grid-row:3; margin-top:8px; padding:6px 10px; gap:10px; } #endApp img { width:36px; height:36px; border-radius:8px; } #endApp b { font-size:13px; } #endApp .txt span { font-size:12px; } #endApp .get { font-size:13px; padding:6px 12px; }
@@ -239,11 +239,67 @@
   #roomsEmpty { text-align:center; padding:18px 0 4px; } #roomsEmpty p { margin:0 0 14px; }
   #roomsCreate { font:inherit; font-weight:800; font-size:16px; width:100%; min-height:52px; border:0; border-radius:14px; cursor:pointer; background:#F7D774; box-shadow:0 4px 0 #CFA93C; color:var(--ink); }
   @media (max-height:460px) { #roomsList { max-height:calc(100vh - 110px); } .roomRow { min-height:54px; padding:7px 12px 7px 8px; } .roomRow .av { width:38px; height:38px; font-size:16px; } }
+
+  /* ───────── 첫 화면: 앱 홈과 같은 하늘, 글자 로고, 냥파와 도둥이 ───────── */
+  .sheet.brand { padding:0; background:none; }
+  #brandBg { position:absolute; inset:0; z-index:19; display:none; background:#A6D8FF; }
+  #brandBg svg { display:block; width:100%; height:100%; }
+  #stage:has(> .sheet.brand.show) #brandBg { display:block; }
+  #home .homeWrap { position:relative; z-index:1; }
+  .soloTile { display:flex !important; align-items:center; gap:12px; width:100%; min-height:60px !important; margin-top:4px; padding:8px 14px 8px 10px; text-align:left; border:2px solid #E3E7ED !important; background:#fff !important; box-shadow:0 3px 0 #E3E7ED; }
+  .soloTile:active { transform:translateY(2px); box-shadow:0 1px 0 #E3E7ED; }
+  .soloTile img { width:40px; height:40px; padding:6px; box-sizing:border-box; border-radius:12px; background:#EEF1FF; flex:none; }
+  .soloTile span { flex:1; } .soloTile b { display:block; font-size:15px; font-weight:800; } .soloTile small { display:block; margin-top:1px; font-size:12px; font-weight:700; color:var(--sub); }
+  .soloTile i { width:9px; height:9px; border-right:2.5px solid #9AA3B0; border-top:2.5px solid #9AA3B0; transform:rotate(45deg); margin-right:4px; }
+  /* 경찰 출동 전: 큰 숫자 위에 경찰차, 시계 글자 앞에도 작은 경찰차 */
+  #bigCount.show::before { content:""; display:block; width:.9em; height:.66em; margin:0 auto -.05em; background:url("data:image/svg+xml;base64,/*B64:car.svg*/") center/contain no-repeat; animation:rev .18s ease-in-out infinite alternate; }
+  #clock.wait #timerLabel::before { content:""; display:inline-block; width:22px; height:16px; margin-right:4px; vertical-align:-3px; background:url("data:image/svg+xml;base64,/*B64:car.svg*/") center/contain no-repeat; }
+  @keyframes rev { to { transform:translateY(-2px) rotate(-1deg); } }
+  /* 첫 화면 버튼: 앱 홈의 "게임 생성하기", "게임 참여하기"와 같은 색과 아이콘 */
+  #home .homeActs > button:not(.soloTile), #roomsCreate, #lobby button#lobbyJoin { display:flex; align-items:center; justify-content:center; gap:8px; }
+  #home .homeActs > button:not(.soloTile) img { height:20px; width:auto; }
+  #home button.primary, #roomsCreate, #lobby button#lobbyJoin { background:#0088FF; color:#fff; box-shadow:0 4px 0 #006ACC; }
+  #home button.primary:active, #roomsCreate:active, #lobby button#lobbyJoin:active { transform:translateY(3px); box-shadow:0 1px 0 #006ACC; }
+  #homeJoinOpen { background:#fff !important; color:#5D6F83 !important; border:2px solid #E3E7ED !important; box-shadow:0 3px 0 #E3E7ED; }
+  #homeJoinOpen:active { transform:translateY(2px); box-shadow:0 1px 0 #E3E7ED; }
+  /* 방장 프로필: 앱 커뮤니티 프로필 그림에 파스텔 배경 */
+  .roomRow .av { background:none !important; box-shadow:none !important; overflow:hidden; }
+  .roomRow .av svg { display:block; width:100%; height:100%; }
+  @media (prefers-reduced-motion:reduce) { .pair, #bigCount.show::before { animation:none; } }
+  .homeWrap { width:100%; min-height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:clamp(16px,5vw,72px); padding:max(14px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left)); }
+  .hero { display:flex; flex-direction:column; align-items:center; gap:clamp(6px,3vh,28px); }
+  .hero .logo { display:block; width:clamp(190px,min(34vw,66vh),400px); height:auto; }
+  .stage { position:relative; padding-top:clamp(26px,8vh,54px); }
+  .pair { display:block; height:clamp(108px,40vh,270px); width:auto; transform-origin:50% 100%; animation:idle 2.6s ease-in-out infinite; }
+  @keyframes idle { 0%,100% { transform:none; } 50% { transform:scaleY(.97) scaleX(1.015); } }
+  .bubble { position:absolute; left:-4%; top:0; background:#fff; color:var(--ink); border-radius:16px; padding:7px 12px 8px; font-size:clamp(11px,1.9vh,15px); font-weight:800; line-height:1.35; text-align:left; box-shadow:0 3px 0 rgba(29,35,43,.14); transform:rotate(-4deg); }
+  .bubble::after { content:""; position:absolute; left:34px; bottom:-8px; border:9px solid transparent; border-top-color:#fff; border-bottom:0; }
+  .homeCard { width:min(92vw,360px); margin:0 !important; padding:18px !important; text-align:left; box-shadow:0 6px 0 rgba(29,35,43,.14); }
+  #home .homeActs { margin-top:0; }
+  #homeLive { margin-top:2px; }
+  .liveHead { display:flex; align-items:center; justify-content:space-between; margin:2px 2px 6px; font-size:13px; }
+  .liveHead b { display:flex; align-items:center; gap:6px; } .liveHead b::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--robber); box-shadow:0 0 0 3px rgba(53,194,107,.22); animation:live 1.6s ease-in-out infinite; }
+  @keyframes live { 50% { box-shadow:0 0 0 6px rgba(53,194,107,0); } }
+  #home .liveHead .more { min-height:32px; padding:0 4px; background:none; color:var(--sub); font-size:13px; font-weight:800; }
+  #homeLiveList { display:flex; flex-direction:column; gap:6px; }
+  #homeLiveList .roomRow { min-height:52px; padding:6px 12px 6px 8px; } #homeLiveList .roomRow .av { width:34px; height:34px; font-size:15px; } #homeLiveList .roomRow .who b { font-size:15px; }
+  #rooms.brand .card { box-shadow:0 6px 0 rgba(29,35,43,.14); }
+  #lobby.brand .card { box-shadow:0 6px 0 rgba(29,35,43,.14); }
+  .cardLogo { display:block; height:30px; width:auto; margin:0 auto 10px; } #lobbyTitle:empty { display:none; }
+  #lobby button#lobbyBack { background:none; box-shadow:none; color:var(--sub); font-size:14px; min-height:44px; margin-top:6px; text-decoration:underline; text-underline-offset:4px; }
+  @media (max-height:460px) { .homeCard { padding:14px !important; } #home button { min-height:46px; font-size:15px; } #home .homeActs { gap:8px; } #homeLiveList .roomRow { min-height:46px; } }
+  @media (max-height:360px) { #homeLiveList .roomRow:nth-child(n+2) { display:none; } }
+  @media (max-aspect-ratio:4/5) {
+    .homeWrap { flex-direction:column; justify-content:flex-start; gap:14px; padding-top:max(36px,env(safe-area-inset-top)); }
+    .hero .logo { width:min(74vw,340px); } .pair { height:min(26vh,230px); }
+    .homeCard { width:min(100%,420px); }
+  }
 </style>
 </head>
 <body>
 <div id="stage">
   <div id="world"><canvas id="map"></canvas></div>
+  <div id="brandBg" aria-hidden="true">/*SVG:bg.svg*/</div>
   <canvas id="fx"></canvas>
   <canvas id="fog"></canvas>
   <div id="hud">
@@ -286,6 +342,7 @@
     </div>
   </div></div>
   <div id="lobby" class="sheet"><div class="card">
+    <img class="cardLogo" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
     <h1 id="lobbyTitle"></h1>
     <p id="lobbyMsg"></p>
     <button id="lobbyHome" hidden>처음 화면으로</button>
@@ -294,23 +351,30 @@
       <label for="lobbyName">이름</label>
       <input id="lobbyName" maxlength="6" autocomplete="off">
       <button id="lobbyJoin">같이 하기</button>
+      <button id="lobbyBack" class="link">처음 화면으로</button>
     </div>
   </div></div>
-  <div id="home" class="sheet"><div class="card">
-    <h1>경찰과 도둑</h1>
-    <div class="homeActs">
-      <button id="homeCreate" class="primary">방 만들기</button>
-      <button id="homeRooms">열린 방 보기</button>
-      <button id="homeJoinOpen">코드로 들어가기</button>
+  <div id="home" class="sheet brand"><div class="homeWrap">
+    <div class="hero">
+      <img class="logo" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
+      <div class="stage"><div class="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
+    </div>
+    <div class="card homeCard"><div class="homeActs">
+      <button id="homeCreate" class="primary"><img src="data:image/svg+xml;base64,/*B64:siren.svg*/" alt="">방 만들기</button>
+      <button id="homeJoinOpen"><img src="data:image/svg+xml;base64,/*B64:door.svg*/" alt="">코드로 들어가기</button>
       <div id="homeJoin" hidden>
         <label for="homeCode">방 코드</label>
         <div class="codeRow"><input id="homeCode" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="homeJoinGo" class="primary">들어가기</button></div>
         <p id="homeCodeMsg"></p>
       </div>
-      <button id="homeSolo" class="link">혼자 해 보기</button>
-    </div>
+      <div id="homeLive" hidden>
+        <div class="liveHead"><b>지금 열린 방</b><button id="homeAll" class="more">모두 보기</button></div>
+        <div id="homeLiveList" role="list"></div>
+      </div>
+      <button id="homeSolo" class="soloTile"><img src="data:image/svg+xml;base64,/*B64:console.svg*/" alt=""><span><b>혼자 해 보기</b><small>봇이랑 바로 한 판</small></span><i aria-hidden="true"></i></button>
+    </div></div>
   </div></div>
-  <div id="rooms" class="sheet"><div class="card">
+  <div id="rooms" class="sheet brand"><div class="card">
     <div class="roomsHead"><h1>열린 방</h1><button id="roomsBack">뒤로</button></div>
     <div id="roomsList" role="list"></div>
     <div id="roomsEmpty" hidden><p id="roomsEmptyMsg"></p><button id="roomsCreate">방 만들기</button></div>

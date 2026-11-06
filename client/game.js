@@ -553,6 +553,8 @@ function readInput() {
 let toastT = 0, bannerT = 0, missionT = 0, lastPip = "", lastRevealN = -1;
 const svgUrl = n => "data:image/svg+xml," + encodeURIComponent(SVGS[n]);
 const ROBBER_ICON = svgUrl("robber-front"), POLICE_ICON = svgUrl("police-front");
+// 이긴 쪽은 앱의 승리 그림(트로피 냥파, 브이 도둥이)으로 보여 준다
+const WIN_ICON = { police: "data:image/svg+xml;base64,/*B64:win-cop.svg*/", robber: "data:image/svg+xml;base64,/*B64:win-rob.svg*/" };
 $("imgPolice").src = POLICE_ICON; $("imgRobber").src = ROBBER_ICON;
 const toast = (t, kind = "") => { const n = $("toast"); n.textContent = t; n.className = "show " + kind; toastT = 3; };
 const banner = (lead, main) => { $("bannerLead").textContent = lead; $("bannerMain").textContent = main; $("banner").className = "show " + role; bannerT = 1.8; };
@@ -595,6 +597,7 @@ function drawHud(dt) {
   const p = G.player, left = G.phase === "wait" ? CFG.WAIT - G.t : CFG.DURATION - G.t;
   $("timer").textContent = fmt(left);
   $("timerLabel").textContent = G.phase === "wait" ? "경찰 출동까지" : "남은 시간";
+  $("clock").classList.toggle("wait", G.phase === "wait");
   // 사람끼리 할 때는 다른 도둑의 상태를 받지 않아서 남은 수로 그린다
   const pips = G.robbers.map((r, i) => (online ? i < online.free : r.state === "free"));
   const pipKey = pips.map(Number).join("");
@@ -642,7 +645,7 @@ function showEnd() {
   $("endTitle").textContent = won ? "이겼어요!" : "졌어요";
   $("endTitle").className = won ? "won" : "lost";
   $("endReason").textContent = G.over.reason === "allArrested" ? "도둑이 모두 체포됐어요!" : "제한 시간이 끝났어요!";
-  $("endHero").src = p.team === "police" ? POLICE_ICON : ROBBER_ICON;
+  $("endHero").src = won ? WIN_ICON[p.team] : p.team === "police" ? POLICE_ICON : ROBBER_ICON;
   $("endHero").className = won ? "won" : "lost";
   const s = p.s;
   $("endStats").innerHTML = (p.team === "police"

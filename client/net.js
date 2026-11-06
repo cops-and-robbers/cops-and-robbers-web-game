@@ -51,12 +51,13 @@ function createOnline() {
     if (scene.active) scene.leave();
     $("lobbyTitle").textContent = title; $("lobbyMsg").textContent = body;
     $("lobbyForm").hidden = true; $("lobbyHome").hidden = act !== "home"; $("lobbyRetry").hidden = act !== "retry";
-    $("hud").className = ""; $("lobby").className = "sheet show";
+    $("hud").className = ""; $("lobby").classList.add("show", "brand");
   };
   $("lobbyHome").onclick = () => goHome();
+  $("lobbyBack").onclick = () => goHome();
   $("lobbyRetry").onclick = () => location.reload();
   const lobby = (show, message) => {
-    $("lobby").className = show ? "sheet show" : "sheet";
+    $("lobby").classList.toggle("show", show);
     if (message !== undefined) $("lobbyMsg").textContent = message;
   };
 
@@ -95,6 +96,7 @@ function createOnline() {
         return;
       case "lobby":
         lastLobby = m;
+        $("lobby").classList.remove("brand");
         if (wasPlaying || ended) return;
         lobby(false);
         if (scene.active) scene.update(m); else scene.enter(m);
@@ -262,9 +264,11 @@ function createOnline() {
   };
 
   $("start").className = "sheet";
+  $("lobby").classList.add("brand");
   $("swap").hidden = true;
   $("lobbyName").value = store.get("name") || "";
-  $("lobbyTitle").textContent = NET_FROM ? `${NET_FROM.slice(0, 6)} 님이 경도 하재요` : "경찰과 도둑";
+  // 부른 사람이 있으면 그 이름을, 없으면 위의 글자 로고만 보여 준다
+  $("lobbyTitle").textContent = NET_FROM ? `${NET_FROM.slice(0, 6)} 님이 경도 하재요` : "";
   lobby(true, "");
   $("lobbyJoin").onclick = () => {
     name = Array.from($("lobbyName").value.trim()).slice(0, 6).join("");
@@ -285,53 +289,72 @@ const ROOM_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 function goHome() { location.hash = `key=${encodeURIComponent(NET_KEY)}`; location.reload(); }
 function goRoom(code, create) { location.hash = `room=${code}&key=${encodeURIComponent(NET_KEY)}${create ? "&new=1" : ""}`; location.reload(); }
 function showHome() {
-  $("start").className = "sheet"; $("home").className = "sheet show";
+  $("start").className = "sheet"; openHome();
   $("homeCreate").onclick = () => goRoom(Array.from(crypto.getRandomValues(new Uint8Array(5)), b => ROOM_CHARS[b % ROOM_CHARS.length]).join(""), true);
-  $("homeJoinOpen").onclick = () => { $("homeJoinOpen").hidden = true; $("homeJoin").hidden = false; $("homeCode").focus(); };
+  $("homeJoinOpen").onclick = () => { $("homeJoinOpen").hidden = true; $("homeJoin").hidden = false; $("homeLive").hidden = true; $("homeCode").focus(); };
   const join = () => { const code = $("homeCode").value.trim().toUpperCase(); if (!/^[A-Z0-9]{4,8}$/.test(code)) { $("homeCodeMsg").textContent = "영어와 숫자로 4~8자예요"; return; } goRoom(code, false); };
   $("homeJoinGo").onclick = join;
   $("homeCode").onkeydown = e => { if (e.key === "Enter") join(); };
-  $("homeSolo").onclick = () => { $("home").className = "sheet"; $("start").className = "sheet show"; };
-  $("homeRooms").onclick = showRooms;
+  $("homeSolo").onclick = () => { stopRooms(); $("home").className = "sheet brand"; $("start").className = "sheet show"; };
+  $("homeAll").onclick = showRooms;
 }
 
-// 열린 방 목록. 보고 있는 동안에만 다시 받아 온다
+// 열린 방 목록. 첫 화면과 목록 화면 모두, 보고 있는 동안에만 다시 받아 온다
 const ROOM_STATE = { open: "들어갈 수 있어요", full: "꽉 찼어요", playing: "게임 중" };
+// 방장 프로필은 앱 커뮤니티와 같은 냥파, 도둥이 그림에 파스텔 배경. 방 코드로 정해서 다시 받아도 그대로다
+const AVATARS = [`/*SVG:avatar-cop.svg*/`, `/*SVG:avatar-rob.svg*/`];
+const PASTELS = ["#FFD9E2", "#FFEFB3", "#D3F4DD", "#D9E4FF", "#FFE1CC", "#E7DDFB"];
+const HOME_PREVIEW = 2;
+async function fetchRooms() {
+  const res = await fetch(`/rooms?key=${encodeURIComponent(NET_KEY)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(String(res.status));
+  return (await res.json()).rooms || [];
+}
+function roomRow(r) {
+  const row = $("roomRowT").content.firstElementChild.cloneNode(true), off = r.state !== "open";
+  row.classList.toggle("open", !off);
+  row.setAttribute("aria-disabled", off);
+  const av = row.querySelector(".av"), h = [...r.code].reduce((n, c) => n * 31 + c.charCodeAt(0) | 0, 7) >>> 0;
+  av.innerHTML = AVATARS[h % AVATARS.length];
+  av.style.setProperty("--avbg", PASTELS[(h >>> 3) % PASTELS.length]);
+  row.querySelector(".who b").textContent = `${r.host} 님의 방`;
+  row.querySelector(".who small").textContent = ROOM_STATE[r.state] || "";
+  row.querySelector(".cnt b").textContent = `${r.n}/${r.max}`;
+  row.setAttribute("aria-label", `${r.host} 님의 방, ${r.n}/${r.max}, ${ROOM_STATE[r.state] || ""}`);
+  row.onclick = () => { if (!off) { stopRooms(); goRoom(r.code, false); } };
+  return row;
+}
+let roomsTimer = 0, roomsView = null;
+const stopRooms = () => { roomsView = null; clearTimeout(roomsTimer); };
+function watchRooms(view) {
+  stopRooms(); roomsView = view;
+  const loop = async () => {
+    if (roomsView !== view) return;
+    if (!document.hidden) { let rooms = null; try { rooms = await fetchRooms(); } catch { /* 못 받으면 그 화면이 알아서 보여 준다 */ } if (roomsView === view) view(rooms); }
+    if (roomsView === view) roomsTimer = setTimeout(loop, ROOMS_EVERY_MS);
+  };
+  loop();
+}
+// 첫 화면: 들어갈 수 있는 방이 있을 때만 두 개까지 미리 보여 준다. 없으면 아무것도 두지 않는다(눌러도 빈 목록이라)
+function homePreview(rooms) {
+  const open = (rooms || []).filter(r => r.state === "open");
+  $("homeLive").hidden = !open.length || !$("homeJoin").hidden;
+  $("homeLiveList").replaceChildren(...open.slice(0, HOME_PREVIEW).map(roomRow));
+}
 function showRooms() {
-  $("home").className = "sheet"; $("rooms").className = "sheet show";
-  let timer = 0, alive = true, failed = false;
-  const list = $("roomsList"), empty = $("roomsEmpty"), tpl = $("roomRowT").content.firstElementChild;
-  const render = rooms => {
-    list.replaceChildren(...rooms.map(r => {
-      const row = tpl.cloneNode(true), off = r.state !== "open";
-      row.classList.toggle("open", !off);
-      row.setAttribute("aria-disabled", off);
-      const av = row.querySelector(".av");
-      av.textContent = Array.from(r.host || "?")[0];
-      av.classList.add(`c${[...r.code].reduce((h, c) => h + c.charCodeAt(0), 0) % 4}`);
-      row.querySelector(".who b").textContent = `${r.host} 님의 방`;
-      row.querySelector(".who small").textContent = ROOM_STATE[r.state] || "";
-      row.querySelector(".cnt b").textContent = `${r.n}/${r.max}`;
-      row.setAttribute("aria-label", `${r.host} 님의 방, ${r.n}/${r.max}, ${ROOM_STATE[r.state] || ""}`);
-      row.onclick = () => { if (!off) { alive = false; goRoom(r.code, false); } };
-      return row;
-    }));
-    empty.hidden = rooms.length > 0;
+  $("home").className = "sheet brand"; $("rooms").className = "sheet brand show";
+  const list = $("roomsList");
+  watchRooms(rooms => {
+    const failed = rooms === null;
+    if (!failed) list.replaceChildren(...rooms.map(roomRow));
+    $("roomsEmpty").hidden = list.children.length > 0;
     $("roomsEmptyMsg").textContent = failed ? "목록을 불러오지 못했어요" : "지금 열린 방이 없어요";
     $("roomsCreate").textContent = failed ? "다시 해 보기" : "방 만들기";
-  };
-  const load = async () => {
-    try {
-      const res = await fetch(`/rooms?key=${encodeURIComponent(NET_KEY)}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(String(res.status));
-      failed = false; render((await res.json()).rooms || []);
-    } catch { failed = true; if (!list.children.length) render([]); }
-  };
-  const loop = () => { if (!alive) return; if (!document.hidden) load(); timer = setTimeout(loop, ROOMS_EVERY_MS); };
-  loop();
-  $("roomsBack").onclick = () => { alive = false; clearTimeout(timer); $("rooms").className = "sheet"; $("home").className = "sheet show"; };
-  $("roomsCreate").onclick = () => (failed ? load() : $("homeCreate").click());
+    $("roomsCreate").onclick = () => (failed ? showRooms() : $("homeCreate").click());
+  });
+  $("roomsBack").onclick = () => { $("rooms").className = "sheet brand"; openHome(); };
 }
+function openHome() { $("home").className = "sheet brand show"; watchRooms(homePreview); }
 
 // 카카오톡 같은 앱 안 브라우저는 전체 화면이 안 되고 화면도 좁아서 바깥 브라우저로 내보낸다
 function leaveInApp() {
