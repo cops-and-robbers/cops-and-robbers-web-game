@@ -48,7 +48,7 @@ cd gateway && pnpm exec wrangler pages secret put ADMIN_KEY --project-name cops-
   - `pause`: "점검하고 있어요"
 - 들어오는 길: `/game` 페이지 아래 카드, 홈 섹션 하나. 공개 전에는 사이트에 버튼을 걸지 않거나 "만들고 있어요" 로만
 - 게임 주소에 `utm_source=site` 를 붙여 어디서 왔는지 남겨요
-- 게임 주소는 지금 `pages.dev` 예요. 우리 도메인으로 옮기면 한국 경로가 바뀔 수 있어서 옮기기 전에 지연을 다시 재요(`docs/architecture.md`)
+- 게임 주소는 지금 `pages.dev` 예요. `play.copsandrobbers.app` 도 같은 입구에 붙여 두었고(2026-11-06), 한국 통신사 지연을 `pages.dev` 와 견준 뒤 어느 쪽을 쓸지 정해요(`docs/architecture.md`)
 
 ### 어드민 화면
 

@@ -61,7 +61,7 @@ jobs:
         run: >
           pnpm exec wrangler deploy
           --var WAIT_SEC:15 --var GAME_SEC:180
-          --var "ALLOWED_ORIGINS:${SITE}"
+          --var "ALLOWED_ORIGINS:${SITE},https://play.copsandrobbers.app"
 
       - name: Gateway
         working-directory: gateway
