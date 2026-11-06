@@ -376,4 +376,10 @@ async function checkControl(env) {
   check(paused.mode === "pause" && paused.message === "서버를 고치고 있어요" && paused.until === "2026-11-06T13:00:00.000Z" && !("by" in paused), "점검 중과 안내를 읽고, 바꾼 사람은 내보내지 않아요");
   check(!(await opens(env.key)) && (await fetch(`${env.base}/rooms?key=${env.key}`)).status === 403, "점검 중에는 열쇠가 있어도 못 들어와요");
   await put({ mode: "soon" });
+  // 앞에서 돌린 한 판의 결과가 남았는지. 비밀값 없이는 못 읽고, 이름은 들어가지 않는다
+  const results = key => fetch(`${env.base}/admin/results`, { headers: { Authorization: `Bearer ${key}` } });
+  check((await results("wrong")).status === 403, "판 결과는 어드민 비밀값이 틀리면 못 읽어요");
+  const rows = await (await results("local-admin")).json().catch(() => []);
+  const last = rows[0];
+  check(Array.isArray(rows) && last && "winner" in last && last.humans >= 1 && last.scale >= 1 && !JSON.stringify(rows).includes("시험"), "판이 끝나면 결과 한 줄이 이름 없이 남아요");
 }

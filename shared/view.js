@@ -44,6 +44,7 @@ export function viewFor(logic, G, me) {
       lock: me.lock ? Math.round(me.lock * 10) / 10 : 0,
       breakT: me.breakT ? Math.round(me.breakT * 10) / 10 : 0,
       catchCd: me.catchCd > 0 ? Math.round(me.catchCd * 10) / 10 : 0,
+      out: me.outT > 0 ? Math.round(me.outT * 10) / 10 : 0,
     },
     others,
     pings,

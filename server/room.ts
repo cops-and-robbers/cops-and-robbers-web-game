@@ -5,6 +5,7 @@ import "../shared/logic.js";
 import { eventsFor, viewFor } from "../shared/view.js";
 import type { Env } from "./index";
 import { DIRECTORY_NAME } from "./directory";
+import { CONTROL_NAME } from "./control";
 
 const MAX_PLAYERS = 8;
 const COUNT_MS = 3000;
@@ -27,6 +28,9 @@ const MAX_INPUT_PER_SEC = 20;
 const REJOIN_MS = 30_000;
 const EMPTY_STOP_MS = 30_000;
 const THEMES = ["town", "night", "park", "city", "snow"];
+// 인원이 많을수록 맵을 넓힌다. 4명까지는 그대로, 8명이면 가로세로 1.2배(넓이 1.44배). 수풀은 넓이에 맞춰 늘어난다(logic.js genMap)
+// 1.2배에서 폰이 그리는 지도 한 장이 4320x3240 이라 아이폰 캔버스 한도(1677만 화소) 안이다. 더 키우려면 지도를 나눠 그려야 한다
+const mapScale = (n: number) => 1 + Math.max(0, Math.min(MAX_PLAYERS, n) - 4) * 0.05;
 
 type Side = "cop" | "any" | "rob";
 interface Seats {
@@ -61,6 +65,7 @@ export class Room extends DurableObject<Env> {
   private logic: Logic | null = null;
   private game: Game | null = null;
   private seed = 0;
+  private scale = 1;
   private timer: ReturnType<typeof setInterval> | null = null;
   private emptySince = 0;
   private lost = new Map<string, { agentId: number; at: number }>();
@@ -390,8 +395,10 @@ export class Room extends DurableObject<Env> {
     }
 
     const police = seats.bots ? seats.cops : cops.length, robbers = seats.bots ? seats.robs : robs.length;
-    const G = logic.newGame({ seed, theme, diff: "normal", police, robbers, reveal: REVEAL_SEC });
+    const scale = mapScale(police + robbers);
+    const G = logic.newGame({ seed, theme, diff: "normal", police, robbers, reveal: REVEAL_SEC, scale });
     this.seed = seed;
+    this.scale = scale;
     this.logic = logic;
     this.game = G;
     this.emptySince = 0;
@@ -419,6 +426,7 @@ export class Room extends DurableObject<Env> {
     this.send(ws, {
       t: "start",
       seed: this.seed,
+      scale: this.scale,
       theme: G.theme,
       you: agent.id,
       team: agent.team,
@@ -501,6 +509,7 @@ export class Room extends DurableObject<Env> {
     this.timer = null;
     const G = this.game;
     const stats = G?.stats;
+    if (G && this.logic) this.saveResult(G, winner, reason);
     this.game = null;
     this.logic = null;
     this.lost.clear();
@@ -511,4 +520,23 @@ export class Room extends DurableObject<Env> {
     }
     this.broadcastLobby();
   }
+
+  // 판 결과 한 줄을 운영 상태 서버에 남긴다. 밸런스를 감이 아니라 몇 판의 숫자로 보려고. 이름은 넣지 않는다
+  private saveResult(G: Game, winner: string | null, reason: string): void {
+    const row = {
+      at: Date.now(),
+      winner,
+      reason,
+      police: G.police.length,
+      robbers: G.robbers.length,
+      humans: G.agents.filter((a: any) => a.isPlayer).length,
+      scale: this.scale,
+      theme: G.theme,
+      sec: Math.round(Math.max(0, G.t - this.logic.CFG.WAIT)),
+      ...G.stats,
+    };
+    const stub = this.env.CONTROL.get(this.env.CONTROL.idFromName(CONTROL_NAME));
+    this.ctx.waitUntil(stub.fetch("https://control/result", { method: "POST", body: JSON.stringify(row) }).catch(() => undefined));
+  }
 }
+

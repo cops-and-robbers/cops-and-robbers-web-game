@@ -686,8 +686,19 @@ function handleEvents() {
       if (role === "police") toast("도둑 위치가 공개됐어요. 빨간 표시가 있는 곳으로 가요", "good");
       else if (p.state === "free") toast("내 위치가 공개됐어요. 지금 자리를 옮겨요", "bad");
     }
+    if (e.type === "outReveal") {
+      if (e.r === p) { play("reveal"); haptic(250); }
+      else if (p.team === "police") { play("reveal"); toast("구역 밖으로 나간 도둑이 보여요. 빨간 표시를 따라가요", "good"); }
+    }
     if (e.type === "over") { showEnd(); play(G.over.winner === p.team ? "win" : "lose"); }
   }
+}
+
+// 구역 밖 안내. 도둑에게는 몇 초 뒤 위치가 보이는지, 지금 보이는 중인지까지 알려 준다
+function lockText(p) {
+  if (p.team !== "robber" || G.phase !== "play" || p.state !== "free") return "구역 안으로 돌아와요";
+  const left = Math.ceil(CFG.OUT_GRACE - (p.outT || 0));
+  return left > 0 ? `구역 안으로 돌아와요. ${left}초 뒤 경찰에게 위치가 보여요` : "경찰에게 내 위치가 보이고 있어요. 구역 안으로 돌아와요";
 }
 
 function drawHud(dt) {
@@ -727,6 +738,7 @@ function drawHud(dt) {
   $("stamFill").style.width = (p.stam * 100) + "%"; $("stamFill").className = p.tired ? "tired" : "";
   const out = !inZone(p.x, p.y);
   $("lock").className = out ? "show" : "";
+  if (out) { const t = lockText(p); if ($("lock").textContent !== t) $("lock").textContent = t; }
   if (role === "police") $("btnCatch").classList.toggle("off", p.catchCd > 0 || p.state !== "free");
   // 지치면 켜 둔 달리기도 꺼 준다
   if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down", "latched"); $("btnRunLabel").textContent = "달리기"; }

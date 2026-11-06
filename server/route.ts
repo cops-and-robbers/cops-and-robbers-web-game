@@ -74,6 +74,14 @@ async function admin(request: Request, env: RouteEnv): Promise<Response> {
   return res;
 }
 
+// 최근 판 결과(밸런스 보기용). 운영 상태와 같은 비밀값으로만 읽는다
+async function results(request: Request, env: RouteEnv): Promise<Response> {
+  const given = (request.headers.get("Authorization") ?? "").replace(/^Bearer /, "");
+  if (!env.ADMIN_KEY || !sameSecret(given, env.ADMIN_KEY)) return new Response("Forbidden", { status: 403 });
+  if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+  return controlStub(env).fetch("https://control/results");
+}
+
 async function listRooms(env: RouteEnv): Promise<Response> {
   const now = Date.now();
   if (!shared || now - shared.at > LIST_SHARE_MS) {
@@ -87,6 +95,7 @@ export async function routeToRoom(request: Request, env: RouteEnv): Promise<Resp
   const url = new URL(request.url);
   if (url.pathname === "/status") return request.method === "GET" ? status(env) : new Response("Method not allowed", { status: 405 });
   if (url.pathname === "/admin/control") return admin(request, env);
+  if (url.pathname === "/admin/results") return results(request, env);
   if (url.pathname === "/rooms") {
     if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
     if (!allowed(request, url, env, await readControl(env), false)) return new Response("Forbidden", { status: 403 });
