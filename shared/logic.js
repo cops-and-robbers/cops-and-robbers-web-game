@@ -9,9 +9,9 @@ function createGameLogic() {
     SPRINT: { police: 322, robber: 316 },
     STAMINA: { police: 2.4, robber: 3.4 }, REGEN: 6.5,
     VISION: 510, NEAR: 150, CONE: 1.15, TURN: 7, BUSH_SEE: 120,
-    CATCH_R: 74, CATCH_CD: 1.6, CATCH_DASH: 230, CATCH_HIT_AT: 0.24, CATCH_LEN: 0.6,
+    CATCH_R: 74, CATCH_CD: 1.6, CATCH_DASH: 230, CATCH_HIT_AT: 0.24, CATCH_LEN: 0.6, CATCH_ASSIST: false, CATCH_GRACE: 35,
     JAIL: { x: 1800, y: 1350, r: 175 }, GATE_R: 235, RESCUE_SEC: 2.2,
-    LOCK_BASE: 16, LOCK_STEP: 5, LOCK_MAX: 32, BREAK_SEC: 3,
+    LOCK_BASE: 16, LOCK_STEP: 5, LOCK_MAX: 32, BREAK_SEC: 3, AUTO_ESCAPE: true,
     POLICE: 2, ROBBERS: 4,
   };
 
@@ -303,13 +303,14 @@ function createGameLogic() {
       G.agents.push(a); (team === "police" ? G.police : G.robbers).push(a); return a;
     };
     // 경찰은 감옥 앞에서 대기, 도둑은 네 귀퉁이 쪽 먼 자리에서 시작한다
-    mk("police", POLICE_NAMES[0], CFG.JAIL.x - 90, CFG.JAIL.y + 40, opts.role === "police");
-    mk("police", POLICE_NAMES[1], CFG.JAIL.x + 90, CFG.JAIL.y + 40, false);
+    // 인원은 방장이 정한다. 정하지 않으면 기본 인원이다
+    const nPolice = opts.police ?? CFG.POLICE, nRobbers = opts.robbers ?? CFG.ROBBERS, gap = nPolice > 2 ? 110 : 180;
+    for (let i = 0; i < nPolice; i++) mk("police", POLICE_NAMES[i % POLICE_NAMES.length], CFG.JAIL.x + (i - (nPolice - 1) / 2) * gap, CFG.JAIL.y + 40, opts.role === "police" && i === 0);
     const pool = SPOTS.filter(s => { const d = dist(s, CFG.JAIL); return d > 420 && d < 1000; }).sort(() => rnd() - 0.5);
     const starts = [];
-    for (const s of pool.concat(SPOTS)) { if (starts.length < CFG.ROBBERS && starts.every(o => dist(o, s) > 420)) starts.push(s); }
-    while (starts.length < CFG.ROBBERS) starts.push(SPOTS[starts.length % SPOTS.length]);
-    for (let i = 0; i < CFG.ROBBERS; i++) mk("robber", ROBBER_NAMES[i], starts[i].x, starts[i].y, opts.role === "robber" && i === 0);
+    for (const s of pool.concat(SPOTS)) { if (starts.length < nRobbers && starts.every(o => dist(o, s) > 420)) starts.push(s); }
+    while (starts.length < nRobbers) starts.push(SPOTS[starts.length % SPOTS.length]);
+    for (let i = 0; i < nRobbers; i++) mk("robber", ROBBER_NAMES[i % ROBBER_NAMES.length], starts[i].x, starts[i].y, opts.role === "robber" && i === 0);
     G.player = G.agents.find(a => a.isPlayer) || null;
     return G;
   }
@@ -377,13 +378,15 @@ function createGameLogic() {
     if (best) { dx = best.x - a.x; dy = best.y - a.y; }
     const m = Math.hypot(dx, dy) || 1;
     a.action = { name: "catch", t: 0, hit: false, dx: dx / m, dy: dy / m };
+    // 사람끼리 하는 판: 누른 순간 닿는 도둑을 정해 둔다. 판정까지 짧은 사이에 도망간 만큼 억울하지 않게
+    if (CFG.CATCH_ASSIST && best && bd <= CFG.CATCH_R + CFG.CATCH_GRACE) a.action.lock = best;
     a.catchCd = CFG.CATCH_CD;
     emit(G, "catchStart", { a });
     return true;
   }
 
   function jailSlot(G, r) {
-    const i = G.robbers.indexOf(r), ang = i / CFG.ROBBERS * Math.PI * 2 + 0.6;
+    const i = G.robbers.indexOf(r), ang = i / G.robbers.length * Math.PI * 2 + 0.6;
     return { x: CFG.JAIL.x + Math.cos(ang) * 74, y: CFG.JAIL.y + Math.sin(ang) * 60 };
   }
 
@@ -398,10 +401,13 @@ function createGameLogic() {
     if (!a.action) return;
     a.action.t += dt;
     if (a.action.name === "catch") {
+      const lock = a.action.lock;
+      if (lock && !a.action.hit) { const dx = lock.x - a.x, dy = lock.y - a.y, m = Math.hypot(dx, dy) || 1; a.action.dx = dx / m; a.action.dy = dy / m; }
       if (!a.action.hit && a.action.t >= CFG.CATCH_HIT_AT) {
         a.action.hit = true;
         let hit = null, bd = CFG.CATCH_R;
         for (const r of G.robbers) { if (!catchable(r)) continue; const d = dist(a, r); if (d < bd && lineOfSight(a, r)) { bd = d; hit = r; } }
+        if (!hit && lock && catchable(lock) && dist(a, lock) < CFG.CATCH_R + CFG.CATCH_GRACE && lineOfSight(a, lock)) hit = lock;
         if (hit) arrest(G, hit, a); else emit(G, "catchMiss", { a });
       }
       if (a.action.t >= CFG.CATCH_LEN) a.action = null;
@@ -417,8 +423,10 @@ function createGameLogic() {
         emit(G, "jailed", { r });
       }
     } else if (r.state === "jailed") {
-      r.lock -= dt;
-      if (r.lock <= 0) { r.state = "inJail"; emit(G, "unlocked", { r }); }
+      if (CFG.AUTO_ESCAPE) {
+        r.lock -= dt;
+        if (r.lock <= 0) { r.state = "inJail"; emit(G, "unlocked", { r }); }
+      }
     } else if (r.state === "inJail") {
       if (dist(r, CFG.JAIL) > CFG.JAIL.r) { r.state = "breaking"; r.breakT = CFG.BREAK_SEC; emit(G, "breaking", { r }); }
     } else if (r.state === "breaking") {
@@ -650,7 +658,7 @@ function createGameLogic() {
     }
   }
 
-  return { inCone, CFG, THEMES, DIFF, newGame, step, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
+  return { loadMap, inCone, CFG, THEMES, DIFF, newGame, step, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
     get BUILDINGS() { return BUILDINGS; }, get BUSHES() { return BUSHES; }, get SPOTS() { return SPOTS; }, get ZONE() { return ZONE; }, get ROADS() { return ROADS; }, get PARKS() { return PARKS; } };
 }
 
