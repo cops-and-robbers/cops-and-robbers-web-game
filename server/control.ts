@@ -36,10 +36,27 @@ export function validate(body: any): ControlState | string {
   return { mode: body.mode, message, until, at: Date.now(), by };
 }
 
+// 판 결과는 최근 것만 둔다. 밸런스를 볼 만큼이면 되고, 쌓아 두는 기록이 아니다
+const RESULTS_KEEP = 500;
+const RESULTS_SHOW = 200;
+
 export class Control extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/get") return Response.json(await this.read());
+    // 방 서버가 판이 끝날 때 한 줄 남긴다(server/room.ts saveResult). 밖에서는 어드민 비밀값으로만 읽는다
+    if (request.method === "POST" && url.pathname === "/result") {
+      const row = await request.json().catch(() => null);
+      if (!row || typeof row !== "object") return new Response("Bad result", { status: 400 });
+      const sql = this.results();
+      sql.exec("INSERT INTO results (at, data) VALUES (?, ?)", Date.now(), JSON.stringify(row));
+      sql.exec("DELETE FROM results WHERE id <= (SELECT MAX(id) FROM results) - ?", RESULTS_KEEP);
+      return new Response(null, { status: 204 });
+    }
+    if (request.method === "GET" && url.pathname === "/results") {
+      const rows = this.results().exec("SELECT data FROM results ORDER BY id DESC LIMIT ?", RESULTS_SHOW).toArray();
+      return Response.json(rows.map(r => JSON.parse(String(r.data))));
+    }
     if (request.method === "PUT" && url.pathname === "/set") {
       const next = validate(await request.json().catch(() => null));
       if (typeof next === "string") return Response.json({ error: next }, { status: 400 });
@@ -47,6 +64,12 @@ export class Control extends DurableObject<Env> {
       return Response.json(next);
     }
     return new Response("Not found", { status: 404 });
+  }
+
+  private results() {
+    const sql = this.ctx.storage.sql;
+    sql.exec("CREATE TABLE IF NOT EXISTS results (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, data TEXT NOT NULL)");
+    return sql;
   }
 
   private async read(): Promise<ControlState> {

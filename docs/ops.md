@@ -28,6 +28,15 @@ PUT  https://cops-and-robbers-game.pages.dev/admin/control
 - 비밀값이 틀리면 403, 값이 틀리면 400 과 `{ error }`, 성공하면 저장한 상태를 돌려줘요
 - 누구나 읽는 `GET /status` 는 `{ mode, message, until }` 만 줘요. 웹사이트 입구 페이지도 이걸 읽어 버튼을 바꿀 수 있어요(다른 사이트에서 읽어도 돼요)
 
+### 판 결과 (밸런스 보기)
+
+```
+GET  https://cops-and-robbers-game.pages.dev/admin/results
+     Authorization: Bearer <ADMIN_KEY>
+```
+
+최근 판 200개를 최신 것부터 돌려줘요(500개까지 남기고 오래된 것은 지워요). 한 줄에 `at`, `winner`(`police`/`robber`, 사람이 다 나가면 `null`), `reason`, `police`, `robbers`, `humans` 사람 수, `scale` 지도 크기, `theme`, `sec` 출동 뒤 걸린 초, `catches`, `rescues`, `reveals`, `outReveals`. 이름은 남기지 않아요. 판이 끝날 때 방 서버가 운영 상태 서버(`Control`)의 표에 한 줄 써요.
+
 ### 비밀값 넣기 (처음 한 번)
 
 ```bash
