@@ -22,6 +22,10 @@ const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false };
 // 공개 방은 이 간격으로 목록에 살아 있다고 알린다. 목록은 5분 동안 소식이 없는 방을 지운다
 const LIST_BEAT_MS = 2 * 60_000;
 const TICK_MS = 50;
+// 계산 간격이 이보다 벌어지면 늦은 계산으로 센다. Workers 안에서는 계산하는 동안 시계가 멈춰 계산 시간 대신 간격을 잰다
+const LATE_TICK_MS = 100;
+// 사람마다 남기는 왕복 시간 샘플 상한. 2초마다 하나라 20분어치다
+const RTT_KEEP = 600;
 const TICK_SEC = TICK_MS / 1000;
 const MAX_MESSAGE = 200;
 const MAX_INPUT_PER_SEC = 20;
@@ -69,6 +73,9 @@ export class Room extends DurableObject<Env> {
   private timer: ReturnType<typeof setInterval> | null = null;
   private emptySince = 0;
   private lost = new Map<string, { agentId: number; at: number }>();
+  // 판 하나의 네트워크 기록. 판 결과에 이름 없이 남긴다(saveResult)
+  private netLog = new Map<number, { rtt: number[]; rejoins: number }>();
+  private tickGap = { last: 0, max: 0, late: 0, n: 0 };
   private lobbyLost = new Map<string, { pid: string; joinedAt: number; side: Side; at: number }>();
   private rates = new Map<WebSocket, Rate>();
   private colo: string | null = null;
@@ -107,6 +114,8 @@ export class Room extends DurableObject<Env> {
       case "input":
         return this.onInput(ws, msg);
       case "ping":
+        // 폰이 잰 직전 왕복 시간이 실려 온다. 메시지를 따로 늘리지 않으려고 핑에 얹었다
+        this.noteRtt(ws, msg.rtt);
         return this.send(ws, { t: "pong", n: msg.n });
       case "where":
         return this.onWhere(ws);
@@ -312,6 +321,7 @@ export class Room extends DurableObject<Env> {
         seats: this.seats(),
         agentId: rejoin.agentId,
       } satisfies Attachment);
+      this.netOf(rejoin.agentId).rejoins++;
       this.send(ws, { t: "joined", token: msg.token, rejoined: true });
       this.sendStart(ws, agent);
       return;
@@ -403,6 +413,8 @@ export class Room extends DurableObject<Env> {
     this.game = G;
     this.emptySince = 0;
     this.lost.clear();
+    this.netLog = new Map();
+    this.tickGap = { last: 0, max: 0, late: 0, n: 0 };
 
     const seat = (list: { ws: WebSocket; me: Attachment }[], agents: any[]) => {
       const open = shuffle([...agents]);
@@ -482,6 +494,14 @@ export class Room extends DurableObject<Env> {
   private tick(): void {
     const G = this.game;
     if (!G) return;
+    const now = Date.now(), gap = this.tickGap;
+    if (gap.last) {
+      const d = now - gap.last;
+      gap.n++;
+      if (d > gap.max) gap.max = d;
+      if (d > LATE_TICK_MS) gap.late++;
+    }
+    gap.last = now;
     this.logic.step(G, TICK_SEC);
 
     const members = this.members().filter(m => m.me.agentId !== undefined);
@@ -534,9 +554,32 @@ export class Room extends DurableObject<Env> {
       theme: G.theme,
       sec: Math.round(Math.max(0, G.t - this.logic.CFG.WAIT)),
       ...G.stats,
+      // 사람별 왕복 시간(ms)과 다시 연결한 횟수. 편만 남기고 이름과 캐릭터 번호는 남기지 않는다
+      net: [...this.netLog.entries()].map(([id, r]) => {
+        const s = [...r.rtt].sort((x, y) => x - y);
+        const at = (p: number) => (s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : null);
+        return { team: G.agents[id].team, p50: at(0.5), p95: at(0.95), max: s.length ? s[s.length - 1] : null, samples: s.length, rejoins: r.rejoins };
+      }),
+      tick: { maxGapMs: this.tickGap.max, lateTicks: this.tickGap.late, ticks: this.tickGap.n },
     };
     const stub = this.env.CONTROL.get(this.env.CONTROL.idFromName(CONTROL_NAME));
     this.ctx.waitUntil(stub.fetch("https://control/result", { method: "POST", body: JSON.stringify(row) }).catch(() => undefined));
   }
+
+  private netOf(agentId: number) {
+    let rec = this.netLog.get(agentId);
+    if (!rec) this.netLog.set(agentId, (rec = { rtt: [], rejoins: 0 }));
+    return rec;
+  }
+
+  // 판이 도는 동안 사람의 왕복 시간만 모은다. 대기실과 엉뚱한 값은 버린다
+  private noteRtt(ws: WebSocket, value: unknown): void {
+    const me = ws.deserializeAttachment() as Attachment | null;
+    const v = Number(value);
+    if (!this.game || me?.agentId === undefined || !Number.isFinite(v) || v <= 0 || v > 10_000) return;
+    const rec = this.netOf(me.agentId);
+    if (rec.rtt.length < RTT_KEEP) rec.rtt.push(Math.round(v));
+  }
 }
+
 
