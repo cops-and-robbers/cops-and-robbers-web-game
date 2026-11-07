@@ -39,6 +39,8 @@ export function validate(body: any): ControlState | string {
 // 판 결과는 최근 것만 둔다. 밸런스를 볼 만큼이면 되고, 쌓아 두는 기록이 아니다
 const RESULTS_KEEP = 500;
 const RESULTS_SHOW = 200;
+// 판 하나가 아무리 길어도 이 안에 끝난다(대기 15초 + 판 3분 + 여유). 방이 보낸 만료가 이보다 길면 줄인다
+const LIVE_MAX_MS = 10 * 60_000;
 
 export class Control extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -53,6 +55,22 @@ export class Control extends DurableObject<Env> {
       sql.exec("DELETE FROM results WHERE id <= (SELECT MAX(id) FROM results) - ?", RESULTS_KEEP);
       return new Response(null, { status: 204 });
     }
+    // 판이 도는 방. 방이 시작과 끝에 알리고(server/room.ts reportLive), 자동 배포가 판이 끝날 때까지 기다리는 데 쓴다
+    if (request.method === "POST" && url.pathname === "/live") {
+      const body = (await request.json().catch(() => null)) as { room?: unknown; on?: unknown; until?: unknown } | null;
+      if (!body || typeof body.room !== "string" || body.room.length > 128) return new Response("Bad live", { status: 400 });
+      const sql = this.live();
+      if (body.on) sql.exec("INSERT OR REPLACE INTO live (room, until) VALUES (?, ?)", body.room, Math.min(Number(body.until) || 0, Date.now() + LIVE_MAX_MS));
+      else sql.exec("DELETE FROM live WHERE room = ?", body.room);
+      return new Response(null, { status: 204 });
+    }
+    if (request.method === "GET" && url.pathname === "/live") {
+      const sql = this.live();
+      // 끝을 알리지 못하고 사라진 방이 배포를 영원히 막지 않게, 만료된 기록은 센 적 없는 것으로 친다
+      sql.exec("DELETE FROM live WHERE until < ?", Date.now());
+      const row = sql.exec("SELECT COUNT(*) AS n, MAX(until) AS last FROM live").one();
+      return Response.json({ playing: Number(row.n), until: row.last ? new Date(Number(row.last)).toISOString() : null });
+    }
     if (request.method === "GET" && url.pathname === "/results") {
       const rows = this.results().exec("SELECT data FROM results ORDER BY id DESC LIMIT ?", RESULTS_SHOW).toArray();
       return Response.json(rows.map(r => JSON.parse(String(r.data))));
@@ -64,6 +82,12 @@ export class Control extends DurableObject<Env> {
       return Response.json(next);
     }
     return new Response("Not found", { status: 404 });
+  }
+
+  private live() {
+    const sql = this.ctx.storage.sql;
+    sql.exec("CREATE TABLE IF NOT EXISTS live (room TEXT PRIMARY KEY, until INTEGER NOT NULL)");
+    return sql;
   }
 
   private results() {

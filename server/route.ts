@@ -54,6 +54,18 @@ async function status(env: RouteEnv): Promise<Response> {
   return Response.json({ mode, message, until }, { headers: { "cache-control": "no-store", "access-control-allow-origin": "*" } });
 }
 
+// 지금 도는 판 수. 자동 배포가 판이 끝날 때까지 기다리는 데 쓴다(tools/wait-live.mjs). 숫자 하나라 누구나 읽게 두고,
+// 입구가 4초 동안 같은 값을 나눠 써서 운영 상태 서버를 자주 부르지 않는다
+let live: { at: number; body: string } | null = null;
+async function liveCount(env: RouteEnv): Promise<Response> {
+  const now = Date.now();
+  if (!live || now - live.at > CONTROL_SHARE_MS) {
+    const res = await controlStub(env).fetch("https://control/live");
+    live = { at: now, body: await res.text() };
+  }
+  return new Response(live.body, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+}
+
 // 길이가 같을 때 끝까지 비교해서, 걸린 시간으로 비밀값을 짐작하지 못하게 한다
 function sameSecret(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -96,6 +108,7 @@ export async function routeToRoom(request: Request, env: RouteEnv): Promise<Resp
   if (url.pathname === "/status") return request.method === "GET" ? status(env) : new Response("Method not allowed", { status: 405 });
   if (url.pathname === "/admin/control") return admin(request, env);
   if (url.pathname === "/admin/results") return results(request, env);
+  if (url.pathname === "/live") return request.method === "GET" ? liveCount(env) : new Response("Method not allowed", { status: 405 });
   if (url.pathname === "/rooms") {
     if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
     if (!allowed(request, url, env, await readControl(env), false)) return new Response("Forbidden", { status: 403 });

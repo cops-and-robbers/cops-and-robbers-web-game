@@ -22,6 +22,8 @@ if (REMOTE && (PLAYERS > REMOTE_MAX.players || INPUT_PER_SEC > REMOTE_MAX.rate |
 
 const SITE = "http://site.test";
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+// 입구는 운영 상태를 4초 동안 나눠 쓴다. 바뀐 값을 읽으려면 그만큼 기다린다
+const CONTROL_SHARE_WAIT = 4200;
 const problems = [];
 const check = (ok, message) => {
   console.log(`${ok ? "통과" : "실패"} ${message}`);
@@ -233,6 +235,12 @@ try {
   clients[0].sendJson({ t: "start" });
   sentMessages++;
   await waitFor(() => clients.every(c => c.start), 9000, "시작");
+  // 자동 배포가 판이 끝날 때까지 기다리려면 도는 판 수가 보여야 한다(tools/wait-live.mjs)
+  const liveNow = async () => (await (await fetch(`${env.base}/live`)).json()).playing;
+  if (!REMOTE) {
+    await sleep(CONTROL_SHARE_WAIT);
+    check((await liveNow()) >= 1, "판이 도는 동안 도는 판 수가 1 이상이에요");
+  }
   if (!REMOTE) {
     const playing = await listedAs(env.base, env.key, code, r => r?.state === "playing");
     check(playing?.state === "playing", "판이 시작하면 목록에 게임 중으로 바뀌어요");
@@ -315,6 +323,10 @@ try {
   const elapsed = (Date.now() - startedAt) / 1000;
 
   check(clients.every(c => c.over), "판이 끝나면 모두 결과를 받아요");
+  if (!REMOTE) {
+    await sleep(CONTROL_SHARE_WAIT);
+    check((await liveNow()) === 0, "판이 끝나면 도는 판 수가 0 으로 돌아와요");
+  }
   check(clients.every(c => c.over?.mine && typeof c.over.mine.caught === "number"), "판이 끝나면 내 기록을 받아요");
   const moved = clients.slice(0, -1).some(c => {
     const a = startPositions.get(c);

@@ -430,6 +430,7 @@ export class Room extends DurableObject<Env> {
     seat(robs, G.robbers);
 
     this.timer = setInterval(() => this.tick(), TICK_MS);
+    this.reportLive(true);
     this.report();
   }
 
@@ -530,6 +531,7 @@ export class Room extends DurableObject<Env> {
     const G = this.game;
     const stats = G?.stats;
     if (G && this.logic) this.saveResult(G, winner, reason);
+    if (G) this.reportLive(false);
     this.game = null;
     this.logic = null;
     this.lost.clear();
@@ -580,6 +582,16 @@ export class Room extends DurableObject<Env> {
     const rec = this.netOf(me.agentId);
     if (rec.rtt.length < RTT_KEEP) rec.rtt.push(Math.round(v));
   }
+
+  // 판이 도는 동안 운영 상태 서버에 알려 둔다. 자동 배포가 이걸 보고 판이 끝날 때까지 기다린다(방 서버를 새로 올리면 판이 사라진다)
+  private reportLive(on: boolean): void {
+    const cfg = this.logic?.CFG;
+    const until = Date.now() + ((cfg ? cfg.WAIT + cfg.DURATION : 195) + 60) * 1000;
+    const stub = this.env.CONTROL.get(this.env.CONTROL.idFromName(CONTROL_NAME));
+    const body = JSON.stringify({ room: this.ctx.id.toString(), on, until });
+    this.ctx.waitUntil(stub.fetch("https://control/live", { method: "POST", body }).catch(() => undefined));
+  }
 }
+
 
 

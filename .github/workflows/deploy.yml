@@ -17,6 +17,11 @@ on:
       - "pnpm-lock.yaml"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
+    inputs:
+      force:
+        description: 도는 판이 있어도 바로 올려요(그 판은 끊겨요)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,6 +61,11 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      # 방 서버를 새로 올리면 메모리에 있던 판이 사라져요. 도는 판이 끝날 때까지 기다려요(최대 10분, tools/wait-live.mjs)
+      - name: Wait for running games
+        if: ${{ !inputs.force }}
+        run: node tools/wait-live.mjs
 
       - name: Room server
         run: >
