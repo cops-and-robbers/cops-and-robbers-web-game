@@ -239,7 +239,8 @@ function createOnline() {
       a.y += (gy - a.y) * k;
     }
     pingT -= dt;
-    if (pingT <= 0) { pingT = 2; send({ t: "ping", n: Math.round(now) }); }
+    // 직전에 잰 왕복 시간을 함께 보낸다. 서버가 판 결과에 사람별로 남긴다(docs/ops.md "판 결과")
+    if (pingT <= 0) { pingT = 2; send({ t: "ping", n: Math.round(now), ...(net.rtt ? { rtt: net.rtt } : {}) }); }
   };
 
   // 바뀔 때만, 초당 10번까지 보낸다. 받는 메시지가 사용량에 잡힌다

@@ -275,7 +275,7 @@ try {
     if (c.ws.readyState !== WebSocket.OPEN) return;
     const n = Date.now();
     c.pending.set(n, n);
-    c.sendJson({ t: "ping", n });
+    c.sendJson({ t: "ping", n, rtt: 40 });
     sentMessages++;
   }, 1000);
 
@@ -382,4 +382,6 @@ async function checkControl(env) {
   const rows = await (await results("local-admin")).json().catch(() => []);
   const last = rows[0];
   check(Array.isArray(rows) && last && "winner" in last && last.humans >= 1 && last.scale >= 1 && !JSON.stringify(rows).includes("시험"), "판이 끝나면 결과 한 줄이 이름 없이 남아요");
+  check(Array.isArray(last?.net) && last.net.some(n => n.samples >= 1 && n.p50 === 40) && last.net.some(n => n.rejoins >= 1), "판 결과에 사람별 왕복 시간과 다시 연결한 횟수가 남아요");
+  check(last?.tick?.ticks > 0 && typeof last.tick.maxGapMs === "number", "판 결과에 서버 계산 간격이 남아요");
 }

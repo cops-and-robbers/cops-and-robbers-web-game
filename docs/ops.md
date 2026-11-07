@@ -35,7 +35,10 @@ GET  https://cops-and-robbers-game.pages.dev/admin/results
      Authorization: Bearer <ADMIN_KEY>
 ```
 
-최근 판 200개를 최신 것부터 돌려줘요(500개까지 남기고 오래된 것은 지워요). 한 줄에 `at`, `winner`(`police`/`robber`, 사람이 다 나가면 `null`), `reason`, `police`, `robbers`, `humans` 사람 수, `scale` 지도 크기, `theme`, `sec` 출동 뒤 걸린 초, `catches`, `rescues`, `reveals`, `outReveals`. 이름은 남기지 않아요. 판이 끝날 때 방 서버가 운영 상태 서버(`Control`)의 표에 한 줄 써요.
+최근 판 200개를 최신 것부터 돌려줘요(500개까지 남기고 오래된 것은 지워요). 한 줄에 `at`, `winner`(`police`/`robber`, 사람이 다 나가면 `null`), `reason`, `police`, `robbers`, `humans` 사람 수, `scale` 지도 크기, `theme`, `sec` 출동 뒤 걸린 초, `catches`, `rescues`, `reveals`, `outReveals`, `net` 사람별 네트워크(`team`, 왕복 시간 `p50` `p95` `max` ms, `samples` 잰 횟수, `rejoins` 다시 연결한 횟수), `tick` 서버 계산 간격(`maxGapMs` 가장 긴 간격, `lateTicks` 0.1초를 넘긴 횟수, `ticks`). 이름과 캐릭터 번호는 남기지 않아요.
+
+- 왕복 시간은 폰이 2초마다 재서 핑에 실어 보내요. 메시지가 늘지 않아요
+- 서버 계산은 0.05초마다 돌아요. Workers 안에서는 계산하는 동안 시계가 멈춰 계산 시간을 직접 잴 수 없어서, 계산 사이 간격으로 서버가 밀렸는지 봐요 판이 끝날 때 방 서버가 운영 상태 서버(`Control`)의 표에 한 줄 써요.
 
 ### 비밀값 넣기 (처음 한 번)
 
