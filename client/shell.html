@@ -1,12 +1,38 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-boot>
 <head>
 <meta charset="utf-8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#A6D8FF">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>경찰과 도둑 시제품</title>
+<title>경찰과 도둑 온라인 게임</title>
+<meta name="description" content="설치 없이 친구랑 같이 해요. 최대 8명, 한 판 3분이에요.">
+<!-- 게임 주소는 pages.dev 하나로 알린다(play.copsandrobbers.app 는 지연이 커서 쓰지 않는다, docs/architecture.md). 초대 링크의 방 번호는 # 뒤라 공유 카드는 늘 이 하나다 -->
+<link rel="canonical" href="https://cops-and-robbers-game.pages.dev/play">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:site_name" content="경찰과 도둑">
+<meta property="og:url" content="https://cops-and-robbers-game.pages.dev/play">
+<meta property="og:title" content="경찰과 도둑 온라인 게임">
+<meta property="og:description" content="설치 없이 친구랑 같이 해요. 최대 8명, 한 판 3분이에요.">
+<meta property="og:image" content="https://cops-and-robbers-game.pages.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="경찰과 도둑 로고와 경찰, 도둑 캐릭터">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="경찰과 도둑 온라인 게임">
+<meta name="twitter:description" content="설치 없이 친구랑 같이 해요. 최대 8명, 한 판 3분이에요.">
+<meta name="twitter:image" content="https://cops-and-robbers-game.pages.dev/og.png">
+<script>
+  // 어떤 첫 화면을 띄울지는 운영 상태를 읽어야 안다. 문서를 받는 동안 같이 읽어 기다림을 줄인다
+  if (/(^|[#&?])room=/.test(location.hash + location.search)) document.documentElement.dataset.boot = "room";
+  window.__status = location.protocol === "file:" ? null : fetch("/status", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
+</script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root { --ink:#1D232B; --sub:#545E6E; --police:#2A9BEF; --robber:#35C26B; --danger:#E2574C; --team:var(--police); }
@@ -246,6 +272,11 @@
   .sheet.brand { padding:0; background:none; }
   #brandBg { position:absolute; inset:0; z-index:19; display:none; background:#A6D8FF; }
   #brandBg svg { display:block; width:100%; height:100%; }
+  /* 첫 화면이 정해지기 전. 어떤 화면이 와도 같은 하늘과 그림 위에 카드만 나타나게 해서 화면이 바뀌어 보이지 않게 한다(net.js 맨 아래). 초대 링크는 그림 없이 카드 하나가 온다 */
+  html[data-boot], html[data-boot] body { background:#A6D8FF; }
+  html[data-boot] #brandBg { display:block; }
+  html[data-boot] #home { display:flex; }
+  html[data-boot] #home .homeCard, html[data-boot=room] #home .hero { visibility:hidden; }
   #stage:has(> .sheet.brand.show) #brandBg { display:block; }
   #home .homeWrap { position:relative; z-index:1; }
   .soloTile { display:flex !important; align-items:center; gap:12px; width:100%; min-height:60px !important; margin-top:4px; padding:8px 14px 8px 10px; text-align:left; border:2px solid #E3E7ED !important; background:#fff !important; box-shadow:0 3px 0 #E3E7ED; }
@@ -440,7 +471,7 @@
     <button id="btnRun"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><span id="btnRunLabel">달리기</span></button>
     <button id="btnCatch">잡기</button>
   </div>
-  <div id="start" class="sheet show"><div class="card">
+  <div id="start" class="sheet"><div class="card">
     <h1>경찰과 도둑</h1>
     <p>넓은 동네에서 숨고, 들키면 도망치고, 쫓아서 잡아요.</p>
     <div class="picks">
@@ -475,8 +506,8 @@
   </div></div>
   <div id="home" class="sheet brand"><div class="homeWrap">
     <div class="hero">
-      <img class="logo" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
-      <div class="stage"><div class="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
+      <img class="logo" decoding="sync" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
+      <div class="stage"><div class="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" decoding="sync" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
     </div>
     <div class="card homeCard"><div class="homeActs">
       <button id="homeCreate" class="primary"><img src="data:image/svg+xml;base64,/*B64:siren.svg*/" alt="">방 만들기</button>
@@ -498,7 +529,7 @@
     <div class="card homeCard gateCard">
       <h1 id="gateTitle"></h1>
       <p id="gateMsg"></p>
-      <a id="gateApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=gate&amp;utm_campaign=webgame_soon" target="_blank" rel="noopener">앱 구경하기</a>
+      <a id="gateApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=gate&amp;utm_campaign=webgame" target="_blank" rel="noopener">앱 구경하기</a>
     </div>
   </div></div>
   <div id="rooms" class="sheet brand"><div class="card">
@@ -531,7 +562,7 @@
     <div id="endStats"></div>
     <div class="acts"><button id="again">한 판 더</button><button id="swap">역할 바꾸기</button></div>
     <!-- 다음 판이 먼저라 버튼 아래 작은 카드로 둔다. 아이콘은 앱의 한국어 아이콘(app_icon_ko)을 96px 로 줄여 넣었다(2026-11-06). /download 가 폰을 보고 맞는 스토어로 보내며 어디서 왔는지 남긴다 -->
-    <a id="endApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=result&amp;utm_campaign=webgame_test&amp;utm_content=card" target="_blank" rel="noopener">
+    <a id="endApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=result&amp;utm_campaign=webgame&amp;utm_content=card" target="_blank" rel="noopener">
       <img src="data:image/webp;base64,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" alt="" width="48" height="48">
       <span class="txt"><b>경찰과 도둑 앱</b><span>동네에서 직접 잡고 도망가요</span></span>
       <span class="get">앱 받기</span>

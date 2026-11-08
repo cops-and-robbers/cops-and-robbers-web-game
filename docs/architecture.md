@@ -64,5 +64,5 @@ tools/             검사와 빌드
 | `pnpm run check:rooms` | 방 여러 개가 섞이지 않는지. 일부러 섞어 검사가 잡는 것도 확인해요 |
 | `pnpm run check:view` | 숨은 상대의 이름과 위치가 새지 않는지 |
 | `pnpm run check:server` | 실제 런타임에서 가짜 접속 4개로 한 판. 입장, 끊김, 재접속, 판 끝 |
-| `gateway/public/index.html` | 폰에서 열어 통신사별 입구와 방 위치, 왕복 시간을 재요. 서버를 올린 뒤에 써요 |
+| `gateway/public/rtt.html` (주소 `/rtt`) | 폰에서 열어 통신사별 입구와 방 위치, 왕복 시간을 재요. 서버를 올린 뒤에 써요 |
 | `pnpm run check:balance` | 봇끼리 돌려 승률과 판 길이. 20판이면 오차가 ±20%쯤이에요 |

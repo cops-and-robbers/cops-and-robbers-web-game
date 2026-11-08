@@ -12,6 +12,7 @@ const INPUT_IDLE_MS = 1000;
 const RETRY_MS = 2000;
 const RETRY_MAX = 15;
 const ROOMS_EVERY_MS = 5000;
+const STATUS_WAIT_MS = 4000;
 
 const store = {
   get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
@@ -380,11 +381,8 @@ function leaveInApp() {
   if (canOpen && !store.get("triedOut")) { store.set("triedOut", "1"); open(); }
 }
 
-// 운영 상태(어드민이 바꿈)를 먼저 읽고 첫 화면을 고른다. 내 컴퓨터 파일처럼 못 읽으면 지금처럼 열쇠로만 고른다
-async function readStatus() {
-  if (location.protocol === "file:") return null;
-  try { const res = await fetch("/status", { cache: "no-store" }); return res.ok ? await res.json() : null; } catch { return null; }
-}
+// 운영 상태(어드민이 바꿈)를 먼저 읽고 첫 화면을 고른다. 읽기는 shell.html 머리에서 시작했다. 내 컴퓨터 파일처럼 못 읽으면 지금처럼 열쇠로만 고른다
+const readStatus = () => Promise.race([window.__status, new Promise(done => setTimeout(done, STATUS_WAIT_MS, null))]);
 // 다시 여는 예정 시각을 "오후 9시쯤", 날이 다르면 "11월 7일 오후 9시쯤" 으로. 분은 10분 단위로 어림한다
 function untilText(iso) {
   const t = new Date(iso); if (Number.isNaN(t.getTime())) return "";
@@ -411,6 +409,8 @@ function showGate(mode, st) {
   else if (mode === "soon" && !NET_KEY) showGate("soon", st);
   else if (NET_ROOM && (NET_KEY || mode === "open")) { online = createOnline(); leaveInApp(); }
   else if (NET_KEY || mode === "open") { showHome(); leaveInApp(); }
+  else $("start").className = "sheet show";
+  document.documentElement.removeAttribute("data-boot");
 })();
 window.__game.online = () => online;
 // 시안 보기: ?howto=police 로 하는 방법 안내만 띄운다
