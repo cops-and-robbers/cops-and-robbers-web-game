@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-boot>
 <head>
 <meta charset="utf-8">
 <meta name="mobile-web-app-capable" content="yes">
@@ -7,6 +7,12 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>경찰과 도둑 시제품</title>
+<script>
+  // 어떤 첫 화면을 띄울지는 운영 상태를 읽어야 안다. 문서를 받는 동안 같이 읽어 기다림을 줄인다
+  if (/(^|[#&?])room=/.test(location.hash + location.search)) document.documentElement.dataset.boot = "room";
+  window.__status = location.protocol === "file:" ? null : fetch("/status", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
+</script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root { --ink:#1D232B; --sub:#545E6E; --police:#2A9BEF; --robber:#35C26B; --danger:#E2574C; --team:var(--police); }
@@ -246,6 +252,11 @@
   .sheet.brand { padding:0; background:none; }
   #brandBg { position:absolute; inset:0; z-index:19; display:none; background:#A6D8FF; }
   #brandBg svg { display:block; width:100%; height:100%; }
+  /* 첫 화면이 정해지기 전. 어떤 화면이 와도 같은 하늘과 그림 위에 카드만 나타나게 해서 화면이 바뀌어 보이지 않게 한다(net.js 맨 아래). 초대 링크는 그림 없이 카드 하나가 온다 */
+  html[data-boot], html[data-boot] body { background:#A6D8FF; }
+  html[data-boot] #brandBg { display:block; }
+  html[data-boot] #home { display:flex; }
+  html[data-boot] #home .homeCard, html[data-boot=room] #home .hero { visibility:hidden; }
   #stage:has(> .sheet.brand.show) #brandBg { display:block; }
   #home .homeWrap { position:relative; z-index:1; }
   .soloTile { display:flex !important; align-items:center; gap:12px; width:100%; min-height:60px !important; margin-top:4px; padding:8px 14px 8px 10px; text-align:left; border:2px solid #E3E7ED !important; background:#fff !important; box-shadow:0 3px 0 #E3E7ED; }
@@ -440,7 +451,7 @@
     <button id="btnRun"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><span id="btnRunLabel">달리기</span></button>
     <button id="btnCatch">잡기</button>
   </div>
-  <div id="start" class="sheet show"><div class="card">
+  <div id="start" class="sheet"><div class="card">
     <h1>경찰과 도둑</h1>
     <p>넓은 동네에서 숨고, 들키면 도망치고, 쫓아서 잡아요.</p>
     <div class="picks">
@@ -475,8 +486,8 @@
   </div></div>
   <div id="home" class="sheet brand"><div class="homeWrap">
     <div class="hero">
-      <img class="logo" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
-      <div class="stage"><div class="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
+      <img class="logo" decoding="sync" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
+      <div class="stage"><div class="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" decoding="sync" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
     </div>
     <div class="card homeCard"><div class="homeActs">
       <button id="homeCreate" class="primary"><img src="data:image/svg+xml;base64,/*B64:siren.svg*/" alt="">방 만들기</button>
