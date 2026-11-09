@@ -182,6 +182,15 @@ function createGameLogic() {
     const bushes = [], area = W * H * 0.6, target = area / 230000 * (0.55 + cover * 0.6) * th.bush;
     const minD = Math.max(150, 245 / Math.sqrt(th.bush));
     const nearB = (x, y, d) => buildings.some(b => inRect(inflate(b, d), x, y));
+    // 둥근 수풀은 그림이 통째로 보이는 자리에만 둔다. 길 위는 어색하고, 나무 잎 밑과 건물 뒤(벽이 화면 위로 솟는다)에서는 그림이 가려진다
+    const artClear = (x, y, rx, ry) => {
+      const hw = rx * 1.1;
+      if (roads.some(q => x + hw > q.x - 10 && x - hw < q.x + q.w + 10 && y + ry > q.y - 10 && y - ry < q.y + q.h + 10)) return false;
+      return !buildings.some(o => {
+        if (o.kind === "tree") { const gy = o.y + o.h; return Math.abs(x - (o.x + o.w / 2)) < o.crown * 0.85 + hw && y + ry > gy - o.crown * 2.4 && y - ry < gy + 10; }
+        return x + hw > o.x && x - hw < o.x + o.w && y + ry > o.y - (o.kind === "bin" ? 30 : 70) && y + ry * 0.82 < o.y + o.h;
+      });
+    };
     for (let t = 0; t < 2600 && bushes.length < target; t++) {
       let x = rr(box.x, box.x + box.w), y = rr(box.y, box.y + box.h), r = rr(48, 66), rx = r * 0.98, ry = r * 0.78, hedge = false;
       if (homes.length && rnd() < (opt.theme === "park" ? 0.25 : 0.88)) {
@@ -192,6 +201,7 @@ function createGameLogic() {
       if (!zin(x - rx, y) || !zin(x + rx, y) || !zin(x, y + ry) || !zin(x, y - ry) || (!hedge && nearB(x, y, 30)) || buildings.some(o => o.kind === "bin" && inRect(inflate(o, 40), x, y)) || buildings.some(o => inRect(o, x, y)) || Math.hypot(x - jail.x, y - jail.y) < CFG.GATE_R + 50) continue;
       if (bushes.some(b => Math.hypot(b.x - x, b.y - y) < minD)) continue;
       if (!hedge && opt.theme !== "park" && !nearB(x, y, 170)) continue;
+      if (!hedge && !artClear(x, y, rx, ry)) continue;
       bushes.push({ x: Math.round(x), y: Math.round(y), r: Math.round(r), rx: Math.round(rx), ry: Math.round(ry), hedge });
     }
     return { W, H, zone, jail: { ...jail, r: CFG.JAIL.r }, buildings, bushes, roads, parks, theme: opt.theme, seed: seed0 };
