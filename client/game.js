@@ -170,11 +170,16 @@ function drawBush(x, b, w, h, foot, pal, seed, snow) {
       const pw = Math.max(b.rx * 2.6, 70), top = foot - b.ry * 1.5, n = Math.max(2, Math.ceil((foot - top) / (pw * 0.56 * 0.45)) + 1);
       for (let k = 0; k < n; k++) drawArt(x, "bush", cx, top + k * (foot - top) / (n - 1), pw, col);
     }
-  } else if (b.hedge) {
+  } else {
     // 둥근 관목: 낮은 무더기
     groundShadow(x, cx, foot - 3, b.rx * 1.02, b.r * 0.2);
     if (snow) crown(x, cx, foot - b.ry * 0.86, b.rx, b.ry * 0.9, pal, seed, snow);
-    else drawArt(x, "bush", cx, foot, b.rx * 2.2, artColors(G.th));
+    else {
+      // 부품 하나는 납작해서 숨는 범위 위쪽이 빈다. 뒤에 덩이를 하나 더 올려 범위를 덮는다
+      const col = artColors(G.th);
+      drawArt(x, "bush", cx, foot - b.ry * 0.62, b.rx * 1.85, col);
+      drawArt(x, "bush", cx, foot, b.rx * 2.2, col);
+    }
   }
 }
 function drawTree(x, b, w, h, foot, pal, seed, T) {
