@@ -16,6 +16,8 @@ let G = null, chars = [], role = null, zoom = 1, camX = 0, camY = 0, W = 0, H = 
 let online = null;
 // 게임 방법 안내(client/guide.js)가 장면을 연기시키는 동안 내 입력 대신 대본을 넣는다
 let driver = null;
+// 혼자 하기에서 고르는 동안 지도 미리보기(client/solo.js)가 카메라만 움직인다
+let preview = null;
 const seen = a => (online ? online.sees(a) : sees(G.player, a));
 const fitStage = () => {
   W = stage.clientWidth; H = stage.clientHeight; fog.width = W; fog.height = H;
@@ -657,7 +659,6 @@ const svgUrl = n => "data:image/svg+xml," + encodeURIComponent(SVGS[n]);
 const ROBBER_ICON = svgUrl("robber-front"), POLICE_ICON = svgUrl("police-front");
 // 이긴 쪽은 앱의 승리 그림(트로피 냥파, 브이 도둥이)으로 보여 준다
 const WIN_ICON = { police: "data:image/svg+xml;base64,/*B64:win-cop.svg*/", robber: "data:image/svg+xml;base64,/*B64:win-rob.svg*/" };
-$("imgPolice").src = POLICE_ICON; $("imgRobber").src = ROBBER_ICON;
 const toast = (t, kind = "") => { const n = $("toast"); n.textContent = t; n.className = "show " + kind; toastT = 3; };
 const CHASE_ART = { police: "data:image/svg+xml;base64,/*B64:police-chase.svg*/", robber: "data:image/svg+xml;base64,/*B64:robber-chase.svg*/" };
 const banner = (lead, main) => { $("bannerLead").textContent = lead; $("bannerMain").textContent = main; $("bannerArt").src = CHASE_ART[role] || CHASE_ART.police; $("banner").className = "show " + role; bannerT = 1.8; };
@@ -811,12 +812,12 @@ async function tryLandscape() {
 addEventListener("resize", syncRotate); addEventListener("orientationchange", syncRotate);
 $("rotateSkip").onclick = () => { allowPortrait = true; syncRotate(); };
 const begin = r => { start(r); syncRotate(); tryLandscape(); };
-document.querySelectorAll("[data-role-pick]").forEach(b => b.addEventListener("click", () => begin(b.dataset.rolePick)));
 $("again").onclick = () => (online ? online.toLobby() : begin(role));
 $("swap").onclick = () => begin(role === "police" ? "robber" : "police");
 
 function frame(dt) {
   if (!G) return;
+  if (preview) { preview(dt); return; }
   const p = G.player;
   if (paused) return;
   if (hitStop > 0) { hitStop -= dt; dt = 0.001; }
@@ -938,7 +939,6 @@ $("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !
 addEventListener("pointerdown", unlockAudio); addEventListener("keydown", unlockAudio);
 
 const pick = (attr, set) => document.querySelectorAll(`[${attr}]`).forEach(b => { b.addEventListener("click", () => { set(b.getAttribute(attr)); document.querySelectorAll(`[${attr}]`).forEach(o => o.classList.toggle("on", o === b)); }); });
-pick("data-diff", v => pickDiff = v); pick("data-theme-pick", v => pickTheme = v);
 // 시작 화면 뒤에도 지도를 깔아 둔다
 G = newGame({ seed: 11, theme: "town" }); bakeMap(); bakeBushes(); bakeMini(); camX = (CFG.W - W / zoom) / 2; camY = (CFG.H - H / zoom) / 2; world.style.transform = `scale(${zoom}) translate(${-camX}px, ${-camY}px)`; G = null;
 let last = null;

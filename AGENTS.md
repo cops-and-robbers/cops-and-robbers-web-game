@@ -30,6 +30,7 @@ pnpm run build   # dist/game.html
 | 이슈, 브랜치, 커밋, PR | `docs/conventions.md` |
 | 화면 문구, 영어와 일본어 | `docs/i18n.md` |
 | 게임 방법 안내(첫 화면 버튼, 장면 대본) | `docs/guide.md` |
+| 혼자 하기 시작 화면(팀, 난이도, 지도 고르기) | `docs/solo-start.md` |
 | 무엇을 어떤 순서로 만드는지 | `docs/roadmap.md` |
 
 ## 스킬 (.claude/skills)

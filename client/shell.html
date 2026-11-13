@@ -546,6 +546,92 @@
   #guide[data-mode=sheet] .gList { display:none; }
   #guide[data-mode=sheet] .gNowHead { margin-top:8px; }
   @media (prefers-reduced-motion:reduce) { #guide .gFinger { transition:none; } }
+  /* 혼자 하기(client/solo.js). 고르는 칸과 지도 미리보기로 화면을 나눈다. 게임 화면(#stage)은 남은 자리에서 고른 지도를 천천히 보여 준다. 근거는 docs/solo-start.md */
+  body.picking #stage { left:var(--sl,0px); right:var(--sr,0px); bottom:var(--sb,0px); }
+  body.picking #fog, body.picking #hud { display:none !important; }
+  body.picking #start.show { background:none; padding:0; pointer-events:none; display:block; overflow:visible; }
+  #start { position:fixed; }
+  #start .startCard { position:absolute; pointer-events:auto; display:flex; flex-direction:column; gap:0; width:auto; max-width:none; margin:0; border-radius:0; padding:18px 22px 0; background:#fff; overflow-y:auto; overscroll-behavior:contain; text-align:left; box-shadow:none; }
+  #start[data-mode=side] .startCard { left:0; top:0; bottom:0; width:var(--sl); padding-left:max(22px,env(safe-area-inset-left)); box-shadow:1px 0 0 #E6EAEF; }
+  /* 폰 가로는 오른쪽: 시작 버튼이 오른손 엄지 자리에 오고, 왼쪽 지도를 보며 고른다(게임 방법 안내와 같은 배치) */
+  #start[data-mode=split] .startCard { right:0; top:0; bottom:0; width:var(--sr); padding-right:max(22px,env(safe-area-inset-right)); box-shadow:-1px 0 0 #E6EAEF; }
+  #start[data-mode=sheet] .startCard { left:0; right:0; bottom:0; max-height:var(--sb); border-radius:22px 22px 0 0; box-shadow:0 -1px 0 #E6EAEF, 0 -10px 30px rgba(29,35,43,.12); }
+  #start .stHead { display:flex; align-items:center; gap:8px; }
+  #start .stHead h1 { margin:0; font-size:22px; font-weight:900; letter-spacing:-.01em; }
+  #start .stHead .guidePick { margin-left:auto; position:relative; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:34px; padding:0 14px 0 11px; border:0; border-radius:999px; background:#F3F5F8; color:var(--ink); font:inherit; font-size:13px; font-weight:800; cursor:pointer; }
+  #start .stHead .guidePick .g { width:18px; height:18px; color:var(--police); }
+  #start .stBack { position:relative; width:36px; height:36px; margin-left:-8px; border:0; border-radius:50%; background:none; cursor:pointer; }
+  #start .stBack::before { content:""; position:absolute; left:14px; top:12px; width:10px; height:10px; border-left:2.5px solid var(--ink); border-bottom:2.5px solid var(--ink); transform:rotate(45deg); }
+  #start .stLabel { margin:18px 0 8px; font-size:13px; font-weight:800; color:var(--sub); }
+  /* 팀: 게임 캐릭터 고르기처럼 큰 그림. 고르면 편 색 테두리와 체크, 그림이 살짝 뛴다. 두 편은 같은 크기 */
+  #start .teams { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  #start .team { position:relative; display:flex; flex-direction:column; align-items:stretch; gap:0; padding:0; border:0; border-radius:18px; overflow:hidden; background:#F3F5F8; color:var(--ink); font:inherit; text-align:left; cursor:pointer; box-shadow:inset 0 0 0 2px transparent; transition:box-shadow .15s, transform .15s; }
+  #start .team .art { display:grid; place-items:center; height:96px; background:#E6EBF1; }
+  #start .team.police .art { background:linear-gradient(#DCEEFF,#C9E3FB); } #start .team.robber .art { background:linear-gradient(#E1F3E7,#CDEBD7); }
+  #start .team .art img { height:84px; width:auto; transform-origin:50% 100%; }
+  #start .team .tx { padding:10px 12px 12px; }
+  #start .team b { display:block; font-size:16px; font-weight:900; word-break:keep-all; } /* 이름은 띄어쓰기에서만 줄을 바꾼다("ドドゥン/イ" 막기) */
+  #start .team small { display:block; margin-top:3px; font-size:12.5px; line-height:1.4; color:var(--sub); font-weight:600; }
+  #start .team .ck { position:absolute; right:8px; top:8px; width:24px; height:24px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(29,35,43,.2); opacity:0; transform:scale(.6); transition:opacity .15s, transform .15s; }
+  #start .team .ck::after { content:""; position:absolute; left:8px; top:5px; width:6px; height:11px; border-right:2.5px solid #fff; border-bottom:2.5px solid #fff; transform:rotate(45deg); }
+  #start .team.police.on { box-shadow:inset 0 0 0 3px var(--police); } #start .team.robber.on { box-shadow:inset 0 0 0 3px var(--robber); }
+  #start .team.police.on .ck { background:var(--police); } #start .team.robber.on .ck { background:var(--robber); }
+  #start .team.on .ck { opacity:1; transform:none; }
+  #start .team.on .art img { animation:hop .5s cubic-bezier(.3,1.6,.5,1); }
+  #start[data-team=police] .team.robber:not(.on) .art img, #start[data-team=robber] .team.police:not(.on) .art img { filter:saturate(.35); opacity:.75; }
+  @keyframes hop { 0% { transform:translateY(0) scale(1,1); } 30% { transform:translateY(-10px) scale(.97,1.04); } 60% { transform:translateY(0) scale(1.04,.96); } 100% { transform:none; } }
+  @media (hover:hover) { #start .team:not(.on):hover { transform:translateY(-2px); } }
+  /* 난이도: 막대 수로 세기를 보이고 한 줄 설명 */
+  #start .diffs { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  #start .diffs button { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-height:64px; padding:10px 10px 9px; border:0; border-radius:14px; background:#F3F5F8; color:var(--ink); font:inherit; text-align:left; cursor:pointer; box-shadow:inset 0 0 0 2px transparent; }
+  #start .diffs .lv { display:flex; gap:3px; margin-bottom:4px; } #start .diffs .lv i { width:14px; height:5px; border-radius:3px; background:#D5DAE1; } #start .diffs .lv i.f { background:#8A94A3; }
+  #start .diffs b { font-size:14px; font-weight:800; } #start .diffs small { font-size:11.5px; line-height:1.35; color:var(--sub); font-weight:600; }
+  #start .diffs button.on { background:#fff; box-shadow:inset 0 0 0 2px var(--ink); } #start .diffs button.on .lv i.f { background:#FFB800; }
+  /* 지도: 위에서 본 작은 그림. 고른 지도가 오른쪽(폰 세로는 위)에 실제 그림으로 지나간다 */
+  #start .stMapHead { display:flex; align-items:center; justify-content:space-between; }
+  #start .reroll { display:inline-flex; align-items:center; gap:5px; height:30px; margin-top:10px; padding:0 10px; border:0; border-radius:999px; background:#F3F5F8; color:var(--ink); font:inherit; font-size:12.5px; font-weight:800; cursor:pointer; }
+  #start .reroll svg { width:15px; height:15px; }
+  #start .maps { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  #start .maps button { display:flex; flex-direction:column; gap:5px; padding:5px 5px 7px; border:0; border-radius:14px; background:#F3F5F8; color:var(--ink); font:inherit; cursor:pointer; box-shadow:inset 0 0 0 2px transparent; }
+  #start .maps .mThumb { display:block; width:100%; aspect-ratio:3/2; height:auto; border-radius:10px; }
+  #start .maps .rnd { display:grid; place-items:center; background:repeating-linear-gradient(135deg,#E8ECF2 0 10px,#F1F4F8 10px 20px); }
+  #start .maps .rnd i { font-style:normal; font-size:26px; font-weight:900; color:#8A94A3; }
+  #start .maps b { font-size:13px; font-weight:800; text-align:center; }
+  #start .maps button.on { background:#fff; box-shadow:inset 0 0 0 2px var(--ink); }
+  #start .stRules { margin-top:16px; border-radius:14px; background:#F7F8FA; }
+  #start .stRules summary { padding:12px 14px; font-size:13.5px; font-weight:800; cursor:pointer; list-style-position:inside; }
+  #start .stRules ul { margin:0; padding:0 14px 12px 32px; font-size:13px; line-height:1.6; color:#3E4756; }
+  /* 시작: 맨 아래에 붙어 늘 보인다. 고른 편 색 */
+  #start .stFoot { position:sticky; bottom:0; margin:16px -22px 0; padding:12px 22px max(14px,env(safe-area-inset-bottom)); background:linear-gradient(rgba(255,255,255,0),#fff 18px); }
+  #start[data-mode=side] .stFoot { margin-left:calc(-1 * max(22px,env(safe-area-inset-left))); padding-left:max(22px,env(safe-area-inset-left)); }
+  #start[data-mode=split] .stFoot { margin-right:calc(-1 * max(22px,env(safe-area-inset-right))); padding-right:max(22px,env(safe-area-inset-right)); }
+  #start .stGo { width:100%; height:54px; border:0; border-radius:16px; background:#E6EAEF; color:#8A94A3; font:inherit; font-size:17px; font-weight:900; cursor:pointer; }
+  #start .stGo:not(:disabled)[data-team=police] { background:var(--police); color:#fff; box-shadow:0 4px 0 #1C72B8; }
+  #start .stGo:not(:disabled)[data-team=robber] { background:var(--robber); color:#fff; box-shadow:0 4px 0 #1C8A4B; }
+  #start .stGo:not(:disabled):active { transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.2); }
+  #start .stGo:disabled { cursor:default; }
+  #start button:focus-visible, #start summary:focus-visible { outline:2px solid var(--police); outline-offset:2px; }
+  /* 미리보기 위 지도 이름 */
+  #soloMap { display:none; position:absolute; left:16px; bottom:16px; z-index:5; flex-direction:column; gap:2px; padding:10px 14px; border-radius:14px; background:rgba(255,255,255,.92); box-shadow:0 4px 14px rgba(29,35,43,.16); pointer-events:none; max-width:calc(100% - 32px); }
+  body.picking #soloMap { display:flex; }
+  #soloMap b { font-size:17px; font-weight:900; } #soloMap span { font-size:13px; color:var(--sub); font-weight:600; }
+  #soloMap.random b::before { content:"? "; color:var(--sub); }
+  /* 낮은 화면(폰 가로): 한 화면에 다 들어오게 팀은 가로 카드, 난이도는 한 줄, 지도는 여섯 칸 한 줄 */
+  @media (max-height:460px) {
+    #start .startCard { padding-top:10px; } #start .stHead h1 { font-size:18px; } #start .stHead .guidePick { height:30px; font-size:12px; }
+    #start .stLabel { margin:10px 0 5px; font-size:12px; }
+    #start .team { flex-direction:row; align-items:center; }
+    #start .team .art { width:58px; height:58px; flex:none; } #start .team .art img { height:44px; }
+    #start .team .tx { padding:6px 26px 6px 10px; min-width:0; } #start .team b { font-size:14px; } #start .team small { font-size:11px; margin-top:1px; }
+    #start .team .ck { width:20px; height:20px; right:6px; top:6px; } #start .team .ck::after { left:6.5px; top:3.5px; width:5px; height:9px; }
+    #start .diffs button { flex-direction:row; align-items:center; gap:7px; min-height:38px; padding:0 10px; } #start .diffs .lv { margin:0; gap:2px; } #start .diffs .lv i { width:7px; } #start .diffs small { display:none; } #start .diffs b { font-size:13px; white-space:nowrap; }
+    #start .stMapHead .reroll { height:26px; margin-top:6px; font-size:11.5px; }
+    #start .maps { grid-template-columns:repeat(6,1fr); gap:5px; } #start .maps button { padding:3px 3px 4px; gap:2px; border-radius:10px; } #start .maps .mThumb { border-radius:7px; } #start .maps b { font-size:10.5px; } #start .maps .rnd i { font-size:16px; }
+    #start .stRules { margin-top:10px; } #start .stRules summary { padding:9px 12px; font-size:12.5px; }
+    #start .stGo { height:44px; font-size:15px; } #start .stFoot { margin-top:8px; padding-top:6px; padding-bottom:max(10px,env(safe-area-inset-bottom)); }
+    #soloMap { left:10px; bottom:10px; padding:7px 10px; } #soloMap b { font-size:14px; } #soloMap span { font-size:11.5px; }
+  }
+  @media (prefers-reduced-motion:reduce) { #start .team.on .art img { animation:none; } }
 </style>
 </head>
 <body>
@@ -575,26 +661,36 @@
     <button id="btnRun"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><span id="btnRunLabel" data-t="run">달리기</span></button>
     <button id="btnCatch" data-t="catch">잡기</button>
   </div>
-  <div id="start" class="sheet"><div class="card">
-    <h1 data-t="brand">경찰과 도둑</h1>
-    <p data-t="pickTeam">팀을 선택하세요.</p>
-    <div class="picks">
-      <button class="pick p" data-role-pick="police"><img id="imgPolice" alt=""><b data-t="copName">경찰 냥파</b><span data-t="copGoal">도둑 4명을 모두 체포해요</span></button>
-      <button class="pick r" data-role-pick="robber"><img id="imgRobber" alt=""><b data-t="robName">도둑 도둥이</b><span data-t="robGoal">3분 동안 잡히지 않고 버텨요</span></button>
+  <div id="start" class="sheet"><div class="card startCard" role="dialog" aria-labelledby="soloTitle">
+    <div class="stHead">
+      <button type="button" class="stBack" data-ta="toHome" aria-label="처음 화면으로" hidden></button>
+      <h1 id="soloTitle" data-t="solo.title">혼자 해 보기</h1>
+      <button type="button" class="langPick guidePick" data-solo-guide><svg class="g" aria-hidden="true" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="currentColor"/><path d="M8.3 6.6c0-.5.5-.8.9-.5l4.6 3.2c.4.3.4.8 0 1.1l-4.6 3.2c-.4.3-.9 0-.9-.5V6.6Z" fill="#fff"/></svg><span class="nm" data-t="guide">게임 방법</span></button>
     </div>
-    <div class="opts">
-      <div class="seg"><span data-t="diffLabel">난이도</span><button data-diff="easy" data-t="diff.easy">쉬움</button><button data-diff="normal" class="on" data-t="diff.normal">보통</button><button data-diff="hard" data-t="diff.hard">어려움</button></div>
-      <div class="seg wrap"><span data-t="themeLabel">테마</span><button data-theme-pick="random" class="on" data-t="theme.random">랜덤</button><button data-theme-pick="town" data-t="theme.town">동네</button><button data-theme-pick="night" data-t="theme.night">밤 골목</button><button data-theme-pick="park" data-t="theme.park">공원</button><button data-theme-pick="city" data-t="theme.city">도심</button><button data-theme-pick="snow" data-t="theme.snow">눈 마을</button></div>
+    <h2 class="stLabel" id="stTeamL" data-t="solo.team">팀</h2>
+    <div class="teams" role="radiogroup" aria-labelledby="stTeamL">
+      <button type="button" class="team police" role="radio" aria-checked="false" data-role-pick="police"><span class="art"><img src="data:image/svg+xml;base64,/*B64:police-chase.svg*/" alt=""></span><span class="tx"><b data-t="copName">경찰 냥파</b><small data-t="solo.copGoal">도둑을 모두 잡아 감옥에 보내요</small></span><i class="ck" aria-hidden="true"></i></button>
+      <button type="button" class="team robber" role="radio" aria-checked="false" data-role-pick="robber"><span class="art"><img src="data:image/svg+xml;base64,/*B64:robber-chase.svg*/" alt=""></span><span class="tx"><b data-t="robName">도둑 도둥이</b><small data-t="solo.robGoal">끝날 때까지 잡히지 않고 버텨요</small></span><i class="ck" aria-hidden="true"></i></button>
     </div>
-    <div class="rules" data-th="rules">
-      <b>시야</b> 바라보는 쪽만 멀리 보여요. 내가 보는 상대도 나를 볼 수 있어요.<br>
-      <b>위치 공개</b> 도둑 위치가 주기적으로 경찰에게 공개돼요. 공개되면 바로 자리를 옮겨요.<br>
-      <b>숨을 곳</b> 덤불에 숨으면 멀리서 안 보여요. 달리면 흔들려 들켜요. 나무와 쓰레기통 뒤도 시야를 가려요.<br>
-      <b>달리기</b> 체력이 다 떨어지면 잠깐 못 달려요. 골목을 돌면 따돌릴 수 있어요.<br>
-      <b>구역</b> 도둑이 구역 밖에 5초 넘게 있으면 위치가 경찰에게 보여요.<br>
-      <b>감옥</b> 동료가 감옥 앞에 서 있으면 문이 열려요. 밖으로 나가 3초가 지나면 탈옥해요. 그동안은 잡히지 않아요.
+    <h2 class="stLabel" id="stDiffL" data-t="diffLabel">난이도</h2>
+    <div class="diffs" role="radiogroup" aria-labelledby="stDiffL">
+      <button type="button" role="radio" aria-checked="false" data-diff="easy"><span class="lv" aria-hidden="true"><i class="f"></i><i></i><i></i></span><b data-t="diff.easy">쉬움</b><small data-t="solo.diffNote.easy">봇이 늦게 알아채요</small></button>
+      <button type="button" role="radio" aria-checked="false" data-diff="normal"><span class="lv" aria-hidden="true"><i class="f"></i><i class="f"></i><i></i></span><b data-t="diff.normal">보통</b><small data-t="solo.diffNote.normal">알맞게 겨뤄요</small></button>
+      <button type="button" role="radio" aria-checked="false" data-diff="hard"><span class="lv" aria-hidden="true"><i class="f"></i><i class="f"></i><i class="f"></i></span><b data-t="diff.hard">어려움</b><small data-t="solo.diffNote.hard">봇이 빨리 알아채요</small></button>
     </div>
+    <div class="stMapHead"><h2 class="stLabel" id="stMapL" data-t="solo.map">지도</h2><button type="button" class="reroll"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 7.5A6 6 0 0 0 4.6 6.2M4.5 12.5a6 6 0 0 0 10.9 1.3"/><path d="M15.8 3.6v4h-4M4.2 16.4v-4h4"/></svg><span data-t="solo.reroll">다른 지도</span></button></div>
+    <div class="maps" role="radiogroup" aria-labelledby="stMapL">
+      <button type="button" role="radio" aria-checked="false" data-theme-pick="random"><span class="mThumb rnd" aria-hidden="true"><i>?</i></span><b data-t="theme.random">랜덤</b></button>
+      <button type="button" role="radio" aria-checked="false" data-theme-pick="town"><canvas class="mThumb" width="168" height="112" aria-hidden="true"></canvas><b data-t="theme.town">동네</b></button>
+      <button type="button" role="radio" aria-checked="false" data-theme-pick="night"><canvas class="mThumb" width="168" height="112" aria-hidden="true"></canvas><b data-t="theme.night">밤 골목</b></button>
+      <button type="button" role="radio" aria-checked="false" data-theme-pick="park"><canvas class="mThumb" width="168" height="112" aria-hidden="true"></canvas><b data-t="theme.park">공원</b></button>
+      <button type="button" role="radio" aria-checked="false" data-theme-pick="city"><canvas class="mThumb" width="168" height="112" aria-hidden="true"></canvas><b data-t="theme.city">도심</b></button>
+      <button type="button" role="radio" aria-checked="false" data-theme-pick="snow"><canvas class="mThumb" width="168" height="112" aria-hidden="true"></canvas><b data-t="theme.snow">눈 마을</b></button>
+    </div>
+    <details class="stRules"><summary data-t="solo.rulesTitle">규칙 한눈에 보기</summary><ul data-th="solo.rules"><li>바라보는 쪽만 멀리 보여요.</li></ul></details>
+    <div class="stFoot"><button type="button" id="soloGo" class="stGo" disabled>팀을 골라 주세요</button></div>
   </div></div>
+  <div id="soloMap" aria-hidden="true"><b></b><span></span></div>
   <div id="lobby" class="sheet"><div class="card">
     <img class="cardLogo" data-logo src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑" data-talt="brand">
     <h1 id="lobbyTitle"></h1>

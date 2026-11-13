@@ -312,7 +312,7 @@ function showHome() {
   const join = () => { const code = $("homeCode").value.trim().toUpperCase(); if (!/^[A-Z0-9]{4,8}$/.test(code)) { $("homeCodeMsg").textContent = tt("codeRule"); return; } goRoom(code, false); };
   $("homeJoinGo").onclick = join;
   $("homeCode").onkeydown = e => { if (e.key === "Enter") join(); };
-  $("homeSolo").onclick = () => { stopRooms(); $("home").className = "sheet brand"; $("start").className = "sheet show"; };
+  $("homeSolo").onclick = () => { stopRooms(); $("home").className = "sheet brand"; openSolo(true); };
   $("homeAll").onclick = showRooms;
 }
 
@@ -425,7 +425,7 @@ function showGate(mode, st) {
   else if (mode === "soon" && !NET_KEY) showGate("soon", st);
   else if (NET_ROOM && (NET_KEY || mode === "open")) { online = createOnline(); leaveInApp(); }
   else if (NET_KEY || mode === "open") { showHome(); leaveInApp(); }
-  else $("start").className = "sheet show";
+  else openSolo(false);
   document.documentElement.removeAttribute("data-boot");
 })();
 window.__game.online = () => online;
