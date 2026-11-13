@@ -14,7 +14,12 @@ function createSolo() {
   let team = ["police", "robber"].includes(store.get("team")) ? store.get("team") : null;
   let diff = ["easy", "normal", "hard"].includes(store.get("diff")) ? store.get("diff") : "normal";
   let theme = ["random", ...THEME_KEYS].includes(store.get("theme")) ? store.get("theme") : "random";
-  let seed = newSeed(), shown = null, t = 0, spin = 0, spinT = 0, open = false;
+  let seed = newSeed(), shown = null, t = 0, spin = 0, spinT = 0, open = false, fromHome = false, wentFull = false;
+  // 폰에서는 나가기를 고르는 칸 밖, 지도 위에 띄운다. 설정을 얼마나 내렸든 바로 나갈 수 있다
+  const exitBtn = document.createElement("button");
+  exitBtn.type = "button"; exitBtn.className = "soloExit"; exitBtn.setAttribute("aria-label", tt("toHome"));
+  exitBtn.innerHTML = `<i aria-hidden="true"></i><span>${tt("quit")}</span>`;
+  document.body.append(exitBtn);
   function newSeed() { return crypto.getRandomValues(new Uint32Array(1))[0] >>> 0; }
 
   // ── 지도 카드의 작은 그림: 테마마다 지도 하나를 만들어 위에서 본 모양으로 그린다 ──
@@ -69,6 +74,7 @@ function createSolo() {
   function layout() {
     const portrait = innerHeight > innerWidth, wide = innerWidth >= 900, root = document.documentElement.style;
     sheet.dataset.mode = portrait ? "sheet" : wide ? "side" : "split";
+    document.body.classList.toggle("solo-float", fromHome && !(wide && !portrait));
     root.setProperty("--sl", !portrait && wide ? `${Math.round(Math.min(500, innerWidth * 0.42))}px` : "0px");
     root.setProperty("--sr", !portrait && !wide ? `${Math.round(Math.min(420, innerWidth * 0.56))}px` : "0px");
     root.setProperty("--sb", portrait ? `${Math.round(Math.min(innerHeight * 0.66, card.scrollHeight + 8))}px` : "0px");
@@ -99,16 +105,18 @@ function createSolo() {
     const n = items[(k + (e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]; n.focus(); n.click();
   }));
 
-  function show(fromHome) {
-    open = true;
+  function show(home, full) {
+    open = true; fromHome = !!home;
     q(".stBack").hidden = !fromHome;
+    // 폰에서 첫 화면 버튼으로 들어오면 주소창 없이 전체 화면으로. 누른 순간에만 허락되어 그 자리에서 부른다(아이폰 사파리는 지원하지 않아 그대로)
+    if (full && isPhone() && !document.fullscreenElement) document.documentElement.requestFullscreen?.().then(() => { wentFull = true; }, () => {});
     sheet.className = "sheet show"; document.body.classList.add("picking");
     $("hud").className = ""; preview = drift;
     shown = null; layout(); sync();
   }
   function hide() {
     open = false; preview = null;
-    document.body.classList.remove("picking");
+    document.body.classList.remove("picking", "solo-float");
     for (const v of ["--sl", "--sr", "--sb"]) document.documentElement.style.setProperty(v, "0px");
     fitStage();
   }
@@ -119,11 +127,16 @@ function createSolo() {
     pickDiff = diff; pickTheme = theme;
     start(team, go); syncRotate(); tryLandscape();
   };
-  q(".stBack").onclick = () => { hide(); sheet.className = "sheet"; chars.forEach(c => c.el.remove()); chars = []; G = null; openHome(); };
+  const leave = () => {
+    hide(); sheet.className = "sheet"; chars.forEach(c => c.el.remove()); chars = []; G = null;
+    if (wentFull && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    wentFull = false; openHome();
+  };
+  q(".stBack").onclick = leave; exitBtn.onclick = leave;
   // 고르는 칸의 게임 방법: 안내를 보는 동안 지도 미리보기를 멈추고, 닫으면 다시 그린다
-  q("[data-solo-guide]").onclick = e => { const b = e.currentTarget; hide(); (guide ||= createGuide()).open(b, () => show(!q(".stBack").hidden)); };
+  q("[data-solo-guide]").onclick = e => { const b = e.currentTarget; hide(); (guide ||= createGuide()).open(b, () => show(fromHome)); };
   addEventListener("resize", () => { if (open) { layout(); } });
   return { show, hide, get open() { return open; } };
 }
 let solo = null;
-const openSolo = fromHome => (solo ||= createSolo()).show(fromHome);
+const openSolo = (fromHome, full) => (solo ||= createSolo()).show(fromHome, full);

@@ -570,6 +570,7 @@
   #start .team.police .art { background:linear-gradient(#DCEEFF,#C9E3FB); } #start .team.robber .art { background:linear-gradient(#E1F3E7,#CDEBD7); }
   #start .team .art img { height:84px; width:auto; transform-origin:50% 100%; }
   #start .team .tx { padding:10px 12px 12px; }
+  #start .team small, #start .diffs small, #soloMap span { word-break:keep-all; } /* 설명도 띄어쓰기에서만 줄을 바꾼다("반응해/요" 막기) */
   #start .team b { display:block; font-size:16px; font-weight:900; word-break:keep-all; } /* 이름은 띄어쓰기에서만 줄을 바꾼다("ドドゥン/イ" 막기) */
   #start .team small { display:block; margin-top:3px; font-size:12.5px; line-height:1.4; color:var(--sub); font-weight:600; }
   #start .team .ck { position:absolute; right:8px; top:8px; width:24px; height:24px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(29,35,43,.2); opacity:0; transform:scale(.6); transition:opacity .15s, transform .15s; }
@@ -611,6 +612,13 @@
   #start .stGo:not(:disabled):active { transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.2); }
   #start .stGo:disabled { cursor:default; }
   #start button:focus-visible, #start summary:focus-visible { outline:2px solid var(--police); outline-offset:2px; }
+  /* 폰: 지도 위 왼쪽 위에 떠 있는 나가기. 고르는 칸 스크롤과 상관없이 늘 보인다(넓은 화면은 칸 머리의 뒤로 버튼) */
+  .soloExit { display:none; position:fixed; z-index:31; left:max(12px,env(safe-area-inset-left)); top:max(12px,env(safe-area-inset-top)); align-items:center; gap:6px; height:40px; padding:0 14px 0 10px; border:0; border-radius:999px; background:rgba(255,255,255,.94); color:var(--ink); font:inherit; font-size:14px; font-weight:800; box-shadow:0 4px 14px rgba(29,35,43,.18); cursor:pointer; }
+  .soloExit i { position:relative; width:18px; height:18px; }
+  .soloExit i::before { content:""; position:absolute; left:6px; top:5px; width:8px; height:8px; border-left:2.5px solid var(--ink); border-bottom:2.5px solid var(--ink); transform:rotate(45deg); }
+  .soloExit:focus-visible { outline:2px solid var(--police); outline-offset:2px; }
+  body.picking.solo-float .soloExit { display:inline-flex; }
+  body.solo-float #start .stBack { display:none; }
   /* 미리보기 위 지도 이름 */
   #soloMap { display:none; position:absolute; left:16px; bottom:16px; z-index:5; flex-direction:column; gap:2px; padding:10px 14px; border-radius:14px; background:rgba(255,255,255,.92); box-shadow:0 4px 14px rgba(29,35,43,.16); pointer-events:none; max-width:calc(100% - 32px); }
   body.picking #soloMap { display:flex; }
