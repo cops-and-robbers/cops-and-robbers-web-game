@@ -45,10 +45,20 @@ function createSolo() {
   // ── 뒤에서 보이는 지도 ──
   // 혼자 하기 판과 같은 값(편, 난이도에 따라 지도 크기와 건물 양이 다르다)으로 만든다. 편을 아직 안 골랐으면 경찰 값으로 만들고, 고르면 다시 만든다
   const previewTheme = () => (theme === "random" ? THEME_KEYS[spin % THEME_KEYS.length] : theme);
-  function render() {
-    const key = previewTheme(), want = `${key}:${seed}:${team || "-"}:${diff}`;
-    if (shown === want) return;
-    shown = want;
+  // 지도는 테마, 씨앗, 그리고 편과 난이도가 정하는 크기와 건물 양으로만 달라진다. 같으면 다시 만들지 않는다(보통 난이도는 편을 바꿔도 같다)
+  const mapKey = () => { const s = L.DIFF[diff][team || "police"]; return `${previewTheme()}:${theme === "random" ? spin : seed}:${s.scale}:${s.cover}`; };
+  let pending = 0;
+  // 누른 칸의 반응이 먼저 그려지게 지도는 나중에 만든다. 지도를 만드는 동안(느린 폰에서 0.2초쯤) 움직임이 멈추니,
+  // 그 사이 지도를 잠깐 흐렸다가 새 지도로 다시 보인다. 연달아 누르면 마지막 것만 만든다
+  function render(now) {
+    if (shown === mapKey()) return;
+    if (!now) {
+      clearTimeout(pending); stage.classList.add("mapSwap");
+      pending = setTimeout(() => { render(true); requestAnimationFrame(() => requestAnimationFrame(() => stage.classList.remove("mapSwap"))); }, 140);
+      return;
+    }
+    const key = previewTheme();
+    shown = mapKey();
     chars.forEach(c => c.el.remove()); chars = [];
     G = newGame({ seed: theme === "random" ? 1000 + spin * 7 : seed, theme: key, role: team || "police", diff });
     ended = false;
@@ -57,13 +67,13 @@ function createSolo() {
     document.body.dataset.theme = G.theme; stage.style.background = G.th.out;
     const f = $("soloMap");
     f.querySelector("b").textContent = TX.theme[key];
-    f.querySelector("span").textContent = TX.solo.mapNote[key];
+    f.querySelector("span").textContent = TX.soloPage.mapNote[key];
     f.classList.toggle("random", theme === "random");
   }
   // 카메라는 지도 가운데를 크게 돌며 천천히 지나간다. 움직임을 줄이도록 설정한 사람에게는 멈춰 있다
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   function drift(dt) {
-    if (theme === "random") { spinT += dt; if (spinT > 3.2) { spinT = 0; spin++; render(); } }
+    if (theme === "random") { spinT += dt; if (spinT > 3.2) { spinT = 0; spin++; render(true); } }
     t += still ? 0 : dt;
     const cx = CFG.W / 2 + Math.cos(t * 0.09) * CFG.W * 0.22, cy = CFG.H / 2 + Math.sin(t * 0.13) * CFG.H * 0.2;
     camX = cx - W / 2 / zoom; camY = cy - H / 2 / zoom;
@@ -88,7 +98,7 @@ function createSolo() {
     const go = $("soloGo");
     go.disabled = !team;
     go.dataset.team = team || "";
-    go.textContent = team ? TX.solo.go[team] : TX.solo.pickTeam;
+    go.textContent = team ? TX.soloPage.go[team] : TX.soloPage.pickTeam;
     q(".reroll").hidden = theme === "random";
     sheet.dataset.team = team || "";
     render();
@@ -112,7 +122,7 @@ function createSolo() {
     if (full && isPhone() && !document.fullscreenElement) document.documentElement.requestFullscreen?.().then(() => { wentFull = true; }, () => {});
     sheet.className = "sheet show"; document.body.classList.add("picking");
     $("hud").className = ""; preview = drift;
-    shown = null; layout(); sync();
+    shown = null; layout(); sync(); render(true);
   }
   function hide() {
     open = false; preview = null;

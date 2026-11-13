@@ -99,8 +99,8 @@ const I18N = {
         {team: "robber", title: "감옥 문을 열어 줘요", text: "잡히면 감옥에 갇혀요. 같은 편이 감옥 문 앞에 잠깐 서 있으면 문이 열려요. 막 나온 도둑은 잠깐 동안 잡히지 않아요."},
       ],
     },
-    // 혼자 하기(client/solo.js)
-    solo: {
+    // 혼자 하기 화면(client/solo.js). 첫 화면 칸 이름 "solo" 와 겹치지 않게 soloPage
+    soloPage: {
       title: "혼자 해 보기", team: "팀", map: "지도", reroll: "다른 지도", rulesTitle: "규칙 한눈에 보기", pickTeam: "팀을 골라 주세요",
       go: { police: "경찰로 시작하기", robber: "도둑으로 시작하기" },
       copGoal: "도둑을 모두 잡아 감옥에 보내요", robGoal: "끝까지 잡히지 않고 버텨요",
@@ -172,7 +172,7 @@ const I18N = {
         {team: "robber", title: "Let your teammates out", text: "Caught robbers are locked in jail. Stand in front of the jail door for a moment to open it for your teammates. Robbers who just got out can't be caught for a short while."},
       ],
     },
-    solo: {
+    soloPage: {
       title: "Play solo", team: "Side", map: "Map", reroll: "New map", rulesTitle: "Rules at a glance", pickTeam: "Pick a side",
       go: { police: "Start as a cop", robber: "Start as a robber" },
       copGoal: "Catch every robber and send them to jail", robGoal: "Don't get caught until time runs out",
@@ -244,7 +244,7 @@ const I18N = {
         {team: "robber", title: "仲間を牢屋から出そう", text: "捕まると牢屋に閉じ込められます。仲間が牢屋の扉の前に少しの間立つと、扉が開きます。出たばかりの泥棒は、少しの間は捕まりません。"},
       ],
     },
-    solo: {
+    soloPage: {
       title: "ひとりで遊ぶ", team: "チーム", map: "マップ", reroll: "別のマップ", rulesTitle: "ルールをざっと見る", pickTeam: "チームを選んでください",
       go: { police: "警察でスタート", robber: "泥棒でスタート" },
       copGoal: "泥棒を全員捕まえて牢屋に入れよう", robGoal: "最後まで捕まらずに逃げ切ろう",
@@ -265,12 +265,14 @@ if (LANG !== "ko") document.title = tt("title");
 // 문서 안의 정해진 문구. data-t 는 글자, data-th 는 굵은 글씨나 줄바꿈이 있는 글, data-ta 는 읽어 주는 이름, data-talt 는 그림 설명
 function applyI18n(root = document) {
   const get = k => k.split(".").reduce((o, p) => o?.[p], TX);
-  root.querySelectorAll("[data-t]").forEach(e => { const v = get(e.dataset.t); if (typeof v === "string") e.textContent = v; });
-  root.querySelectorAll("[data-th]").forEach(e => { const v = get(e.dataset.th); if (typeof v === "string") e.innerHTML = v; });
+  // 바꾼 요소에는 data-tdone 을 남긴다. 한국어가 아닌 화면은 이 표시 전까지 글자를 숨겨, 큰 문서가 번역보다 먼저 그려져도 한국어가 비치지 않는다(shell.html)
+  const done = e => e.setAttribute("data-tdone", "");
+  root.querySelectorAll("[data-t]").forEach(e => { const v = get(e.dataset.t); if (typeof v === "string") e.textContent = v; done(e); });
+  root.querySelectorAll("[data-th]").forEach(e => { const v = get(e.dataset.th); if (typeof v === "string") e.innerHTML = v; done(e); });
   root.querySelectorAll("[data-ta]").forEach(e => { const v = get(e.dataset.ta); if (typeof v === "string") e.setAttribute("aria-label", v); });
   root.querySelectorAll("[data-talt]").forEach(e => { const v = get(e.dataset.talt); if (typeof v === "string") e.alt = v; });
-  root.querySelectorAll("img[data-logo]").forEach(e => { e.src = LOGOS[LANG]; e.dataset.lang = LANG; });
-  root.querySelectorAll("[data-langname]").forEach(e => { e.textContent = LANG_NAMES[LANG]; });
+  root.querySelectorAll("img[data-logo]").forEach(e => { e.src = LOGOS[LANG]; e.dataset.lang = LANG; done(e); });
+  root.querySelectorAll("[data-langname]").forEach(e => { e.textContent = LANG_NAMES[LANG]; done(e); });
   if (APP_ICONS[LANG]) root.querySelectorAll("img[data-appicon]").forEach(e => { e.src = APP_ICONS[LANG]; });
   root.querySelectorAll("[data-langpick]").forEach(langPick);
 }
