@@ -102,7 +102,7 @@ function createGuide() {
   const q = s => el.querySelector(s);
   el.classList.toggle("touch", touch);
 
-  let idx = 0, t = 0, sc = null, open = false, hold = false, saved = null, restore = null, opener = null, catchT = 0, keptOnline = null;
+  let idx = 0, t = 0, sc = null, open = false, hold = false, saved = null, restore = null, opener = null, catchT = 0, keptOnline = null, onClosed = null;
   const KEYS = ["w", "a", "s", "d", "shift", " "];
 
   // 화면 크기마다 설명 자리. side 넓은 화면, split 폰 가로, sheet 폰 세로. 게임 화면은 남은 자리로 줄여 다시 맞춘다
@@ -209,9 +209,9 @@ function createGuide() {
   addEventListener("keydown", onKey, true);
   addEventListener("resize", () => { if (open) layout(); });
 
-  function openGuide(from) {
+  function openGuide(from, after) {
     if (open) return;
-    open = true; opener = from || document.activeElement;
+    open = true; opener = from || document.activeElement; onClosed = after || null;
     // 지금 떠 있는 첫 화면을 기억했다가 닫으면 그대로 돌려놓는다
     restore = [...document.querySelectorAll(".sheet.show")].map(s => [s, s.className]);
     restore.forEach(([s]) => s.classList.remove("show"));
@@ -234,9 +234,10 @@ function createGuide() {
     $("hud").className = ""; $("toast").className = ""; $("banner").className = ""; $("mission").className = "";
     Object.assign(CFG, saved); online = keptOnline;
     restore.forEach(([s, c]) => { s.className = c; });
-    opener?.focus?.({ preventScroll: true });
+    const after = onClosed; onClosed = null; after?.();
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
   }
-  return { open: openGuide, close };
+  return { open: openGuide, close, get isOpen() { return open; } };
 }
 
 // 첫 화면과 초대받아 들어온 화면의 "게임 방법" 버튼. 처음 누를 때 만든다. ?guide=1 이면 바로 연다(시안 보기)
