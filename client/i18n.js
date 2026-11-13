@@ -86,6 +86,19 @@ const I18N = {
     // 하는 방법
     arrest: "체포!", close: "닫기", tutCatch: "도둑 발밑에 노란 표시가 뜨면 잡기를 눌러요", next: "다음", gotIt: "다 봤어요",
     // 서버가 붙이는 이름(봇, 이름을 비운 사람). 화면에서만 바꾼다
+    // 게임 방법(client/guide.js). touch 는 폰, pc 는 키보드로 할 때. 없으면 text
+    guide: "게임 방법",
+    guideCopy: {
+      team: { all: "모두", police: "경찰", robber: "도둑" }, prev: "이전", next: "다음", done: "다 봤어요", pause: "멈추기", play: "다시 재생",
+      steps: [
+        {team: "all", title: "경찰은 잡고 도둑은 도망쳐요", text: "경찰은 도둑을 모두 감옥에 가두면 이겨요. 도둑은 끝날 때 한 명이라도 감옥 밖에 있으면 이겨요. 처음 잠깐은 경찰이 감옥 앞에서 기다리니, 도둑은 그동안 멀리 도망쳐요."},
+        {team: "all", title: "움직이고 달려요", touch: "왼쪽 조이스틱으로 움직여요. 달리기 버튼을 누르면 빨라져요. 아래 막대가 다 줄어들면 잠깐 달리지 못해요.", pc: "WASD나 방향키로 움직여요. Shift를 누르면 빨라져요. 아래 막대가 다 줄어들면 잠깐 달리지 못해요."},
+        {team: "all", title: "앞쪽은 멀리 보여요", text: "앞쪽은 멀리, 다른 쪽은 가까이만 보여요. 수풀에 숨은 도둑은 바로 옆에 가야 보여요. 수풀 안에서 달리면 수풀이 흔들려서 들켜요."},
+        {team: "police", title: "노란 표시가 뜨면 잡아요", touch: "도둑 발밑에 노란 표시가 뜨면 잡기 버튼을 눌러요. 잡힌 도둑은 감옥으로 가요.", pc: "도둑 발밑에 노란 표시가 뜨면 Space를 눌러요. 잡힌 도둑은 감옥으로 가요."},
+        {team: "all", title: "빨간 표시를 살펴봐요", text: "때때로 경찰 지도에 도둑이 있는 곳이 빨간 표시로 떠요. 빨간 점선 밖에 오래 머문 도둑도 빨간 표시로 떠요."},
+        {team: "robber", title: "감옥 문을 열어 줘요", text: "잡히면 감옥에 갇혀요. 같은 편이 감옥 문 앞에 잠깐 서 있으면 문이 열려요. 막 나온 도둑은 잠깐 동안 잡히지 않아요."},
+      ],
+    },
     names: { 도둥이: "도둥이", 살금이: "살금이", 번개발: "번개발", 치즈손: "치즈손", 냥파: "냥파", 수사반장: "수사반장", 참가자: "참가자" },
   },
   en: {
@@ -138,6 +151,18 @@ const I18N = {
     times: n => `${n}`, people: n => `${n}`, secs: n => `${n}s`,
     again: "Play again", swap: "Switch sides", appName: "Cops and Robbers app", appSub: "Chase and escape in your neighborhood", getApp: "Get the app",
     arrest: "Arrest!", close: "Close", tutCatch: "Yellow mark under a robber? Press Catch", next: "Next", gotIt: "Got it",
+    guide: "How to play",
+    guideCopy: {
+      team: { all: "Everyone", police: "Cops", robber: "Robbers" }, prev: "Back", next: "Next", done: "Got it", pause: "Pause", play: "Replay",
+      steps: [
+        {team: "all", title: "Chase and hide", text: "Cops win when every robber is in jail. Robbers win if anyone is still free when time runs out. Cops wait at the jail for a moment at the start, so robbers get a head start."},
+        {team: "all", title: "Move and run", touch: "Use the joystick on the left to move. Press Run to speed up. When the bar at the bottom runs out, you can't run for a moment.", pc: "Use WASD or the arrow keys to move. Press Shift to speed up. When the bar at the bottom runs out, you can't run for a moment."},
+        {team: "all", title: "Look ahead", text: "You can see far ahead, but only close by in other directions. Robbers hiding in bushes only show up when you're very close. Running inside a bush makes it shake and gives you away."},
+        {team: "police", title: "Catch on the yellow mark", touch: "When a yellow mark appears under a robber, press Catch. The robber goes to jail.", pc: "When a yellow mark appears under a robber, press Space. The robber goes to jail."},
+        {team: "all", title: "Watch for red marks", text: "Every so often, red marks on the cops' map show where the robbers are. Robbers who stay outside the red dotted line too long also show up as red marks."},
+        {team: "robber", title: "Let your teammates out", text: "Caught robbers are locked in jail. Stand in front of the jail door for a moment to open it for your teammates. Robbers who just got out can't be caught for a short while."},
+      ],
+    },
     names: { 도둥이: "Dodungi", 살금이: "Sneaky", 번개발: "Flash", 치즈손: "Cheesehands", 냥파: "Nyangpa", 수사반장: "Chief", 참가자: "Player" },
   },
   ja: {
@@ -190,6 +215,18 @@ const I18N = {
     times: n => `${n}回`, people: n => `${n}人`, secs: n => `${n}秒`,
     again: "もう1回", swap: "役割を変える", appName: "ケイドロアプリ", appSub: "近所で実際に追いかけて逃げよう", getApp: "アプリを入手",
     arrest: "逮捕!", close: "閉じる", tutCatch: "泥棒の足元に黄色い印が出たら「捕まえる」を押そう", next: "次へ", gotIt: "わかった",
+    guide: "遊び方",
+    guideCopy: {
+      team: { all: "みんな", police: "警察", robber: "泥棒" }, prev: "戻る", next: "次へ", done: "わかった", pause: "一時停止", play: "もう一度見る",
+      steps: [
+        {team: "all", title: "追いかけて、隠れて", text: "警察は泥棒を全員牢屋に入れたら勝ちです。泥棒は時間切れのときに1人でも逃げていれば勝ちです。最初は警察が少しの間牢屋の前で待つので、泥棒はその間に遠くへ逃げましょう。"},
+        {team: "all", title: "動いて、走ろう", touch: "左のスティックで動きます。「ダッシュ」を押すと速くなります。下のバーがなくなると、少しの間走れなくなります。", pc: "WASDか矢印キーで動きます。Shiftを押すと速くなります。下のバーがなくなると、少しの間走れなくなります。"},
+        {team: "all", title: "前は遠くまで見える", text: "前は遠くまで、それ以外は近くだけ見えます。茂みに隠れた泥棒は、すぐそばまで近づくと見えます。茂みの中で走ると、茂みが揺れて見つかってしまいます。"},
+        {team: "police", title: "黄色い印が出たら", touch: "泥棒の足元に黄色い印が出たら、「捕まえる」を押しましょう。捕まった泥棒は牢屋に入ります。", pc: "泥棒の足元に黄色い印が出たら、Spaceを押しましょう。捕まった泥棒は牢屋に入ります。"},
+        {team: "all", title: "赤い印をチェック", text: "ときどき警察の地図に赤い印が出て、泥棒がどこにいるかわかります。赤い点線の外に長くいる泥棒も、赤い印で表示されます。"},
+        {team: "robber", title: "仲間を牢屋から出そう", text: "捕まると牢屋に閉じ込められます。仲間が牢屋の扉の前に少しの間立つと、扉が開きます。出たばかりの泥棒は、少しの間は捕まりません。"},
+      ],
+    },
     names: { 도둥이: "ドドゥンイ", 살금이: "こっそり", 번개발: "いなずま", 치즈손: "チーズハンド", 냥파: "ニャンパ", 수사반장: "捜査班長", 참가자: "プレイヤー" },
   },
 };

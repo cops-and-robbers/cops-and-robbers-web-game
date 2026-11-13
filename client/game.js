@@ -14,6 +14,8 @@ let camTarget = null; // 대기실처럼 시점을 따로 잡을 때 쓴다
 let G = null, chars = [], role = null, zoom = 1, camX = 0, camY = 0, W = 0, H = 0, ended = false, lastSeenBy = false;
 // 사람끼리 할 때는 net.js 가 채운다. 비어 있으면 이 파일 안에서 봇과 규칙을 돌린다
 let online = null;
+// 게임 방법 안내(client/guide.js)가 장면을 연기시키는 동안 내 입력 대신 대본을 넣는다
+let driver = null;
 const seen = a => (online ? online.sees(a) : sees(G.player, a));
 const fitStage = () => {
   W = stage.clientWidth; H = stage.clientHeight; fog.width = W; fog.height = H;
@@ -798,7 +800,7 @@ let paused = false, allowPortrait = false;
 const isPhone = () => matchMedia("(pointer:coarse)").matches && Math.min(screen.width, screen.height) < 600;
 const isPortrait = () => innerHeight > innerWidth;
 const syncRotate = () => {
-  const need = !!G && !ended && !allowPortrait && isPhone() && isPortrait();
+  const need = !!G && !ended && !allowPortrait && !driver && isPhone() && isPortrait();
   paused = need; $("rotate").className = need ? "sheet show" : "sheet";
 };
 async function tryLandscape() {
@@ -819,8 +821,9 @@ function frame(dt) {
   if (paused) return;
   if (hitStop > 0) { hitStop -= dt; dt = 0.001; }
   if (!ended) {
-    const v = readInput();
-    p.ix = v.x; p.iy = v.y; p.sprint = keys.has("shift") || sprintBtn;
+    const v = driver ? driver.drive(dt) : readInput();
+    p.ix = v.x; p.iy = v.y; p.sprint = driver ? !!v.sprint : keys.has("shift") || sprintBtn;
+    if (driver && v.catch) wantCatch = true;
     if (online) {
       online.input(v, p.sprint, wantCatch);
       wantCatch = false;
