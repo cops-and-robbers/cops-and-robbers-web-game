@@ -108,7 +108,8 @@
   #btnCatch { right:110px; bottom:calc(46px + env(safe-area-inset-bottom)); background:var(--police); }
   #btnCatch.off { opacity:.45; }
   @media (max-width:640px) {
-    #top { left:12px; transform:none; align-items:flex-start; width:calc(100vw - 150px); }
+    /* 왼쪽 위 소리 버튼(38px) 옆에서 시작한다. 같은 자리에 두면 남은 시간 칸을 덮는다 */
+    #top { left:58px; transform:none; align-items:flex-start; width:calc(100vw - 196px); }
     #status { font-size:12px; padding:5px 10px; text-align:left; border-radius:12px; }
     #mini { width:112px; height:84px; }
     #toast { top:124px; font-size:14px; white-space:normal; width:max-content; text-align:center; }
@@ -221,6 +222,7 @@
   #reveal .ico::after { content:""; position:absolute; inset:0; border-radius:50%; border:2px solid var(--team); animation:ping 1.8s ease-out infinite; }
   @keyframes ping { from { transform:scale(1); opacity:.9; } to { transform:scale(1.7); opacity:0; } }
   #revealLabel { font-size:13px; font-weight:700; opacity:.9; white-space:nowrap; }
+  #revealN { white-space:nowrap; } /* 일본어 "秒"처럼 붙는 단위가 아래 줄로 떨어지지 않게 */
   #revealN { font-size:22px; font-weight:900; font-variant-numeric:tabular-nums; min-width:2.2ch; text-align:right; }
   #revealN::after { content:"초"; font-size:12px; font-weight:700; margin-left:1px; opacity:.85; }
   #reveal .bar { position:absolute; left:8px; right:8px; bottom:4px; height:4px; border-radius:9px; background:rgba(255,255,255,.18); }
@@ -463,8 +465,9 @@
   .langPick[aria-expanded=true] .c { transform:rotate(180deg); }
   .langPick:focus-visible { outline:2px solid var(--police); outline-offset:2px; }
   @media (hover:hover) { #home button.langPick:hover { background:#fff; } }
-  #home button.langPick { position:absolute; top:max(12px,env(safe-area-inset-top)); right:max(12px,env(safe-area-inset-right)); z-index:3; }
-  #lobby button.langPick.inCard { display:flex; width:fit-content; margin:12px auto 0; height:32px; background:#F3F5F8; box-shadow:none; color:var(--sub); font-size:13px; }
+  #home .homeTools { position:absolute; top:max(12px,env(safe-area-inset-top)); right:max(12px,env(safe-area-inset-right)); z-index:3; display:flex; gap:8px; }
+  #lobby .cardTools { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  #lobby button.langPick.inCard { display:flex; width:fit-content; align-items:center; height:32px; margin:0; height:32px; background:#F3F5F8; box-shadow:none; color:var(--sub); font-size:13px; }
   #langMenu { position:fixed; z-index:60; min-width:184px; padding:6px; border-radius:16px; background:#fff; box-shadow:0 12px 32px rgba(29,35,43,.18), 0 2px 6px rgba(29,35,43,.08); opacity:0; transform:translateY(-4px) scale(.98); transform-origin:var(--from,top right); pointer-events:none; transition:opacity .14s, transform .14s; }
   #langMenu.up { transform:translateY(4px) scale(.98); }
   #langMenu.show { opacity:1; transform:none; pointer-events:auto; }
@@ -476,6 +479,70 @@
   #langMenu button:focus-visible { outline:2px solid var(--police); outline-offset:-2px; }
   @media (hover:hover) { #langMenu button[aria-checked=false]:hover { background:#F3F5F8; } }
   @media (prefers-reduced-motion:reduce) { #langMenu, .langPick .c { transition:none; } }
+  /* 게임 방법(client/guide.js). 화면을 둘로 나눠 한쪽은 설명, 한쪽은 실제 게임 장면. 게임 화면(#stage)이 남은 자리 크기로 다시 맞춰져
+     조이스틱, 버튼, 지도가 설명에 가리지 않는다. 넓은 화면은 왼쪽, 폰 가로는 오른쪽, 폰 세로는 아래 설명. 근거는 docs/guide.md */
+  #home button.guidePick .g, #lobby button.guidePick .g { color:var(--police); }
+  body.guide-on #stage { left:var(--gl,0px); right:var(--gr,0px); bottom:var(--gb,0px); }
+  #guide { position:fixed; inset:0; z-index:30; display:none; pointer-events:none; }
+  #guide.show { display:block; }
+  #guide .gPanel { position:absolute; display:flex; flex-direction:column; pointer-events:auto; background:#fff; color:var(--ink); }
+  #guide[data-mode=side] .gPanel { left:0; top:0; bottom:0; width:var(--gl); padding:max(18px,env(safe-area-inset-top)) 20px max(16px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left)); box-shadow:1px 0 0 #E6EAEF; overflow-y:auto; }
+  /* 폰 가로는 오른쪽: 넘기는 버튼이 오른손 엄지 자리에 오고, 왼쪽 장면을 보고 오른쪽 설명을 읽는 순서가 된다 */
+  #guide[data-mode=split] .gPanel { right:0; top:0; bottom:0; width:var(--gr); box-shadow:-1px 0 0 #E6EAEF; overflow-y:auto; }
+  #guide[data-mode=sheet] .gPanel { left:0; right:0; bottom:0; padding:16px 18px max(14px,env(safe-area-inset-bottom)); box-shadow:0 -1px 0 #E6EAEF; }
+  #guide .gHead { display:flex; align-items:center; gap:8px; }
+  #guide .gKicker { font-size:13px; font-weight:800; color:var(--sub); }
+  #guide .gCount { font-size:12px; font-weight:700; color:#8A94A3; font-variant-numeric:tabular-nums; }
+  #guide .gClose { position:relative; margin-left:auto; width:36px; height:36px; flex:none; border:0; border-radius:50%; background:#F3F5F8; cursor:pointer; }
+  #guide .gClose::before, #guide .gClose::after { content:""; position:absolute; left:11px; top:17px; width:14px; height:2px; border-radius:2px; background:var(--ink); transform:rotate(45deg); }
+  #guide .gClose::after { transform:rotate(-45deg); }
+  #guide .gList { list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; }
+  #guide .gList button { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:0 10px; border:0; border-radius:12px; background:none; color:var(--ink); font:inherit; font-size:15px; font-weight:600; text-align:left; cursor:pointer; }
+  #guide .gList .n { display:grid; place-items:center; width:24px; height:24px; flex:none; border-radius:50%; background:#EEF1F5; color:var(--sub); font-size:12px; font-weight:800; }
+  #guide .gList .t { flex:1; min-width:0; }
+  #guide .gList button.on { background:#EEF6FE; font-weight:800; }
+  #guide .gList button.on .n { background:var(--police); color:#fff; }
+  @media (hover:hover) { #guide .gList button:not(.on):hover { background:#F5F7FA; } }
+  #guide .gChip { flex:none; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:800; background:#EEF1F5; color:var(--sub); }
+  #guide .gChip.police { background:#E3F2FE; color:#1C72B8; } #guide .gChip.robber { background:#E3F6EA; color:#1C8A4B; }
+  #guide .gNowHead { display:flex; margin-top:10px; }
+  #guide h2 { margin:8px 0 6px; font-size:19px; font-weight:800; line-height:1.35; outline:none; }
+  #guide .gText { margin:0; font-size:15px; line-height:1.6; color:#3E4756; }
+  #guide .gFoot { display:flex; align-items:center; gap:8px; margin-top:auto; padding-top:16px; }
+  #guide .gDots { display:flex; gap:5px; margin-right:auto; }
+  #guide .gDots i { width:6px; height:6px; border-radius:50%; background:#D5DAE1; }
+  #guide .gDots i.on { width:16px; border-radius:3px; background:var(--police); }
+  #guide .gFoot button { height:44px; border:0; border-radius:12px; font:inherit; font-size:15px; font-weight:800; cursor:pointer; white-space:nowrap; }
+  #guide .gPrev { padding:0 16px; background:#F3F5F8; color:var(--ink); }
+  #guide .gPrev:disabled { opacity:.4; cursor:default; }
+  #guide .gNext { padding:0 20px; background:var(--app-blue,#0088FF); color:#fff; }
+  #guide .gPause { position:relative; width:44px; flex:none; background:#F3F5F8; }
+  #guide .gPause::before, #guide .gPause::after { content:""; position:absolute; top:15px; width:4px; height:14px; border-radius:2px; background:var(--ink); }
+  #guide .gPause::before { left:16px; } #guide .gPause::after { left:24px; }
+  #guide .gPause.play::before { left:17px; top:14px; width:0; height:0; border-radius:0; background:none; border-style:solid; border-width:8px 0 8px 13px; border-color:transparent transparent transparent var(--ink); }
+  #guide .gPause.play::after { display:none; }
+  #guide button:focus-visible { outline:2px solid var(--police); outline-offset:2px; }
+  #guide .gLoop { position:absolute; left:0; right:0; top:0; height:3px; }
+  #guide .gLoop i { display:block; height:100%; background:var(--police); opacity:.55; transform-origin:0 0; transform:scaleX(0); }
+  /* 손가락 자리: 버튼 글자를 가리지 않게 속이 빈 고리로, 엄지가 누르듯 조금 아래에 둔다 */
+  #guide .gFinger { position:absolute; left:0; top:0; width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,.18); box-shadow:0 0 0 3px rgba(255,255,255,.95), 0 4px 12px rgba(29,35,43,.3); opacity:0; transition:opacity .15s; pointer-events:none; }
+  /* 넓은 화면: 여섯 장면 목록과 지금 설명. 지금 장면의 편은 목록에 있어 따로 띄우지 않는다 */
+  #guide[data-mode=side] .gDots, #guide[data-mode=side] .gNowHead { display:none; }
+  #guide[data-mode=side] .gNow { margin-top:14px; padding-top:16px; border-top:1px solid #EEF1F4; }
+  #guide[data-mode=side] h2 { margin-top:0; }
+  @media (max-height:600px) { #guide[data-mode=side] .gList { display:none; } #guide[data-mode=side] .gNowHead, #guide[data-mode=side] .gDots { display:flex; } #guide[data-mode=side] .gNow { border-top:0; margin-top:0; padding-top:0; } }
+  /* 폰 가로: 오른쪽 좁은 칸. 목록 대신 점, 글자는 조금 작게 */
+  #guide[data-mode=split] .gList { display:none; }
+  #guide[data-mode=split] .gPanel { padding-left:16px; padding-right:max(16px,env(safe-area-inset-right)); padding-top:12px; padding-bottom:max(12px,env(safe-area-inset-bottom)); }
+  #guide[data-mode=split] h2 { font-size:17px; }
+  #guide[data-mode=split] .gText { font-size:14px; line-height:1.55; }
+  #guide[data-mode=split] .gFoot { flex-wrap:wrap; row-gap:10px; padding-top:12px; }
+  #guide[data-mode=split] .gDots { flex-basis:100%; }
+  #guide[data-mode=split] .gFoot button { height:40px; } #guide[data-mode=split] .gPrev { margin-left:auto; } #guide[data-mode=split] .gNext { flex:1; }
+  /* 폰 세로: 아래 설명 */
+  #guide[data-mode=sheet] .gList { display:none; }
+  #guide[data-mode=sheet] .gNowHead { margin-top:8px; }
+  @media (prefers-reduced-motion:reduce) { #guide .gFinger { transition:none; } }
 </style>
 </head>
 <body>
@@ -536,10 +603,10 @@
       <input id="lobbyName" maxlength="6" autocomplete="off">
       <button id="lobbyJoin" data-t="join">같이 하기</button>
       <button id="lobbyBack" class="link" data-t="toHome">처음 화면으로</button>
-      <button type="button" class="langPick inCard" data-langpick aria-haspopup="menu" aria-expanded="false"><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7.6"/><path d="M2.6 10h14.8M10 2.4c2.3 2.4 2.3 12.8 0 15.2M10 2.4c-2.3 2.4-2.3 12.8 0 15.2"/></svg><span class="sr" data-t="lang">언어</span><span class="nm" data-langname translate="no">한국어</span><svg class="c" aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.6l3 3 3-3"/></svg></button>
+      <div class="cardTools"><button type="button" class="langPick guidePick inCard" data-guide><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="7.6"/><path d="M8.4 7.1v5.8l4.6-2.9-4.6-2.9Z" fill="currentColor" stroke-linejoin="round"/></svg><span class="nm" data-t="guide">게임 방법</span></button><button type="button" class="langPick inCard" data-langpick aria-haspopup="menu" aria-expanded="false"><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7.6"/><path d="M2.6 10h14.8M10 2.4c2.3 2.4 2.3 12.8 0 15.2M10 2.4c-2.3 2.4-2.3 12.8 0 15.2"/></svg><span class="sr" data-t="lang">언어</span><span class="nm" data-langname translate="no">한국어</span><svg class="c" aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.6l3 3 3-3"/></svg></button></div>
     </div>
   </div></div>
-  <div id="home" class="sheet brand"><button type="button" class="langPick" data-langpick aria-haspopup="menu" aria-expanded="false"><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7.6"/><path d="M2.6 10h14.8M10 2.4c2.3 2.4 2.3 12.8 0 15.2M10 2.4c-2.3 2.4-2.3 12.8 0 15.2"/></svg><span class="sr" data-t="lang">언어</span><span class="nm" data-langname translate="no">한국어</span><svg class="c" aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.6l3 3 3-3"/></svg></button><div class="homeWrap">
+  <div id="home" class="sheet brand"><div class="homeTools"><button type="button" class="langPick guidePick" data-guide><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="7.6"/><path d="M8.4 7.1v5.8l4.6-2.9-4.6-2.9Z" fill="currentColor" stroke-linejoin="round"/></svg><span class="nm" data-t="guide">게임 방법</span></button><button type="button" class="langPick" data-langpick aria-haspopup="menu" aria-expanded="false"><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7.6"/><path d="M2.6 10h14.8M10 2.4c2.3 2.4 2.3 12.8 0 15.2M10 2.4c-2.3 2.4-2.3 12.8 0 15.2"/></svg><span class="sr" data-t="lang">언어</span><span class="nm" data-langname translate="no">한국어</span><svg class="c" aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.6l3 3 3-3"/></svg></button></div><div class="homeWrap">
     <div class="hero">
       <img class="logo" decoding="sync" data-logo src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑" data-talt="brand">
       <div class="stage"><div class="bubble" data-th="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" decoding="sync" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
