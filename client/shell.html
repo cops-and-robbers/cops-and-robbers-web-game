@@ -11,8 +11,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>경찰과 도둑 온라인 게임</title>
 <meta name="description" content="설치 없이 친구랑 같이 해요. 최대 8명, 한 판 3분이에요.">
-<!-- 게임 주소는 pages.dev 하나로 알린다(play.copsandrobbers.app 는 지연이 커서 쓰지 않는다, docs/architecture.md). 초대 링크의 방 번호는 # 뒤라 공유 카드는 늘 이 하나다 -->
+<!-- 게임 주소는 pages.dev 하나로 알린다(play.copsandrobbers.app 는 지연이 커서 쓰지 않는다, docs/architecture.md). 초대 링크의 방 번호는 # 뒤라 공유 카드는 주소마다 하나다.
+     영어, 일본어 주소(/en/play, /ja/play)는 tools/build.py 가 아래 머리만 그 언어로 바꿔 따로 만든다(docs/i18n.md) -->
 <link rel="canonical" href="https://cops-and-robbers-game.pages.dev/play">
+<link rel="alternate" hreflang="ko" href="https://cops-and-robbers-game.pages.dev/play">
+<link rel="alternate" hreflang="en" href="https://cops-and-robbers-game.pages.dev/en/play">
+<link rel="alternate" hreflang="ja" href="https://cops-and-robbers-game.pages.dev/ja/play">
+<link rel="alternate" hreflang="x-default" href="https://cops-and-robbers-game.pages.dev/play">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
 <meta property="og:site_name" content="경찰과 도둑">
@@ -27,6 +32,7 @@
 <meta name="twitter:title" content="경찰과 도둑 온라인 게임">
 <meta name="twitter:description" content="설치 없이 친구랑 같이 해요. 최대 8명, 한 판 3분이에요.">
 <meta name="twitter:image" content="https://cops-and-robbers-game.pages.dev/og.png">
+<script>/*I18N*/</script>
 <script>
   // 어떤 첫 화면을 띄울지는 운영 상태를 읽어야 안다. 문서를 받는 동안 같이 읽어 기다림을 줄인다
   if (/(^|[#&?])room=/.test(location.hash + location.search)) document.documentElement.dataset.boot = "room";
@@ -42,7 +48,7 @@
   body { position:fixed; inset:0; }
   button { touch-action:manipulation; }
   input { -webkit-user-select:text; user-select:text; }
-  html,body { margin:0; height:100%; overflow:hidden; background:#1D232B; color:var(--ink); font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif; user-select:none; -webkit-user-select:none; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#1D232B; color:var(--ink); font-family:var(--font); user-select:none; -webkit-user-select:none; }
   #stage { position:fixed; inset:0; overflow:hidden; touch-action:none; }
   #world { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; width:3200px; height:2400px; }
   #map { position:absolute; left:0; top:0; }
@@ -301,7 +307,7 @@
   @media (prefers-reduced-motion:reduce) { .pair, #bigCount.show::before { animation:none; } }
   .homeWrap { width:100%; min-height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:clamp(16px,5vw,72px); padding:max(14px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left)); }
   .hero { display:flex; flex-direction:column; align-items:center; gap:clamp(6px,3vh,28px); }
-  .hero .logo { display:block; width:clamp(190px,min(34vw,66vh),400px); height:auto; }
+  .hero .logo { display:block; width:calc(var(--lw) * clamp(190px,min(34vw,66vh),400px)); height:auto; }
   .stage { position:relative; padding-top:clamp(26px,8vh,54px); }
   .pair { display:block; height:clamp(108px,40vh,270px); width:auto; transform-origin:50% 100%; animation:idle 2.6s ease-in-out infinite; }
   @keyframes idle { 0%,100% { transform:none; } 50% { transform:scaleY(.97) scaleX(1.015); } }
@@ -326,8 +332,8 @@
   @media (max-height:460px) { .homeCard { padding:14px !important; } #home button { min-height:46px; font-size:15px; } #home .homeActs { gap:8px; } #homeLiveList .roomRow { min-height:46px; } }
   @media (max-height:360px) { #homeLiveList .roomRow:nth-child(n+2) { display:none; } }
   @media (max-aspect-ratio:4/5) {
-    .homeWrap { flex-direction:column; justify-content:flex-start; gap:14px; padding-top:max(36px,env(safe-area-inset-top)); }
-    .hero .logo { width:min(74vw,340px); } .pair { height:min(26vh,230px); }
+    .homeWrap { flex-direction:column; justify-content:flex-start; gap:14px; padding-top:calc(max(12px,env(safe-area-inset-top)) + 50px); }
+    .hero .logo { width:calc(var(--lw) * min(74vw,340px)); } .pair { height:min(26vh,230px); }
     .homeCard { width:min(100%,420px); }
   }
 
@@ -442,6 +448,34 @@
   .pair { animation:none; }
   .liveHead b::before { animation:none; box-shadow:none; }
   .howNext { box-shadow:none; background:var(--app-blue); }
+  /* 언어(client/i18n.js). 일본어는 한자가 한국어 글꼴 모양으로 나오지 않게 일본어 글꼴을 앞에 둔다 */
+  :root { --font:Pretendard,"Noto Sans KR",system-ui,sans-serif; --lw:1; }
+  :root:lang(ja) { --font:Pretendard,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",Meiryo,system-ui,sans-serif; --lw:.78; }
+  :root:lang(en) { --lw:.6; }
+  :lang(en) #revealN::after { content:"s"; } :lang(ja) #revealN::after { content:"秒"; }
+  :lang(en) .cardLogo { height:44px; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  /* 언어 고르기: 지구본과 지금 언어 이름(그 언어로), 누르면 화면을 막지 않는 작은 메뉴. 근거는 docs/i18n.md */
+  #home button.langPick, #lobby button.langPick { position:relative; display:inline-flex; align-items:center; gap:6px; width:auto; min-height:0; height:36px; margin:0; padding:0 10px 0 11px; border:0; border-radius:999px; background:rgba(255,255,255,.82); color:var(--ink); font:inherit; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 2px 10px rgba(29,35,43,.08); }
+  .langPick::before { content:""; position:absolute; inset:-5px -4px; }
+  .langPick .g { width:17px; height:17px; flex:none; color:var(--sub); }
+  .langPick .c { width:12px; height:12px; flex:none; color:var(--sub); transition:transform .18s; }
+  .langPick[aria-expanded=true] .c { transform:rotate(180deg); }
+  .langPick:focus-visible { outline:2px solid var(--police); outline-offset:2px; }
+  @media (hover:hover) { #home button.langPick:hover { background:#fff; } }
+  #home button.langPick { position:absolute; top:max(12px,env(safe-area-inset-top)); right:max(12px,env(safe-area-inset-right)); z-index:3; }
+  #lobby button.langPick.inCard { display:flex; width:fit-content; margin:12px auto 0; height:32px; background:#F3F5F8; box-shadow:none; color:var(--sub); font-size:13px; }
+  #langMenu { position:fixed; z-index:60; min-width:184px; padding:6px; border-radius:16px; background:#fff; box-shadow:0 12px 32px rgba(29,35,43,.18), 0 2px 6px rgba(29,35,43,.08); opacity:0; transform:translateY(-4px) scale(.98); transform-origin:var(--from,top right); pointer-events:none; transition:opacity .14s, transform .14s; }
+  #langMenu.up { transform:translateY(4px) scale(.98); }
+  #langMenu.show { opacity:1; transform:none; pointer-events:auto; }
+  #langMenu button { display:flex; box-shadow:none; align-items:center; gap:10px; width:100%; min-height:48px; padding:0 12px 0 14px; border:0; border-radius:11px; background:none; color:var(--ink); font:inherit; font-size:16px; font-weight:600; text-align:left; cursor:pointer; }
+  #langMenu button + button { margin-top:2px; }
+  #langMenu button .ck { width:18px; height:18px; margin-left:auto; color:var(--police); visibility:hidden; }
+  #langMenu button[aria-checked=true] { background:#EEF6FE; font-weight:800; }
+  #langMenu button[aria-checked=true] .ck { visibility:visible; }
+  #langMenu button:focus-visible { outline:2px solid var(--police); outline-offset:-2px; }
+  @media (hover:hover) { #langMenu button[aria-checked=false]:hover { background:#F3F5F8; } }
+  @media (prefers-reduced-motion:reduce) { #langMenu, .langPick .c { transition:none; } }
 </style>
 </head>
 <body>
@@ -459,30 +493,30 @@
     </div>
     <canvas id="mini" width="336" height="252"></canvas>
     <div id="stam"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><div class="track"><div id="stamFill"></div></div></div>
-    <div id="hint"><span class="grp"><kbd data-k="w">W</kbd><kbd data-k="a">A</kbd><kbd data-k="s">S</kbd><kbd data-k="d">D</kbd><em>이동</em></span><span class="grp"><kbd data-k="shift" class="wide">Shift</kbd><em>달리기</em></span><span class="grp catch"><kbd data-k=" " class="wide">Space</kbd><em>잡기</em></span></div>
+    <div id="hint"><span class="grp"><kbd data-k="w">W</kbd><kbd data-k="a">A</kbd><kbd data-k="s">S</kbd><kbd data-k="d">D</kbd><em data-t="move">이동</em></span><span class="grp"><kbd data-k="shift" class="wide">Shift</kbd><em data-t="run">달리기</em></span><span class="grp catch"><kbd data-k=" " class="wide">Space</kbd><em data-t="catch">잡기</em></span></div>
     <div id="toast"></div>
     <div id="mission"></div>
     <div id="banner"><img id="bannerArt" alt=""><div class="txt"><div id="bannerLead"></div><div id="bannerMain"></div></div></div>
-    <div id="lock">구역 안으로 돌아와요</div>
+    <div id="lock" data-t="lockIn">구역 안으로 돌아와요</div>
     <div id="bigCount"></div>
-    <button id="sound" aria-label="소리 끄기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="on" d="M3 10v4c0 .55.45 1 1 1h3l3.29 3.29c.63.63 1.71.18 1.71-.71V6.41c0-.89-1.08-1.34-1.71-.71L7 9H4c-.55 0-1 .45-1 1zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 4.45v.2c0 .38.25.71.6.85C17.18 6.53 19 9.06 19 12s-1.82 5.47-4.4 6.5c-.36.14-.6.47-.6.85v.2c0 .63.63 1.07 1.21.85C18.6 19.11 21 15.84 21 12s-2.4-7.11-5.79-8.4c-.58-.23-1.21.22-1.21.85z"/><path class="off" d="M3.63 3.63c-.39.39-.39 1.02 0 1.41L7.29 8.7 7 9H4c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h3l3.29 3.29c.63.63 1.71.18 1.71-.71v-4.17l4.18 4.18c-.49.37-1.02.68-1.6.91-.36.15-.58.53-.58.92 0 .72.73 1.18 1.39.91.8-.33 1.55-.77 2.22-1.31l1.34 1.34c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L5.05 3.63c-.39-.39-1.02-.39-1.42 0zM19 12c0 .82-.15 1.61-.41 2.34l1.53 1.53c.56-1.17.88-2.48.88-3.87 0-3.83-2.4-7.11-5.78-8.4-.59-.23-1.22.23-1.22.86v.19c0 .38.25.71.61.85C17.18 6.54 19 9.06 19 12zm-8.71-6.29l-.17.17L12 7.76V6.41c0-.89-1.08-1.33-1.71-.7zM16.5 12c0-1.77-1.02-3.29-2.5-4.03v1.79l2.48 2.48c.01-.08.02-.16.02-.24z"/></svg></button>
+    <button id="sound" aria-label="소리 끄기" data-ta="soundOff"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="on" d="M3 10v4c0 .55.45 1 1 1h3l3.29 3.29c.63.63 1.71.18 1.71-.71V6.41c0-.89-1.08-1.34-1.71-.71L7 9H4c-.55 0-1 .45-1 1zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 4.45v.2c0 .38.25.71.6.85C17.18 6.53 19 9.06 19 12s-1.82 5.47-4.4 6.5c-.36.14-.6.47-.6.85v.2c0 .63.63 1.07 1.21.85C18.6 19.11 21 15.84 21 12s-2.4-7.11-5.79-8.4c-.58-.23-1.21.22-1.21.85z"/><path class="off" d="M3.63 3.63c-.39.39-.39 1.02 0 1.41L7.29 8.7 7 9H4c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h3l3.29 3.29c.63.63 1.71.18 1.71-.71v-4.17l4.18 4.18c-.49.37-1.02.68-1.6.91-.36.15-.58.53-.58.92 0 .72.73 1.18 1.39.91.8-.33 1.55-.77 2.22-1.31l1.34 1.34c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L5.05 3.63c-.39-.39-1.02-.39-1.42 0zM19 12c0 .82-.15 1.61-.41 2.34l1.53 1.53c.56-1.17.88-2.48.88-3.87 0-3.83-2.4-7.11-5.78-8.4-.59-.23-1.22.23-1.22.86v.19c0 .38.25.71.61.85C17.18 6.54 19 9.06 19 12zm-8.71-6.29l-.17.17L12 7.76V6.41c0-.89-1.08-1.33-1.71-.7zM16.5 12c0-1.77-1.02-3.29-2.5-4.03v1.79l2.48 2.48c.01-.08.02-.16.02-.24z"/></svg></button>
     <div id="padZone"></div>
     <div id="pad"><div id="knob"></div></div>
-    <button id="btnRun"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><span id="btnRunLabel">달리기</span></button>
-    <button id="btnCatch">잡기</button>
+    <button id="btnRun"><span class="bolt"><svg viewBox="6 5 32 24" aria-hidden="true" fill="currentColor"><path d="M19.5683 17.0238C20.0045 16.2633 19.8314 15.3218 19.1817 14.9209C18.532 14.52 17.6517 14.8116 17.2156 15.5721C16.7794 16.3327 16.9525 17.2742 17.6021 17.675C18.2518 18.0759 19.1321 17.7843 19.5683 17.0238Z"/><path d="M10.7117 19.6607C11.179 19.0652 11.0099 18.1153 10.3341 17.5389C9.65819 16.9624 8.73145 16.9778 8.26413 17.5733C7.79681 18.1687 7.96587 19.1186 8.64174 19.6951C9.31762 20.2715 10.2444 20.2561 10.7117 19.6607Z"/><path d="M14.9581 15.3608C14.8268 14.4694 14.0706 13.8611 13.269 14.002C12.4675 14.143 11.9241 14.9799 12.0553 15.8713C12.1866 16.7627 12.9428 17.3711 13.7443 17.2301C14.5459 17.0891 15.0893 16.2522 14.9581 15.3608Z"/><path d="M10.0779 22.5396C10.4589 20.8652 11.7662 19.6425 13.107 19.0914C13.4619 18.9463 13.8331 18.8282 14.2177 18.7417L14.2248 18.7401L14.2319 18.7385C14.6123 18.6491 14.9983 18.5891 15.3766 18.5653C16.8094 18.4732 18.4663 19.0099 19.4488 20.3659C20.4271 21.7191 20.5256 23.8574 19.5579 25.1802C19.1523 25.732 18.5864 26.0819 17.9703 26.209C17.3048 26.3472 16.3963 26.141 15.7329 26.2903L15.7258 26.2919L15.7188 26.2935C15.0568 26.4501 14.3054 27.0412 13.6455 27.2089C13.0351 27.3654 12.385 27.2968 11.8074 26.974C10.4215 26.1998 9.69838 24.2021 10.0772 22.5359L10.0779 22.5396Z"/><path d="M34.7572 13.8025C35.4605 13.3308 35.6923 12.4042 35.2751 11.7329C34.8578 11.0616 33.9494 10.8998 33.2461 11.3715C32.5428 11.8432 32.3109 12.7698 32.7282 13.4411C33.1454 14.1124 34.0539 14.2742 34.7572 13.8025Z"/><path d="M25.7409 11.9097C26.4042 11.6009 26.6432 10.6686 26.2746 9.82749C25.906 8.98634 25.0695 8.55482 24.4062 8.86365C23.7428 9.17249 23.5039 10.1047 23.8724 10.9459C24.241 11.787 25.0776 12.2186 25.7409 11.9097Z"/><path d="M31.3114 10.0981C31.5601 9.2365 31.1327 8.32815 30.3567 8.06926C29.5807 7.81038 28.75 8.29899 28.5012 9.1606C28.2524 10.0222 28.6799 10.9306 29.4559 11.1895C30.2319 11.4484 31.0626 10.9597 31.3114 10.0981Z"/><path d="M23.9911 14.1857C25.0205 12.8688 26.6941 12.4016 28.1217 12.5522C28.4993 12.5928 28.8804 12.6654 29.2605 12.7727L29.2675 12.7747L29.2745 12.7767C29.652 12.8794 30.0225 13.0111 30.3711 13.1717C31.6925 13.7776 32.9562 15.0545 33.2791 16.7415C33.5994 18.4238 32.8089 20.3867 31.3983 21.1067C30.8083 21.4061 30.1575 21.4476 29.5533 21.2654C28.9003 21.0694 28.1712 20.4482 27.5156 20.2631L27.5086 20.2611L27.5016 20.2592C26.8442 20.0814 25.9281 20.2499 25.2681 20.083C24.6569 19.9299 24.1027 19.556 23.718 18.9893C22.7946 17.6298 22.9678 15.4927 23.992 14.1821L23.9911 14.1857Z"/></svg></span><span id="btnRunLabel" data-t="run">달리기</span></button>
+    <button id="btnCatch" data-t="catch">잡기</button>
   </div>
   <div id="start" class="sheet"><div class="card">
-    <h1>경찰과 도둑</h1>
-    <p>팀을 선택하세요.</p>
+    <h1 data-t="brand">경찰과 도둑</h1>
+    <p data-t="pickTeam">팀을 선택하세요.</p>
     <div class="picks">
-      <button class="pick p" data-role-pick="police"><img id="imgPolice" alt=""><b>경찰 냥파</b><span>도둑 4명을 모두 체포해요</span></button>
-      <button class="pick r" data-role-pick="robber"><img id="imgRobber" alt=""><b>도둑 도둥이</b><span>3분 동안 잡히지 않고 버텨요</span></button>
+      <button class="pick p" data-role-pick="police"><img id="imgPolice" alt=""><b data-t="copName">경찰 냥파</b><span data-t="copGoal">도둑 4명을 모두 체포해요</span></button>
+      <button class="pick r" data-role-pick="robber"><img id="imgRobber" alt=""><b data-t="robName">도둑 도둥이</b><span data-t="robGoal">3분 동안 잡히지 않고 버텨요</span></button>
     </div>
     <div class="opts">
-      <div class="seg"><span>난이도</span><button data-diff="easy">쉬움</button><button data-diff="normal" class="on">보통</button><button data-diff="hard">어려움</button></div>
-      <div class="seg wrap"><span>테마</span><button data-theme-pick="random" class="on">랜덤</button><button data-theme-pick="town">동네</button><button data-theme-pick="night">밤 골목</button><button data-theme-pick="park">공원</button><button data-theme-pick="city">도심</button><button data-theme-pick="snow">눈 마을</button></div>
+      <div class="seg"><span data-t="diffLabel">난이도</span><button data-diff="easy" data-t="diff.easy">쉬움</button><button data-diff="normal" class="on" data-t="diff.normal">보통</button><button data-diff="hard" data-t="diff.hard">어려움</button></div>
+      <div class="seg wrap"><span data-t="themeLabel">테마</span><button data-theme-pick="random" class="on" data-t="theme.random">랜덤</button><button data-theme-pick="town" data-t="theme.town">동네</button><button data-theme-pick="night" data-t="theme.night">밤 골목</button><button data-theme-pick="park" data-t="theme.park">공원</button><button data-theme-pick="city" data-t="theme.city">도심</button><button data-theme-pick="snow" data-t="theme.snow">눈 마을</button></div>
     </div>
-    <div class="rules">
+    <div class="rules" data-th="rules">
       <b>시야</b> 바라보는 쪽만 멀리 보여요. 내가 보는 상대도 나를 볼 수 있어요.<br>
       <b>위치 공개</b> 도둑 위치가 주기적으로 경찰에게 공개돼요. 공개되면 바로 자리를 옮겨요.<br>
       <b>숨을 곳</b> 덤불에 숨으면 멀리서 안 보여요. 달리면 흔들려 들켜요. 나무와 쓰레기통 뒤도 시야를 가려요.<br>
@@ -492,66 +526,68 @@
     </div>
   </div></div>
   <div id="lobby" class="sheet"><div class="card">
-    <img class="cardLogo" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
+    <img class="cardLogo" data-logo src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑" data-talt="brand">
     <h1 id="lobbyTitle"></h1>
     <p id="lobbyMsg"></p>
-    <button id="lobbyHome" hidden>처음 화면으로</button>
-    <button id="lobbyRetry" hidden>다시 해 보기</button>
+    <button id="lobbyHome" hidden data-t="toHome">처음 화면으로</button>
+    <button id="lobbyRetry" hidden data-t="retry">다시 해 보기</button>
     <div id="lobbyForm">
-      <label for="lobbyName">이름</label>
+      <label for="lobbyName" data-t="nameLabel">이름</label>
       <input id="lobbyName" maxlength="6" autocomplete="off">
-      <button id="lobbyJoin">같이 하기</button>
-      <button id="lobbyBack" class="link">처음 화면으로</button>
+      <button id="lobbyJoin" data-t="join">같이 하기</button>
+      <button id="lobbyBack" class="link" data-t="toHome">처음 화면으로</button>
+      <button type="button" class="langPick inCard" data-langpick aria-haspopup="menu" aria-expanded="false"><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7.6"/><path d="M2.6 10h14.8M10 2.4c2.3 2.4 2.3 12.8 0 15.2M10 2.4c-2.3 2.4-2.3 12.8 0 15.2"/></svg><span class="sr" data-t="lang">언어</span><span class="nm" data-langname translate="no">한국어</span><svg class="c" aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.6l3 3 3-3"/></svg></button>
     </div>
   </div></div>
-  <div id="home" class="sheet brand"><div class="homeWrap">
+  <div id="home" class="sheet brand"><button type="button" class="langPick" data-langpick aria-haspopup="menu" aria-expanded="false"><svg class="g" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7.6"/><path d="M2.6 10h14.8M10 2.4c2.3 2.4 2.3 12.8 0 15.2M10 2.4c-2.3 2.4-2.3 12.8 0 15.2"/></svg><span class="sr" data-t="lang">언어</span><span class="nm" data-langname translate="no">한국어</span><svg class="c" aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.6l3 3 3-3"/></svg></button><div class="homeWrap">
     <div class="hero">
-      <img class="logo" decoding="sync" src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑">
-      <div class="stage"><div class="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" decoding="sync" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
+      <img class="logo" decoding="sync" data-logo src="data:image/svg+xml;base64,/*B64:logo-ko.svg*/" alt="경찰과 도둑" data-talt="brand">
+      <div class="stage"><div class="bubble" data-th="bubble">누가 내 치즈<br>훔쳐갔어!!!!🧀</div><img class="pair" decoding="sync" src="data:image/svg+xml;base64,/*B64:pair.svg*/" alt=""></div>
     </div>
     <div class="card homeCard"><div class="homeActs">
-      <button id="homeCreate" class="primary"><img src="data:image/svg+xml;base64,/*B64:siren.svg*/" alt="">방 만들기</button>
-      <button id="homeJoinOpen"><img src="data:image/svg+xml;base64,/*B64:door.svg*/" alt="">코드로 들어가기</button>
+      <button id="homeCreate" class="primary"><img src="data:image/svg+xml;base64,/*B64:siren.svg*/" alt=""><span data-t="create">방 만들기</span></button>
+      <button id="homeJoinOpen"><img src="data:image/svg+xml;base64,/*B64:door.svg*/" alt=""><span data-t="joinOpen">코드로 들어가기</span></button>
       <div id="homeJoin" hidden>
-        <label for="homeCode">방 코드</label>
-        <div class="codeRow"><input id="homeCode" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="homeJoinGo" class="primary">들어가기</button></div>
+        <label for="homeCode" data-t="codeLabel">방 코드</label>
+        <div class="codeRow"><input id="homeCode" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="homeJoinGo" class="primary" data-t="enter">들어가기</button></div>
         <p id="homeCodeMsg"></p>
       </div>
       <div id="homeLive" hidden>
-        <div class="liveHead"><b>지금 열린 방</b><button id="homeAll" class="more">모두 보기</button></div>
+        <div class="liveHead"><b data-t="liveNow">지금 열린 방</b><button id="homeAll" class="more" data-t="seeAll">모두 보기</button></div>
         <div id="homeLiveList" role="list"></div>
       </div>
-      <button id="homeSolo" class="soloTile"><img src="data:image/svg+xml;base64,/*B64:console.svg*/" alt=""><span><b>혼자 해 보기</b><small>봇이랑 바로 한 판</small></span><i aria-hidden="true"></i></button>
+      <button id="homeSolo" class="soloTile"><img src="data:image/svg+xml;base64,/*B64:console.svg*/" alt=""><span><b data-t="solo">혼자 해 보기</b><small data-t="soloSub">봇이랑 바로 한 판</small></span><i aria-hidden="true"></i></button>
     </div></div>
   </div></div>
+  <script>applyI18n(document.getElementById("home"));</script>
   <!-- 공개 전, 점검 중. 그림은 첫 화면 것을 그대로 옮겨 쓴다(net.js showGate) -->
   <div id="gate" class="sheet brand"><div class="homeWrap">
     <div class="card homeCard gateCard">
       <h1 id="gateTitle"></h1>
       <p id="gateMsg"></p>
-      <a id="gateApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=gate&amp;utm_campaign=webgame" target="_blank" rel="noopener">앱 구경하기</a>
+      <a id="gateApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=gate&amp;utm_campaign=webgame" target="_blank" rel="noopener" data-t="seeApp">앱 구경하기</a>
     </div>
   </div></div>
   <div id="rooms" class="sheet brand"><div class="card">
-    <div class="roomsHead"><h1>열린 방</h1><button id="roomsBack">뒤로</button></div>
+    <div class="roomsHead"><h1 data-t="roomsTitle">열린 방</h1><button id="roomsBack" data-t="back">뒤로</button></div>
     <div id="roomsList" role="list"></div>
     <div id="roomsEmpty" hidden><p id="roomsEmptyMsg"></p><button id="roomsCreate">방 만들기</button></div>
     <template id="roomRowT"><button class="roomRow" role="listitem"><span class="av"></span><span class="who"><b></b><small></small></span><span class="cnt"><svg class="hc" aria-hidden="true" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"> <g clip-path="url(#clip0_6275_15913)"> <path d="M10.8935 5.49583C11.3134 5.02056 11.5656 4.4072 11.5656 3.73764C11.5656 2.22511 10.2794 1 8.6912 1C7.49131 1 6.46402 1.70167 6.03418 2.69557C7.43156 3.16603 8.43728 4.43289 8.43728 5.92294C8.43728 6.31311 8.36592 6.69847 8.23149 7.06135C9.70355 7.8433 10.6595 9.33335 10.6595 10.9984C10.6595 11.1654 10.6412 11.3292 10.613 11.4897H11.7017C12.9713 11.4897 14.0003 10.5087 14.0003 9.29963C14.0003 7.46437 12.6776 5.92775 10.8935 5.49583Z" fill="#339DFF"/> <path d="M6.83257 7.52823C7.21428 7.0947 7.44496 6.53433 7.44496 5.92418C7.44496 4.54492 6.27494 3.42578 4.83109 3.42578C3.38724 3.42578 2.21722 4.54492 2.21722 5.92418C2.21722 6.53593 2.44791 7.0947 2.82962 7.52823C1.20321 7.92161 0 9.32496 0 10.9997C0 12.1027 0.936014 12.9987 2.09109 12.9987H7.56611C8.72119 12.9987 9.65721 12.1043 9.65721 10.9997C9.65721 9.32496 8.454 7.92322 6.83091 7.52823H6.83257Z" fill="#69B6FF"/> </g> <defs> <clipPath id="clip0_6275_15913"> <rect width="14" height="14" fill="white"/> </clipPath> </defs> </svg><b></b></span></button></template>
   </div></div>
   <div id="inapp" class="sheet"><div class="card">
-    <h1>크롬이나 사파리에서 열어 주세요</h1>
+    <h1 data-t="inappTitle">크롬이나 사파리에서 열어 주세요</h1>
     <p id="inappBody"></p>
     <div class="acts inapp">
-      <button id="inappOpen">브라우저로 열기</button>
-      <button id="inappCopy">링크 복사</button>
+      <button id="inappOpen" data-t="inappOpen">브라우저로 열기</button>
+      <button id="inappCopy" data-t="inappCopy">링크 복사</button>
     </div>
-    <button id="inappStay">여기서 할게요</button>
+    <button id="inappStay" data-t="inappStay">여기서 할게요</button>
   </div></div>
   <div id="rotate" class="sheet"><div class="card">
     <div class="phone"></div>
-    <h1>가로로 돌려 주세요</h1>
-    <p>가로로 하면 더 넓게 보여요. 돌리면 바로 시작해요.</p>
-    <button id="rotateSkip">세로로 할게요</button>
+    <h1 data-t="rotateTitle">가로로 돌려 주세요</h1>
+    <p data-t="rotateBody">가로로 하면 더 넓게 보여요. 돌리면 바로 시작해요.</p>
+    <button id="rotateSkip" data-t="rotateSkip">세로로 할게요</button>
   </div></div>
   <div id="end" class="sheet"><div class="card">
     <div id="endHead">
@@ -560,15 +596,16 @@
       <p id="endReason"></p>
     </div>
     <div id="endStats"></div>
-    <div class="acts"><button id="again">한 판 더</button><button id="swap">역할 바꾸기</button></div>
+    <div class="acts"><button id="again" data-t="again">한 판 더</button><button id="swap" data-t="swap">역할 바꾸기</button></div>
     <!-- 다음 판이 먼저라 버튼 아래 작은 카드로 둔다. 아이콘은 앱의 한국어 아이콘(app_icon_ko)을 96px 로 줄여 넣었다(2026-11-06). /download 가 폰을 보고 맞는 스토어로 보내며 어디서 왔는지 남긴다 -->
     <a id="endApp" href="https://copsandrobbers.app/download?utm_source=webgame&amp;utm_medium=result&amp;utm_campaign=webgame&amp;utm_content=card" target="_blank" rel="noopener">
-      <img src="data:image/webp;base64,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" alt="" width="48" height="48">
-      <span class="txt"><b>경찰과 도둑 앱</b><span>동네에서 직접 잡고 도망가요</span></span>
-      <span class="get">앱 받기</span>
+      <img data-appicon src="data:image/webp;base64,UklGRkAKAABXRUJQVlA4IDQKAACQMACdASpgAGAAPj0cjESiIaERWq1UIAPEtgBhtui/M/xA6iav3YPxx/KT5Wau/fvwXx5R+Ox/9f9s3v3/4Hsb/N/sAfrJ/gPSH9RX7Seoj+bf03/W/3v3kvRF6AH9E/tPWT+gB+znpl/sj8KP7bfs78CP7Bf/DNN/wv8LP7V0f3mf2Q5cjz/2e/M/2T9uPYP7VfOv1K/jN+QH2BfjH8k/qv5M/1P9pPVy7gfKPMI9evnX+e/tf7efBnMdvTf9fxqdAD86+fv/wf6D8nfcx9If973Cv5p/Wf9x/af3R74KnGJh98NlUFMOwL8MewfM/JVCPvddHnLPI145W09R9HR0qGEmsj+nCPkMRrJLiFDbyzdJE4Siy7t5nDiH4msov5tSkZMxI0PiBjHyKxtt1eUJAerlW8wuI7SsF3deTOtAFw90UgGWUzG+Ikfr9DO1o+YF4gL1U0n7qs6IRZLoM82/4z01BFAs8VivK12DjCVCJ3IW5NQK3oRP4MVg5Lnjxh4CvfuXOtzeV+0CaiQAAPrBhmf9uQnmSqJCx64HINwQsTc/cZft5aVbowKaxphCIA9VvN2TqFXMEH/xpSnKRVbC6vNgD9eDm+EgAPhfVd2JkJ290p4qDruEQQvSxCHcR6QetGf+oQYjPixScuxkkCKgGVK07ufsom8/a8YLN7aQDmfMSlC31PNBHokyG2lb5V0A9Ed9BMts1mq+K0LVGtPkARCXCfc/7wRilObBk6StWHQBAmgkyZ0HXMaClPBfdA/Be8L8oKiYBOuxHKXTF+zQ9ewu57o7UavES4O+QWyU4bc0BD8CWg9FDv1CiUr4ts23Aj05quStNrB8ODf5n/J8GCCvTmYpFUXiWW/PNstKysZnChvmE8wpMi6k+wLe2e4l/fJ15x9Ze3ltoo8B39LRG4MuFB8QgQa3T+KSUBAe0PuLeGUHp+umh9gW5aLqy7MVAS5SDcFaVgxCcPITqOzWUPrmyIqubo7KgZ8WQkWKxJuF7l+jo+4Gvn4ok2XdFf6gueGS9ZgdydKm3hO2pHs+JCHtDdQTdTcIakWTJMCuge3z/vK/ge/c/Lk/9bmgTn/8Q482Zqj8eeKXdfE4r8Z0U4EW9P343O2Bdcjng5qTI1Hj4RGADNFTe0JC8aP1ibVh0DNDJkFcnQF8Xt39frx/8ZiH83ykkEqWfwvB1907ensNeKxmGf1HKxc536EAhhufy+WDq6g54ayldxr+eCOMe9P9ON5JZSXURwAC/SuASX+JWIXG1T0a3S+6VlLtSTLgL3L/bUEqY+Ttid3HipuM7JWA9tfAAcBC6Lg250SF2vv7yN9mcUcBjgEDktC/d2oeJIaPJlZvnc4J+qyraCi81D1sPahUbI1Eeljc6ngDEThGh09OQRJ0vWbpF7R8LDOCHtJ/pnyU+DYUlVrUGAmLo/Ucg3cY/+X0QyRvk2ADu8zHCX/CBfie4itnjObqlScb5MSThwJ+z81F0WV36bpGu/XkOwnjvi/jX1+V4Ku7DhTXy6WZd3m6Pm6GBtpYfLMmZ3fBo1wuGqyPu+6tQBPQoaO6w1/RWvHVek1shuf8F/6Gdk3VE9X7rsGCfHt25VU/ZX0XmyGicnXC3l5pxT8+ibNj40mvwmVodt1YaTQHIJNS5jLUg0CuhiuJ6efhfotrngXoR51s4FvthguxRuvQO33YZriDUUPYkyyhHZ+wYNt//hZF3O9jDV7TJUlx1LYij7xLqjpyD9amKrNomO5Qfup1qQHcDyFD3HYxB3l+qch6bQRquzLu0Ue9FzeTZHaZpns3l1sT3pd1en0jUMYmQjvxYqVnQmEktfmXzgBMd4hrzYlGMTRrLAhLS1CMMoKYeRLmuwHw/8/ad0h7ZUPB1rKfNT35dRfUonkoZPGlDnwYdt5/4m+Ab8Q67KlCRn6oqcbB6R24pc+3P/x04Trw9tFluUI0Tk+fjZuio4B3q1UG9FpGmQS4TXqg75pc/Qi0eXlVG2QeN07wcYxKKr7g/iZCm7xuiccfBMwky47oCAIB1HPcbL7CWVbQc/eQylA2LkDlcGnMCajm9yZdfwVjwJh0B+s1pOE8Dw9L+kRfn66xCid5+NHbN0FAEEmN+3V4GX5RgxL72/MwgCVSeCkUrGgOwh2eAsw2Q60q1zZILti/YPPLA4vq8EfjIMkFzGnV8I4SYRWCBWc4TKyAcBa3Qkr+b8u7d8usTAeqlZ5Tjn+Oxoe6lFCCMdK6frgcuVMmeYM4V1CAK2VrbMooVhZ3e4ZhPHnzyE2A6neGDyHHtzOmb4reYTWu+SzV1orkABd/4H4cQvv0Gca1ejAm8jJz4xspxSHpNiZTop+Pj/wdqpV/xbHFP4yxwbg0JJhN1OdTo/31rEYQTJhTKuDrzNtu5TX4vmHIOvWvtderozp53kFn1WQNtb5AZmuDPAMGjTfj8sF0KrnDskiEKAuccoLi4iJqvcvsel8C6pxn8wL+20lSAQ45dpZ0qhanjsRp/6z5J40p+ltKPeFCqbCahu4MVVE4KRwBVnnx/+YD7kzTDJop1XTL4wLFoRjVLztCehP7dR0aH7zB7xXRlz0HSGfyM6MlfwuYcjv8z3jxPwJ0RvzGtJFIEGJ4ymIvTa+DGXNMZCc1/YrN+6PQ5FCeKMTQB9BJAernvRMFeFF3AupF0aoKZTYH2EXXdP88pFCg5mbk3+yRiCLtcGPuSmzGv9em5TOA3Uxp6KP/7L/jT63SFUdMnIFBq0eAO0s9HB/RhDw7kmT+esqrJmz3JU8zKwu5m/ECZWtsjVOSiSUpZgh9R02eQqeOR1WfnD0DE2/Wi6juNrRoplffl8zbv8aeIwp2JtfMz45Swg6T6i91mHK8anilkvYApaxd5YjEpvcf3WnEP+f5zzf+LpAUTRsUjjr7+e5USEwkJMjiSbfB2gVeua+1sgj4k10XBNBBi5NnTBBaXBvUNAJt+CbzP/hhKMZdf1HTfKu3laGOM9YvZtxYRZEWztsxPjiWbEE3ZCypJI2YqaoBFQFNWxhl9CUy3GwU0SS76UKqAGiYPlBv4u8XOiizIm72sxp3YTjuY2RLG0VVeDRE/1937dWaqjOM2O/scn/IbFJeNPE1XWioLjKTV7uy25QgBuvr4lpKKGHFEnRGJsTUCWb66kPCRlCEQQb1Bx9wOVOp1X2zi6QxudAx5xpaLarkEmsAJnACJ5Ib+1lC1GKwvT8FdM48sYz/FQojUfQ6Bj9nQ/OdIc+sWV77TMLtLJqd/QEne1Oq3bV9wCselbcNCa0eFPALf4S3r/bN+gOUVVBze1RnBB21ncd1UmwhMlAmxw5g81JltScqdXuHxA0kcQ8i83v56GO/x9s2J/KNMORKJGUOwIX8HSYxb1M/oe+HHXe73uMl8kJ3jUNNXmUT3wMQHuiyb7aWVnUhM4tFIH2txe6r4LE/fpyK81Oen+8ipr0cUNnUrnYogLWmogNG8C+eGttTHLLAJzi6+AAAAA==" alt="" width="48" height="48">
+      <span class="txt"><b data-t="appName">경찰과 도둑 앱</b><span data-t="appSub">동네에서 직접 잡고 도망가요</span></span>
+      <span class="get" data-t="getApp">앱 받기</span>
     </a>
   </div></div>
 </div>
+<script>applyI18n();</script>
 <script>/*ENGINE*/</script>
 <script>/*SVGS*/</script>
 <script>/*LOGIC*/</script>

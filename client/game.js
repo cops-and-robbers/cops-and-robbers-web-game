@@ -99,13 +99,13 @@ function bakeMap() {
     x.restore();
   }
   // 감옥 글자
-  x.font = "800 30px Pretendard, 'Noto Sans KR', sans-serif"; x.textAlign = "center";
-  const w = x.measureText("감옥").width + 78, sy = J.y - J.r - 62;
+  x.font = `800 30px ${getComputedStyle(document.documentElement).getPropertyValue("--font")}`; x.textAlign = "center";
+  const w = x.measureText(tt("jail")).width + 78, sy = J.y - J.r - 62;
   x.fillStyle = "rgba(29,35,43,.18)"; rr(x, J.x - w / 2 + 4, sy + 6, w, 50, 16); x.fill();
   x.fillStyle = "#1D232B"; rr(x, J.x - w / 2, sy, w, 50, 16); x.fill();
   x.fillStyle = "#E2574C"; x.beginPath(); x.arc(J.x - w / 2 + 28, sy + 25, 15, 0, 7); x.fill();
   if (SIREN_IMG.complete) x.drawImage(SIREN_IMG, J.x - w / 2 + 19, sy + 14, 18, 22);
-  x.fillStyle = "#fff"; x.fillText("감옥", J.x + 16, sy + 36);
+  x.fillStyle = "#fff"; x.fillText(tt("jail"), J.x + 16, sy + 36);
 }
 const SIREN_IMG = new Image(); SIREN_IMG.src = "data:image/svg+xml;base64,/*B64:siren.svg*/";
 function drawBuilding(x, b, T, i, seed) {
@@ -278,7 +278,7 @@ function makeChar(a) {
   let tag = null;
   // 사람끼리 할 때는 상대 이름도 보여 준다. 시야 밖 상대는 캐릭터째 숨고 이름도 받지 않는다
   if (G.player && (online || a.team === G.player.team)) {
-    tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? "나" : a.name; tag.style.top = (headTop - 66) + "px"; el.append(tag);
+    tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? tt("me") : nameOf(a.name); tag.style.top = (headTop - 66) + "px"; el.append(tag);
   }
   const c = { a, kind, el, views, tag, face: 1, faceS: new Spring(420, 34), pop: new Spring(300, 14), view: null, prev: null, tr: 1, trMode: "fade", mot: {}, mkey: {}, phase: 0, facing: "front", want: null, wantT: 0, stillT: 0, action: null, hopY: 0, input: { x: 0, y: 0 }, hide: 0, wasVisible: false };
   c.faceS.x = 1;
@@ -459,7 +459,7 @@ function drawJailAlert() {
   el.hidden = !on;
   if (!on) { jailAlertWas = false; return; }
   el.className = p.team === "police" ? "bad" : "good";
-  $("jailAlertText").textContent = p.team === "police" ? "감옥 문이 열리고 있어요" : "친구가 문을 열고 있어요";
+  $("jailAlertText").textContent = tt(p.team === "police" ? "jailOpening" : "friendOpening");
   $("jailAlertFill").style.width = Math.min(100, G.rescueT / CFG.RESCUE_SEC * 100) + "%";
   if (!jailAlertWas && p.team === "police") { play("alert"); haptic([0, 200, 100, 200]); }
   jailAlertWas = true;
@@ -614,11 +614,11 @@ hold(runBtn, () => { runDownAt = Date.now(); sprintBtn = true; haptic(8); }, () 
   sprintBtn = runLatched;
   runBtn.classList.toggle("down", runLatched);
   runBtn.classList.toggle("latched", runLatched);
-  $("btnRunLabel").textContent = runLatched ? "달리는 중" : "달리기";
+  $("btnRunLabel").textContent = tt(runLatched ? "running" : "run");
 });
 hold($("btnCatch"), () => { wantCatch = true; haptic(15); }, () => {});
 // 다른 앱으로 나갔다 오면 눌린 채로 남지 않게 푼다
-const releaseAll = () => { padEnd(); sprintBtn = false; runLatched = false; runBtn.classList.remove("latched"); $("btnRunLabel").textContent = "달리기"; keys.clear(); document.querySelectorAll("#btnRun.down,#btnCatch.down").forEach(b => b.classList.remove("down")); };
+const releaseAll = () => { padEnd(); sprintBtn = false; runLatched = false; runBtn.classList.remove("latched"); $("btnRunLabel").textContent = tt("run"); keys.clear(); document.querySelectorAll("#btnRun.down,#btnCatch.down").forEach(b => b.classList.remove("down")); };
 addEventListener("blur", releaseAll);
 document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); else keepAwake(); });
 // 판 도중 화면이 꺼지지 않게 한다. 안 되는 브라우저는 넘어간다
@@ -666,34 +666,34 @@ function handleEvents() {
   for (const e of G.events.splice(0)) {
     if (e.type === "catchStart") startAction(chars[e.a.id], "catch", e.a.action?.dx ?? Math.cos(e.a.faceA));
     if (e.type === "jailed") { burst(e.r.x, e.r.y - 40, "#FFFFFF", 12); if (e.r === p) shake = 5; }
-    if (e.type === "catchMiss" && e.a === p) { toast("놓쳤어요", "bad"); play("miss"); }
+    if (e.type === "catchMiss" && e.a === p) { toast(tt("missed"), "bad"); play("miss"); }
     if (e.type === "caught") {
       startAction(chars[e.r.id], "jail");
       if (e.r === p || e.by === p || seen(e.r)) burst(e.r.x, e.r.y - 40, "#FFC93C", 16);
       if (e.by === p) { play("catch"); haptic(80); } else if (e.r === p) { play("caught"); haptic(500); }
       if (e.r === p || e.by === p) { shake = 12; hitStop = 0.08; }
-      if (e.r === p) toast("잡혔어요. 감옥으로 가요", "bad");
-      else if (e.by === p) toast(`${e.r.name}을 잡았어요`, "good");
-      else if (p.team === "police") toast(`${e.by.name}이 ${e.r.name}을 잡았어요`);
-      else toast(`${e.r.name}이 잡혔어요`, "bad");
+      if (e.r === p) toast(tt("caughtMe"), "bad");
+      else if (e.by === p) toast(tt("iCaught", nameOf(e.r.name)), "good");
+      else if (p.team === "police") toast(tt("xCaughtY", nameOf(e.by.name), nameOf(e.r.name)));
+      else toast(tt("xCaught", nameOf(e.r.name)), "bad");
     }
     if (e.type === "unlocked") {
       startAction(chars[e.r.id], "escape"); if (e.r === p || (p.team === "robber" && e.rescued)) play("free");
-      if (e.r === p) toast(e.rescued ? "동료가 문을 열었어요. 밖으로 뛰어요" : "문이 열렸어요. 밖으로 뛰어요", "good");
+      if (e.r === p) toast(tt(e.rescued ? "mateOpened" : "doorOpened"), "good");
     }
-    if (e.type === "rescued" && e.by === p) toast(`동료 ${e.n}명을 구했어요`, "good");
-    if (e.type === "rescued" && p.team === "police") toast("도둑이 감옥 문을 열었어요", "bad");
-    if (e.type === "freed" && e.r === p) toast("탈옥했어요. 다시 숨어요", "good");
+    if (e.type === "rescued" && e.by === p) toast(tt("rescuedN", e.n), "good");
+    if (e.type === "rescued" && p.team === "police") toast(tt("robberOpened"), "bad");
+    if (e.type === "freed" && e.r === p) toast(tt("freed"), "good");
     if (e.type === "dispatch") { play("go"); haptic(role === "police" ? [0, 90, 90, 90] : 600); }
-    if (e.type === "dispatch") banner(role === "police" ? "시간이 됐어요" : "경찰이 출동했어요", role === "police" ? "출동!" : "조심!");
+    if (e.type === "dispatch") banner(...tt(role === "police" ? "dispatchCop" : "dispatchRob"));
     if (e.type === "reveal") {
       if (role === "police" || p.state === "free") { play("reveal"); haptic(250); }
-      if (role === "police") toast("도둑 위치가 공개됐어요. 빨간 표시가 있는 곳으로 가요", "good");
-      else if (p.state === "free") toast("내 위치가 공개됐어요. 지금 자리를 옮겨요", "bad");
+      if (role === "police") toast(tt("revealedCop"), "good");
+      else if (p.state === "free") toast(tt("revealedRob"), "bad");
     }
     if (e.type === "outReveal") {
       if (e.r === p) { play("reveal"); haptic(250); }
-      else if (p.team === "police") { play("reveal"); toast("구역 밖으로 나간 도둑이 보여요. 빨간 표시를 따라가요", "good"); }
+      else if (p.team === "police") { play("reveal"); toast(tt("outRevealCop"), "good"); }
     }
     if (e.type === "over") { showEnd(); play(G.over.winner === p.team ? "win" : "lose"); }
   }
@@ -701,15 +701,15 @@ function handleEvents() {
 
 // 구역 밖 안내. 도둑에게는 몇 초 뒤 위치가 보이는지, 지금 보이는 중인지까지 알려 준다
 function lockText(p) {
-  if (p.team !== "robber" || G.phase !== "play" || p.state !== "free") return "구역 안으로 돌아와요";
+  if (p.team !== "robber" || G.phase !== "play" || p.state !== "free") return tt("lockIn");
   const left = Math.ceil(CFG.OUT_GRACE - (p.outT || 0));
-  return left > 0 ? `구역 안으로 돌아와요. ${left}초 뒤 경찰에게 위치가 보여요` : "경찰에게 내 위치가 보이고 있어요. 구역 안으로 돌아와요";
+  return left > 0 ? tt("lockSoon", left) : tt("lockSeen");
 }
 
 function drawHud(dt) {
   const p = G.player, left = G.phase === "wait" ? CFG.WAIT - G.t : CFG.DURATION - G.t;
   $("timer").textContent = fmt(left);
-  $("timerLabel").textContent = G.phase === "wait" ? "경찰 출동까지" : "남은 시간";
+  $("timerLabel").textContent = tt(G.phase === "wait" ? "timerWait" : "timerLeft");
   $("clock").classList.toggle("wait", G.phase === "wait");
   // 사람끼리 할 때는 다른 도둑의 상태를 받지 않아서 남은 수로 그린다
   const pips = G.robbers.map((r, i) => (online ? i < online.free : r.state === "free"));
@@ -721,21 +721,21 @@ function drawHud(dt) {
   if (showReveal) {
     const rest = Math.max(0, G.nextReveal - G.t), n = Math.ceil(rest), soon = n <= 5;
     if (n !== lastRevealN) { lastRevealN = n; const el = $("revealN"); el.textContent = n; if (soon) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } }
-    $("revealLabel").textContent = role === "police" ? "도둑 위치 공개" : "내 위치 공개";
+    $("revealLabel").textContent = tt(role === "police" ? "revealCop" : "revealRob");
     $("revealFill").style.width = Math.min(100, rest / G.revealEvery * 100) + "%";
     $("reveal").className = soon ? (role === "robber" ? "hot" : "soon") : "";
   }
   $("hint").classList.toggle("dim", G.phase === "play" && G.t - CFG.WAIT > 12);
   $("stam").classList.toggle("tired", !!p.tired);
   let line = "";
-  if (G.phase === "wait") line = role === "police" ? "도둑이 도망치는 중이에요" : "경찰에게서 멀어지는 중이에요";
-  else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = "같은 편이 감옥 앞 초록 원에 서면 나갈 수 있어요";
-  else if (p.state === "jailed") line = `${Math.ceil(p.lock)}초 뒤 풀려나요. 동료가 감옥 앞에 오면 더 빨리 나갈 수 있어요`;
-  else if (p.state === "inJail") line = "감옥 밖에서 3초 동안 안 잡히면 탈옥해요";
-  else if (p.state === "breaking") line = `탈옥까지 ${Math.ceil(p.breakT)}초. 잡히면 다시 감옥에 가요`;
+  if (G.phase === "wait") line = tt(role === "police" ? "waitCop" : "waitRob");
+  else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = tt("jailedManual");
+  else if (p.state === "jailed") line = tt("jailedAuto", Math.ceil(p.lock));
+  else if (p.state === "inJail") line = tt("inJail");
+  else if (p.state === "breaking") line = tt("breaking", Math.ceil(p.breakT));
   else {
     const n = Math.ceil(G.nextReveal - G.t);
-    line = role === "police" ? `다음 위치 공개까지 ${n}초` : `내 위치 공개까지 ${n}초`;
+    line = tt(role === "police" ? "nextRevealCop" : "nextRevealRob", n);
   }
   $("status").textContent = line;
   const waitBig = role === "police" && G.phase === "wait";
@@ -746,7 +746,7 @@ function drawHud(dt) {
   if (out) { const t = lockText(p); if ($("lock").textContent !== t) $("lock").textContent = t; }
   if (role === "police") $("btnCatch").classList.toggle("off", p.catchCd > 0 || p.state !== "free");
   // 지치면 켜 둔 달리기도 꺼 준다
-  if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down", "latched"); $("btnRunLabel").textContent = "달리기"; }
+  if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down", "latched"); $("btnRunLabel").textContent = tt("run"); }
   runBtn.classList.toggle("tired", !!p.tired);
   // 잡기를 다시 쓸 수 있을 때까지 버튼 위로 시계처럼 차오른다
   if (role === "police") $("btnCatch").style.setProperty("--cd", p.catchCd > 0 ? (1 - p.catchCd / CFG.CATCH_CD).toFixed(3) : "1");
@@ -759,15 +759,15 @@ function showEnd() {
   ended = true;
   const p = G.player, won = G.over.winner === p.team;
   // 결과 창에서 제일 먼저 봐야 하는 건 이겼는지 졌는지다. 색으로 한 번 더 알린다
-  $("endTitle").textContent = won ? "이겼어요!" : "졌어요";
+  $("endTitle").textContent = tt(won ? "won" : "lost");
   $("endTitle").className = won ? "won" : "lost";
-  $("endReason").textContent = G.over.reason === "allArrested" ? "도둑이 모두 체포됐어요!" : "제한 시간이 끝났어요!";
+  $("endReason").textContent = tt(G.over.reason === "allArrested" ? "allArrested" : "timeUp");
   $("endHero").src = won ? WIN_ICON[p.team] : p.team === "police" ? POLICE_ICON : ROBBER_ICON;
   $("endHero").className = won ? "won" : "lost";
   const s = p.s;
   $("endStats").innerHTML = (p.team === "police"
-    ? [["내 체포", s.catches + "번"], ["팀 체포", G.stats.catches + "번"], ["탈옥한 도둑", G.stats.rescues + "명"]]
-    : [["잡힌 횟수", s.caught + "번"], ["구한 동료", s.rescued + "명"], ["숨어 있던 시간", Math.round(s.hideT) + "초"]]
+    ? [[tt("stCatches"), tt("times", s.catches)], [tt("stTeamCatches"), tt("times", G.stats.catches)], [tt("stEscaped"), tt("people", G.stats.rescues)]]
+    : [[tt("stCaught"), tt("times", s.caught)], [tt("stRescued"), tt("people", s.rescued)], [tt("stHidden"), tt("secs", Math.round(s.hideT))]]
   ).map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("");
   setTimeout(() => $("end").className = "sheet show " + role, 500);
 }
@@ -788,7 +788,7 @@ function showGame(r, opts, setup) {
   document.body.dataset.role = r;
   $("start").className = "sheet"; $("end").className = "sheet"; $("hud").className = "show"; $("toast").className = ""; $("banner").className = "";
   $("btnCatch").style.display = r === "police" ? "" : "none";
-  $("mission").textContent = `${G.th.name} · ` + (r === "police" ? "도둑을 찾아 모두 체포하세요" : "끝날 때까지 잡히지 말고 도망치세요");
+  $("mission").textContent = `${TX.theme[G.theme] ?? G.th.name} · ` + tt(r === "police" ? "missionCop" : "missionRob");
   $("mission").className = "show"; missionT = 3.2;
 }
 
@@ -931,7 +931,7 @@ function play(name, rate = 1) {
   s.connect(g); g.connect(bus); s.start();
 }
 function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); loadSounds(); } catch { audio = null; } }
-$("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").setAttribute("aria-label", muted ? "소리 켜기" : "소리 끄기"); });
+$("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").setAttribute("aria-label", tt(muted ? "soundOn" : "soundOff")); });
 addEventListener("pointerdown", unlockAudio); addEventListener("keydown", unlockAudio);
 
 const pick = (attr, set) => document.querySelectorAll(`[${attr}]`).forEach(b => { b.addEventListener("click", () => { set(b.getAttribute(attr)); document.querySelectorAll(`[${attr}]`).forEach(o => o.classList.toggle("on", o === b)); }); });

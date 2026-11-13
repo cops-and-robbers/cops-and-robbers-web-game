@@ -81,13 +81,14 @@ function createLobbyScene(net) {
     m.globalAlpha = .82; m.drawImage(off, ZX[0] - pad, ZY[0] - pad); m.globalAlpha = 1;
   }
 
+  // 문구는 client/i18n.js. 정해진 말은 번호로 주고받아 보는 사람의 언어로 보인다
   const COPY = {
-    code: "방 코드", invite: "친구 부르기", copied: "링크를 복사했어요", quit: "나가기", seats: "인원", copN: "경찰", robN: "도둑",
-    hint: "하고 싶은 편으로 걸어가요", wait: n => `${n} 님이 시작하면 바로 넘어가요`, full: "자리가 다 찼어요",
-    start: "시작하기", needOne: "친구가 오거나 봇을 켜면 시작할 수 있어요", needCop: "경찰이 한 명은 있어야 해요", needRob: "도둑이 한 명은 있어야 해요",
-    bots: "빈자리 봇으로 채우기", bot: "봇", host: "방장", me: "나", kick: "내보내기",
-    open: "공개 방", openSub: "열린 방 목록에 보여요", pub: "공개",
-    say: ["시작할까요", "잠깐만요", "경찰 하고 싶어요", "도둑 하고 싶어요", "친구 부르고 있어요"], isCop: "경찰이에요", isRob: "도둑이에요",
+    code: tt("code"), invite: tt("invite"), copied: tt("copied"), quit: tt("quit"), seats: tt("seats"), copN: tt("cop"), robN: tt("rob"),
+    hint: tt("hint"), wait: n => tt("wait", n), full: tt("full"),
+    start: tt("start"), needOne: tt("needOne"), needCop: tt("needCop"), needRob: tt("needRob"),
+    bots: tt("bots"), bot: tt("bot"), host: tt("host"), me: tt("me"), kick: tt("kick"),
+    open: tt("open"), openSub: tt("openSub"), pub: tt("pub"),
+    say: TX.say, isCop: tt("isCop"), isRob: tt("isRob"),
   };
   const MAX_TOTAL = 8, HOME = { cop: "police", rob: "robber" };
   const ICON = {
@@ -118,7 +119,7 @@ function createLobbyScene(net) {
   function renderTag(p) {
     const mine = p === me;
     p.tag.className = `wtag ${mine ? "me " + (p.side === "any" ? "" : p.side) : ""} ${p.isBot ? "bot" : ""}`;
-    p.tag.textContent = p.isBot ? COPY.bot : p.name;
+    p.tag.textContent = p.isBot ? COPY.bot : nameOf(p.name);
     const add = t => { const e = document.createElement("em"); e.textContent = t; p.tag.append(e); };
     if (p.hostMark) add(COPY.host);
     if (mine) add(COPY.me);
@@ -141,14 +142,14 @@ function createLobbyScene(net) {
     add("cop", c, here("cop")); add("rob", r, here("rob"));
   }
   const startState = () => { const c = here("cop"), r = here("rob"), a = here("any"), n = people.size; if (S.bots) return { ok: true }; if (n < 2) return { ok: false, why: COPY.needOne }; if (c + a === 0) return { ok: false, why: COPY.needCop }; if (r + a === 0) return { ok: false, why: COPY.needRob }; return { ok: true }; };
-  const stepBtn = (side, d) => { const total = S.cops + S.robs, cur = side === "cop" ? S.cops : S.robs, off = d > 0 ? total >= MAX_TOTAL : (cur <= 1 || total - 1 < people.size), nm = side === "cop" ? COPY.copN : COPY.robN; return `<button class="step" data-act="n-${side}-${d}" aria-disabled="${off}" aria-label="${nm} 한 명 ${d > 0 ? "늘리기" : "줄이기"}"><i>${d > 0 ? "+" : "−"}</i></button>`; };
+  const stepBtn = (side, d) => { const total = S.cops + S.robs, cur = side === "cop" ? S.cops : S.robs, off = d > 0 ? total >= MAX_TOTAL : (cur <= 1 || total - 1 < people.size), nm = side === "cop" ? COPY.copN : COPY.robN; return `<button class="step" data-act="n-${side}-${d}" aria-disabled="${off}" aria-label="${tt(d > 0 ? "addOne" : "removeOne", nm)}"><i>${d > 0 ? "+" : "−"}</i></button>`; };
   function renderHud() {
     if (!active) return;
     const st = startState(), total = S.cops + S.robs, n = people.size, alone = n === 1 && !S.bots, hostName = [...people.values()].find(p => p.hostMark)?.name || "";
     const line = !moved ? COPY.hint : (S.host ? "" : COPY.wait(""));
-    let h = `<div class="row1"><div class="lp code"><div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="방 코드 복사">${codeDone ? ICON.check : ICON.copy}</button></div>
+    let h = `<div class="row1"><div class="lp code"><div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
       <button class="bt ${S.host && alone ? "main" : ""}" data-act="invite">${copied ? COPY.copied : COPY.invite}</button>
-      <button class="bt ic" data-act="say" aria-label="정해진 말 열기" aria-expanded="${sayOpen}">${ICON.say}</button>
+      <button class="bt ic" data-act="say" aria-label="${tt("sayOpen")}" aria-expanded="${sayOpen}">${ICON.say}</button>
       <div class="grow">${line ? `<div class="line" data-line></div>` : ""}</div>
       ${S.host ? `<button class="bt" data-act="seats" aria-expanded="${seatsOpen}">${COPY.seats}</button>` : ""}
       <button class="bt quiet" data-act="quit">${COPY.quit}</button></div>`;
@@ -166,8 +167,8 @@ function createLobbyScene(net) {
     const keepScroll = lob.querySelector(".sheetR")?.scrollTop ?? 0;
     lob.innerHTML = h;
     const sheet = lob.querySelector(".sheetR"); if (sheet) sheet.scrollTop = keepScroll;
-    lob.querySelectorAll("[data-name]").forEach(e => { e.textContent = S.players.find(p => p.id === e.dataset.name)?.name ?? ""; });
-    const lineEl = lob.querySelector("[data-line]"); if (lineEl) lineEl.textContent = !moved ? COPY.hint : COPY.wait(hostName);
+    lob.querySelectorAll("[data-name]").forEach(e => { e.textContent = nameOf(S.players.find(p => p.id === e.dataset.name)?.name ?? ""); });
+    const lineEl = lob.querySelector("[data-line]"); if (lineEl) lineEl.textContent = !moved ? COPY.hint : COPY.wait(nameOf(hostName));
     if (focus) { const b = lob.querySelector(`[data-act="${focus}"]`); if (b) b.focus({ preventScroll: true }); }
     for (const side of ["cop", "rob"]) { const e = counts[side], cur = here(side), cap = capOf(side); e.textContent = `${cur}/${cap}`; e.className = "wcount" + (cur >= cap ? " full" : ""); }
   }

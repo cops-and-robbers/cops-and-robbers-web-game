@@ -41,7 +41,7 @@ function createOnline() {
     addEventListener("popstate", () => {
       if (ended && !wasPlaying && !scene.active) return;
       if (Date.now() - backAt < 2500) { history.back(); return; }
-      backAt = Date.now(); history.pushState({ stay: 1 }, ""); toast("한 번 더 누르면 나가요");
+      backAt = Date.now(); history.pushState({ stay: 1 }, ""); toast(tt("backAgain"));
     });
   };
   net.quit = () => { stopped = true; ended = true; ws?.close(); goHome(); };
@@ -75,14 +75,14 @@ function createOnline() {
       joined = false;
       if (stopped) return;
       // 한 번도 못 붙었으면 오래 기다리게 하지 않는다
-      if (!opened && retries >= 2) { blocked("지금은 들어갈 수 없어요", "잠시 뒤에 다시 해 주세요", "retry"); return; }
+      if (!opened && retries >= 2) { blocked(tt("cantEnter"), tt("tryLater"), "retry"); return; }
       if (ended || retries >= RETRY_MAX) {
-        if (!ended) lobby(true, "연결이 끊겼어요. 받은 링크를 다시 열어 주세요");
+        if (!ended) lobby(true, tt("lostLink"));
         return;
       }
       retries++;
-      if (wasPlaying) toast("연결이 끊겼어요. 다시 들어가는 중이에요", "bad");
-      else lobby(true, "다시 연결하는 중이에요");
+      if (wasPlaying) toast(tt("reconnectingPlay"), "bad");
+      else lobby(true, tt("reconnecting"));
       setTimeout(connect, RETRY_MS);
     };
   }
@@ -121,10 +121,10 @@ function createOnline() {
       case "error":
         if (m.code === "sideFull") scene.refused(m.side);
         if (m.code === "cantStart") scene.cant();
-        if (m.code === "playing") blocked("지금 한 판 하는 중이에요", "3분 안에 끝나요", "retry");
-        if (m.code === "full") blocked("방이 꽉 찼어요", "", "home");
-        if (m.code === "noRoom") blocked("이 코드로 열린 방이 없어요", "", "home");
-        if (m.code === "kicked") blocked("방장이 내보냈어요", "", "home");
+        if (m.code === "playing") blocked(tt("playingNow"), tt("endsSoon"), "retry");
+        if (m.code === "full") blocked(tt("roomFull"), "", "home");
+        if (m.code === "noRoom") blocked(tt("noRoom"), "", "home");
+        if (m.code === "kicked") blocked(tt("kicked"), "", "home");
     }
   }
 
@@ -146,7 +146,7 @@ function createOnline() {
         G2.player = G2.agents[m.you];
         G2.player.isPlayer = true;
         // 못 본 상대의 이름은 받지 않으니 진영으로 부른다
-        for (const a of G2.agents) if (a !== G2.player) a.name = a.team === "police" ? "경찰" : "도둑";
+        for (const a of G2.agents) if (a !== G2.player) a.name = tt(a.team === "police" ? "cop" : "rob");
       });
       gameReady = true;
       syncRotate();
@@ -203,7 +203,7 @@ function createOnline() {
       a.iy = m > 1 ? o.vy / m : 0;
       a.name = o.name;
       const tag = chars[o.id]?.tag;
-      if (tag && tag.textContent !== o.name) tag.textContent = o.name;
+      if (tag && tag.textContent !== nameOf(o.name)) tag.textContent = nameOf(o.name);
     }
   }
 
@@ -273,7 +273,7 @@ function createOnline() {
   $("swap").hidden = true;
   $("lobbyName").value = store.get("name") || "";
   // 부른 사람이 있으면 그 이름을, 없으면 위의 글자 로고만 보여 준다
-  $("lobbyTitle").textContent = NET_FROM ? `${NET_FROM.slice(0, 6)} 님이 경도 하재요` : "";
+  $("lobbyTitle").textContent = NET_FROM ? tt("invitedBy", NET_FROM.slice(0, 6)) : "";
   lobby(true, "");
   $("lobbyJoin").onclick = () => {
     name = Array.from($("lobbyName").value.trim()).slice(0, 6).join("");
@@ -283,7 +283,7 @@ function createOnline() {
     tryLandscape();
     keepAwake();
     guardBack();
-    lobby(true, "연결하는 중이에요");
+    lobby(true, tt("connecting"));
     connect();
   };
   return net;
@@ -297,7 +297,7 @@ function showHome() {
   $("start").className = "sheet"; openHome();
   $("homeCreate").onclick = () => goRoom(Array.from(crypto.getRandomValues(new Uint8Array(5)), b => ROOM_CHARS[b % ROOM_CHARS.length]).join(""), true);
   $("homeJoinOpen").onclick = () => { $("homeJoinOpen").hidden = true; $("homeJoin").hidden = false; $("homeLive").hidden = true; $("homeCode").focus(); };
-  const join = () => { const code = $("homeCode").value.trim().toUpperCase(); if (!/^[A-Z0-9]{4,8}$/.test(code)) { $("homeCodeMsg").textContent = "영어와 숫자로 4~8자예요"; return; } goRoom(code, false); };
+  const join = () => { const code = $("homeCode").value.trim().toUpperCase(); if (!/^[A-Z0-9]{4,8}$/.test(code)) { $("homeCodeMsg").textContent = tt("codeRule"); return; } goRoom(code, false); };
   $("homeJoinGo").onclick = join;
   $("homeCode").onkeydown = e => { if (e.key === "Enter") join(); };
   $("homeSolo").onclick = () => { stopRooms(); $("home").className = "sheet brand"; $("start").className = "sheet show"; };
@@ -305,7 +305,7 @@ function showHome() {
 }
 
 // 열린 방 목록. 첫 화면과 목록 화면 모두, 보고 있는 동안에만 다시 받아 온다
-const ROOM_STATE = { open: "들어갈 수 있어요", full: "꽉 찼어요", playing: "게임 중" };
+const ROOM_STATE = TX.roomState;
 // 방장 프로필은 앱 커뮤니티와 같은 냥파, 도둥이 그림에 파스텔 배경. 방 코드로 정해서 다시 받아도 그대로다
 const AVATARS = [`/*SVG:avatar-cop.svg*/`, `/*SVG:avatar-rob.svg*/`];
 const PASTELS = ["#FFD9E2", "#FFEFB3", "#D3F4DD", "#D9E4FF", "#FFE1CC", "#E7DDFB"];
@@ -322,10 +322,10 @@ function roomRow(r) {
   const av = row.querySelector(".av"), h = [...r.code].reduce((n, c) => n * 31 + c.charCodeAt(0) | 0, 7) >>> 0;
   av.innerHTML = AVATARS[h % AVATARS.length];
   av.style.setProperty("--avbg", PASTELS[(h >>> 3) % PASTELS.length]);
-  row.querySelector(".who b").textContent = `${r.host} 님의 방`;
+  row.querySelector(".who b").textContent = tt("roomOf", nameOf(r.host));
   row.querySelector(".who small").textContent = ROOM_STATE[r.state] || "";
   row.querySelector(".cnt b").textContent = `${r.n}/${r.max}`;
-  row.setAttribute("aria-label", `${r.host} 님의 방, ${r.n}/${r.max}, ${ROOM_STATE[r.state] || ""}`);
+  row.setAttribute("aria-label", `${tt("roomOf", nameOf(r.host))}, ${r.n}/${r.max}, ${ROOM_STATE[r.state] || ""}`);
   row.onclick = () => { if (!off) { stopRooms(); goRoom(r.code, false); } };
   return row;
 }
@@ -353,8 +353,8 @@ function showRooms() {
     const failed = rooms === null;
     if (!failed) list.replaceChildren(...rooms.map(roomRow));
     $("roomsEmpty").hidden = list.children.length > 0;
-    $("roomsEmptyMsg").textContent = failed ? "목록을 불러오지 못했어요" : "지금 열린 방이 없어요";
-    $("roomsCreate").textContent = failed ? "다시 해 보기" : "방 만들기";
+    $("roomsEmptyMsg").textContent = tt(failed ? "listFail" : "noRooms");
+    $("roomsCreate").textContent = tt(failed ? "retry" : "create");
     $("roomsCreate").onclick = () => (failed ? showRooms() : $("homeCreate").click());
   });
   $("roomsBack").onclick = () => { $("rooms").className = "sheet brand"; openHome(); };
@@ -372,11 +372,11 @@ function leaveInApp() {
     else if (android) location.href = `intent://${location.host}${location.pathname}?${new URLSearchParams(location.hash.slice(1))}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(page)};end`;
   };
   const canOpen = kakao || android;
-  $("inappBody").textContent = canOpen ? "" : "메뉴에서 Safari로 열어 주세요";
+  $("inappBody").textContent = canOpen ? "" : tt("inappSafari");
   $("inappOpen").hidden = !canOpen;
   $("inapp").className = "sheet show";
   $("inappOpen").onclick = open;
-  $("inappCopy").onclick = () => { navigator.clipboard?.writeText(location.href).then(() => { $("inappCopy").textContent = "링크를 복사했어요"; $("inappBody").textContent = "브라우저 주소창에 붙여 넣어 주세요"; }, () => {}); };
+  $("inappCopy").onclick = () => { navigator.clipboard?.writeText(location.href).then(() => { $("inappCopy").textContent = tt("linkCopied"); $("inappBody").textContent = tt("pasteIt"); }, () => {}); };
   $("inappStay").onclick = () => { store.set("stayInApp", "1"); $("inapp").className = "sheet"; };
   if (canOpen && !store.get("triedOut")) { store.set("triedOut", "1"); open(); }
 }
@@ -388,8 +388,10 @@ function untilText(iso) {
   const t = new Date(iso); if (Number.isNaN(t.getTime())) return "";
   t.setMinutes(Math.round(t.getMinutes() / 10) * 10, 0, 0);
   const now = new Date(), sameDay = t.toDateString() === now.toDateString();
-  const h = t.getHours(), m = t.getMinutes(), ap = h < 12 ? "오전" : "오후", h12 = h % 12 || 12;
-  return `${sameDay ? "" : `${t.getMonth() + 1}월 ${t.getDate()}일 `}${ap} ${h12}시${m ? ` ${m}분` : ""}쯤`;
+  const h = t.getHours(), m = t.getMinutes(), h12 = h % 12 || 12;
+  if (LANG === "en") return `${sameDay ? "" : `${t.toLocaleDateString("en", { month: "short", day: "numeric" })}, `}${h12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`;
+  if (LANG === "ja") return `${sameDay ? "" : `${t.getMonth() + 1}月${t.getDate()}日 `}${h < 12 ? "午前" : "午後"}${h12}時${m ? `${m}分` : ""}`;
+  return `${sameDay ? "" : `${t.getMonth() + 1}월 ${t.getDate()}일 `}${h < 12 ? "오전" : "오후"} ${h12}시${m ? ` ${m}분` : ""}쯤`;
 }
 function showGate(mode, st) {
   $("start").className = "sheet";
@@ -397,9 +399,11 @@ function showGate(mode, st) {
   if (!wrap.querySelector(".hero")) wrap.prepend($("home").querySelector(".hero").cloneNode(true));
   // 예정 시각이 지났는데 아직 점검 중이면 지난 시각을 보여 주지 않는다
   const soon = mode === "soon", until = !soon && st?.until && Date.parse(st.until) > Date.now() ? untilText(st.until) : "";
-  $("gateTitle").textContent = soon ? "경찰과 도둑 온라인 게임을 만들고 있어요" : "점검하고 있어요";
-  $("gateMsg").textContent = soon ? "동네에서 직접 뛰는 경찰과 도둑도 눈여겨봐 주세요"
-    : [st?.message, until ? `${until} 다시 와 주세요` : st?.message ? "" : "조금 뒤에 다시 와 주세요"].filter(Boolean).join("\n");
+  // 어드민이 적는 안내는 한국어라 다른 언어 화면에서는 정해진 안내만 보여 준다
+  const note = LANG === "ko" ? st?.message : "";
+  $("gateTitle").textContent = tt(soon ? "gateSoonTitle" : "gatePauseTitle");
+  $("gateMsg").textContent = soon ? tt("gateSoonMsg")
+    : [note, until ? tt("comeBackAt", until) : note ? "" : tt("comeBackSoon")].filter(Boolean).join("\n");
   $("gateApp").href += `&utm_content=${soon ? "soon" : "pause"}`;
   $("gate").className = "sheet brand show";
 }
