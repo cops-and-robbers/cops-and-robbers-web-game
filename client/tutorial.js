@@ -15,15 +15,15 @@ function createHowTo() {
       <div class="hsShadow cop"></div><div class="hsShadow rob"></div>
       <div class="hsAim"></div>
       <img class="hsRob" alt=""><img class="hsCop" alt="">
-      <div class="hsPop">체포!</div>
+      <div class="hsPop">${tt("arrest")}</div>
       <div class="hsPad"><i></i></div>
-      <div class="hsBtn run">달리기</div><div class="hsBtn catch">잡기</div>
+      <div class="hsBtn run">${tt("run")}</div><div class="hsBtn catch">${tt("catch")}</div>
       <div class="hsKeys"><kbd data-k="d">D</kbd><kbd data-k="sp" class="wide">Space</kbd></div>
       <div class="hsFinger f1"></div><div class="hsFinger f2"></div>
     </div>
     <p class="howLine"></p>
     <div class="howFoot"><div class="howDots"></div><button class="howNext"></button></div>
-    <button class="howClose" aria-label="닫기"></button>
+    <button class="howClose" aria-label="${tt("close")}"></button>
   </div>`;
   $("stage").append(sheet);
   sheet.classList.toggle("touch", touch);
@@ -37,7 +37,7 @@ function createHowTo() {
 
   // 장면: 경찰이 도둑을 쫓아가 노란 표시가 뜨면 잡기를 눌러 잡는다
   const catchScene = {
-    line: "도둑 발밑에 노란 표시가 뜨면 잡기를 눌러요",
+    line: tt("tutCatch"),
     len: 4.2,
     draw(t) {
       const walk = at(t, .25, 1.9), lunge = at(t, 2.15, 2.4), caught = t > 2.45;
@@ -79,7 +79,7 @@ function createHowTo() {
     idx = i; t0 = performance.now();
     q(".howLine").textContent = list[idx].line;
     dots.innerHTML = list.map((_, k) => `<i class="${k === idx ? "on" : ""}"></i>`).join("");
-    next.textContent = idx < list.length - 1 ? "다음" : "다 봤어요";
+    next.textContent = tt(idx < list.length - 1 ? "next" : "gotIt");
   }
   function loop(now) {
     if (!open) return;

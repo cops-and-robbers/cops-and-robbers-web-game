@@ -1,6 +1,8 @@
 node_modules/
 dist/
 gateway/public/play.html
+gateway/public/en/play.html
+gateway/public/ja/play.html
 assets/
 .wrangler/
 .dev.vars
