@@ -88,12 +88,13 @@ function createLobbyScene(net) {
     start: tt("start"), needOne: tt("needOne"), needCop: tt("needCop"), needRob: tt("needRob"),
     bots: tt("bots"), bot: tt("bot"), host: tt("host"), me: tt("me"), kick: tt("kick"),
     open: tt("open"), openSub: tt("openSub"), pub: tt("pub"),
-    say: TX.say, isCop: tt("isCop"), isRob: tt("isRob"),
+    say: TX.say, isCop: tt("isCop"), isRob: tt("isRob"), guide: tt("guide"),
   };
   const MAX_TOTAL = 8, HOME = { cop: "police", rob: "robber" };
   const ICON = {
     copy: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 6.500V4.200c0-.7.5-1.200 1.200-1.200h7.600c.7 0 1.200.5 1.200 1.200v7.600c0 .7-.5 1.200-1.200 1.200h-2.300"/><rect x="3" y="7" width="10" height="10" rx="1.400"/></svg>`,
     check: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.400" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.500l4 4 8-9"/></svg>`,
+    guide: `<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="currentColor"/><path d="M8.3 6.6c0-.5.5-.8.9-.5l4.6 3.2c.4.3.4.8 0 1.1l-4.6 3.2c-.4.3-.9 0-.9-.5V6.6Z" fill="#fff"/></svg>`,
     say: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.100" stroke-linecap="round" stroke-linejoin="round"><path d="M4.400 5.600c4-1.100 11-1.200 15.200 0 .6 2.700.6 6.300 0 9-2 .6-4.800.8-7.300.8L7.800 19.300l.2-4C6.600 15.200 5.300 15 4.400 14.700c-.6-2.800-.6-6.300 0-9.100Z"/></svg>`,
   };
   let active = false, S = null, pool = [], people = new Map(), bots = [], me = null;
@@ -150,6 +151,7 @@ function createLobbyScene(net) {
     let h = `<div class="row1"><div class="lp code"><div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
       <button class="bt ${S.host && alone ? "main" : ""}" data-act="invite">${copied ? COPY.copied : COPY.invite}</button>
       <button class="bt ic" data-act="say" aria-label="${tt("sayOpen")}" aria-expanded="${sayOpen}">${ICON.say}</button>
+      <button class="bt guideBt" data-act="guide" aria-label="${COPY.guide}">${ICON.guide}<span>${COPY.guide}</span></button>
       <div class="grow">${line ? `<div class="line" data-line></div>` : ""}</div>
       ${S.host ? `<button class="bt" data-act="seats" aria-expanded="${seatsOpen}">${COPY.seats}</button>` : ""}
       <button class="bt quiet" data-act="quit">${COPY.quit}</button></div>`;
@@ -186,6 +188,7 @@ function createLobbyScene(net) {
     if (a === "copycode") { navigator.clipboard?.writeText(net.room).catch(() => {}); codeDone = true; renderHud(); later(() => codeDone = false, 1800); return; }
     if (a === "invite") return net.invite(() => { copied = true; renderHud(); later(() => copied = false, 1800); });
     if (a === "quit") return net.quit();
+    if (a === "guide") { seatsOpen = sayOpen = false; return net.guide(b); }
     if (a === "start") { if (!startState().ok) { flash = true; renderHud(); later(() => flash = false, 420); return; } net.send({ t: "start" }); }
   }
   function bump(side) { bumpT = 1.4; fullEl.style.display = ""; fullEl.style.transform = `translate(${(side === "cop" ? ZX[1] - 170 : ZX[2] + 170) - 130}px,${me.a.y - 170}px)`; }

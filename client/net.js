@@ -23,7 +23,7 @@ function createOnline() {
   const tokenKey = `room:${NET_ROOM}:token`;
   const net = { free: 0, rtt: 0, seed: null, snap: 0, room: NET_ROOM };
   let ws = null, joined = false, wasPlaying = false, retries = 0, name = "", opened = false, stopped = false;
-  let lastSent = 0, lastInput = "", pingT = 0, lastLobby = null, gameReady = false;
+  let lastSent = 0, lastInput = "", pingT = 0, lastLobby = null, gameReady = false, inGuide = false;
   const send = data => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); };
   net.send = send;
   const scene = createLobbyScene(net);
@@ -46,8 +46,16 @@ function createOnline() {
   };
   net.quit = () => { stopped = true; ended = true; ws?.close(); goHome(); };
   net.kick = id => send({ t: "kick", id });
+  // 대기실에서 게임 방법을 볼 때. 연결은 그대로 두고 대기실 장면만 내려 둔다
+  net.guide = btn => {
+    if (!scene.active) return;
+    scene.leave(); inGuide = true;
+    (guide ||= createGuide()).open(btn, () => { inGuide = false; if (lastLobby && !wasPlaying && !ended) scene.enter(lastLobby); });
+  };
+  const leaveGuide = () => { if (inGuide) guide.close(); };
   // 들어갈 수 없을 때. 다시 붙지 않게 멈추고 할 수 있는 일 하나만 보여 준다
   const blocked = (title, body, act) => {
+    leaveGuide();
     stopped = true; try { ws?.close(); } catch { /* 이미 닫혔다 */ }
     if (scene.active) scene.leave();
     $("lobbyTitle").textContent = title; $("lobbyMsg").textContent = body;
@@ -100,13 +108,17 @@ function createOnline() {
         $("lobby").classList.remove("brand");
         if (wasPlaying || ended) return;
         lobby(false);
+        if (inGuide) return;
         if (scene.active) scene.update(m); else scene.enter(m);
         return;
       case "count":
+        leaveGuide();
         return scene.count(m.ms);
       case "say":
+        if (inGuide) return;
         return scene.say(m.id, m.i);
       case "start":
+        leaveGuide();
         return onStart(m);
       case "s":
         return onSnap(m);
@@ -119,8 +131,8 @@ function createOnline() {
         if (NET.get("debug")) $("status").dataset.rtt = net.rtt;
         return;
       case "error":
-        if (m.code === "sideFull") scene.refused(m.side);
-        if (m.code === "cantStart") scene.cant();
+        if (m.code === "sideFull" && !inGuide) scene.refused(m.side);
+        if (m.code === "cantStart" && !inGuide) scene.cant();
         if (m.code === "playing") blocked(tt("playingNow"), tt("endsSoon"), "retry");
         if (m.code === "full") blocked(tt("roomFull"), "", "home");
         if (m.code === "noRoom") blocked(tt("noRoom"), "", "home");

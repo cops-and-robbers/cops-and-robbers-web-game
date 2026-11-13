@@ -23,6 +23,11 @@ body.lobby-mode #stam { bottom:max(14px,env(safe-area-inset-bottom)); width:min(
 #lob .bt.main { background:var(--cheese); box-shadow:0 3px 0 var(--cheese-d); }
 #lob .bt.quiet { color:var(--sub); }
 #lob .bt.ic { width:44px; padding:0; display:grid; place-items:center; }
+/* 게임 방법: 넓으면 아이콘과 글자, 좁으면 아이콘만(이름은 aria-label) */
+#lob .guideBt { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 14px 0 12px; }
+#lob .guideBt svg { color:var(--police); flex:none; }
+#lob .guideBt span { line-height:1; }
+@media (max-width:759px) { #lob .guideBt { width:44px; padding:0; } #lob .guideBt span { display:none; } }
 #lob .bt[aria-expanded=true] { background:var(--ink); color:#fff; }
 .line { margin-top:4px; background:rgba(29,35,43,.86); color:#fff; font-size:14px; font-weight:700; padding:8px 13px; border-radius:12px; white-space:nowrap; }
 .line.bad { background:#E2574C; }
