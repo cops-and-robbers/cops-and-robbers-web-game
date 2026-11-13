@@ -28,6 +28,7 @@ pnpm run build   # dist/game.html
 | 배포, 사용량, 비용 | `docs/deploy.md`, `docs/cost-guard.md` |
 | 공개 전, 점검, 어드민 연결, 웹사이트 입구 | `docs/ops.md` |
 | 이슈, 브랜치, 커밋, PR | `docs/conventions.md` |
+| 화면 문구, 영어와 일본어 | `docs/i18n.md` |
 | 무엇을 어떤 순서로 만드는지 | `docs/roadmap.md` |
 
 ## 스킬 (.claude/skills)
