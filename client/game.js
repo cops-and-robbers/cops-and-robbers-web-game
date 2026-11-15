@@ -1,6 +1,6 @@
 // 그리기와 조작. 규칙은 logic.js, 캐릭터 관절은 playground 의 엔진을 그대로 쓴다.
 const L = window.GameLogic;
-const { CFG, THEMES, newGame, step, sees, startCatch, dist, inZone } = L;
+const { CFG, THEMES, newGame, step, sees, startCatch, dist } = L;
 const { mount, MOTIONS, piv, Spring, clamp } = window.CharRig;
 
 // 주기는 사람이 해 보면서 고른다: game.html?reveal=20
@@ -94,7 +94,8 @@ function bakeMap() {
   // 구역 경계: 바깥쪽을 어둡게 눌러 구역이 떠 보이게
   x.save(); x.beginPath(); x.rect(0, 0, CFG.W, CFG.H); L.ZONE.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)); x.closePath(); x.clip("evenodd");
   zonePath(); x.lineWidth = 60; x.strokeStyle = "rgba(29,35,43,.12)"; x.stroke(); x.restore();
-  zonePath(); x.strokeStyle = "#E2574C"; x.lineWidth = 8; x.setLineDash([40, 26]); x.stroke(); x.setLineDash([]);
+  // 구역이 줄어드는 판은 경계를 zone.js 가 그때그때 그린다
+  if (!G.shrink) { zonePath(); x.strokeStyle = "#E2574C"; x.lineWidth = 8; x.setLineDash([40, 26]); x.stroke(); x.setLineDash([]); }
   // 건물: 그림자, 벽, 지붕, 문, 창. 벽이 충돌 칸 안에 그대로 들어간다
   // 밤에는 가로등 빛이 길에 고인다. 그림이라 부딪히지 않는다
   if (G.theme === "night") {
@@ -402,7 +403,7 @@ const toScreen = (x, y) => [(x - camX) * zoom, (y - camY) * zoom];
 function drawFog() {
   const p = G.player, ctx = fctx;
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = "source-over"; ctx.clearRect(0, 0, W, H);
-  const out = !inZone(p.x, p.y);
+  const out = !L.inZoneNow(G, p.x, p.y);
   const blind = out || p.state === "waiting" || ended;
   if (!ended) { ctx.fillStyle = `rgba(${G.th.fog},${blind ? 0.86 : G.th.fogA})`; ctx.fillRect(0, 0, W, H); }
   if (!blind) {
@@ -497,7 +498,7 @@ function bakeMini() {
   const s = mini.width / CFG.W; const c = document.createElement("canvas"); c.width = mini.width; c.height = mini.height; const x = c.getContext("2d"), T = G.th;
   x.fillStyle = T.out; x.fillRect(0, 0, c.width, c.height);
   x.beginPath(); L.ZONE.forEach((p, i) => i ? x.lineTo(p.x * s, p.y * s) : x.moveTo(p.x * s, p.y * s)); x.closePath(); x.fillStyle = T.ground; x.fill();
-  x.strokeStyle = "#E2574C"; x.lineWidth = 1.5; x.stroke();
+  if (!G.shrink) { x.strokeStyle = "#E2574C"; x.lineWidth = 1.5; x.stroke(); }
   x.fillStyle = T.roofs[0][1]; for (const b of L.BUILDINGS) if (!b.kind) x.fillRect(b.x * s, b.y * s, b.w * s, b.h * s);
   x.fillStyle = T.bushes[1]; for (const b of L.BUILDINGS) if (b.kind === "tree") { x.beginPath(); x.arc(b.x * s, b.y * s, 3.6, 0, 7); x.fill(); }
   for (const b of L.BUSHES) { x.beginPath(); x.arc(b.x * s, b.y * s, 3.2, 0, 7); x.fill(); }
@@ -507,6 +508,7 @@ function bakeMini() {
 function drawMini() {
   const s = mini.width / CFG.W, p = G.player, x = mctx;
   x.drawImage(miniBase, 0, 0);
+  drawZoneMini(x, s);
   const dot = (a, col, r) => { x.fillStyle = col; x.beginPath(); x.arc(a.x * s, a.y * s, r, 0, 7); x.fill(); };
   const teamCol = p.team === "police" ? "#2A9BEF" : "#5A6070";
   if (p.team === "police") for (const [, k] of G.intel) if (G.t - k.t < 6) dot(k, "rgba(226,87,76,.55)", 4);
@@ -697,6 +699,7 @@ function handleEvents() {
       if (e.r === p) { play("reveal"); haptic(250); }
       else if (p.team === "police") { play("reveal"); toast(tt("outRevealCop"), "good"); }
     }
+    if (e.type === "shrink") onShrinkEvent();
     if (e.type === "over") { showEnd(); play(G.over.winner === p.team ? "win" : "lose"); }
   }
 }
@@ -745,7 +748,7 @@ function drawHud(dt) {
   Scenes.sync(G, role, TX.theme[G.theme] ?? G.th.name);
   $("bigCount").className = waitBig ? "show" : ""; if (waitBig) $("bigCount").textContent = Math.ceil(left);
   $("stamFill").style.width = (p.stam * 100) + "%"; $("stamFill").className = p.tired ? "tired" : "";
-  const out = !inZone(p.x, p.y);
+  const out = !L.inZoneNow(G, p.x, p.y);
   $("lock").className = out ? "show" : "";
   if (out) { const t = lockText(p); if ($("lock").textContent !== t) $("lock").textContent = t; }
   if (role === "police") $("btnCatch").classList.toggle("off", p.catchCd > 0 || p.state !== "free");
@@ -781,15 +784,16 @@ function showEnd() {
   setTimeout(() => Scenes.mvpReveal(G, G.over, p, () => $("end").className = "sheet show " + role), 500);
 }
 // ───────── 흐름 ─────────
-let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random";
+let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random", pickShrink = QS.get("shrink") === "1";
 function start(r, seed) {
-  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined });
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";
   chars.forEach(c => c.el.remove());
   G = newGame(opts);
   if (setup) setup(G);
+  resetZone();
   document.querySelectorAll(".bush").forEach(n => n.remove());
   bakeMap(); bakeBushes(); bakeMini();
   document.body.dataset.theme = G.theme;
@@ -841,6 +845,7 @@ function frame(dt) {
     }
     handleEvents();
     drawHud(dt);
+    drawZoneHud();
   }
   // 카메라: 살짝 늦게 따라가고 달리는 쪽을 조금 더 보여 준다
   const [tx, ty] = camTarget ? camTarget(p) : [p.x + p.vx * 0.22 - W / 2 / zoom, p.y - 30 + p.vy * 0.22 - H / 2 / zoom], k = Math.min(1, dt * 6);
@@ -851,7 +856,7 @@ function frame(dt) {
   wobbleBushes(dt);
   for (const c of chars) {
     const a = c.a;
-    const can = online ? a.team === p.team || seen(a) : ended || a.team === p.team || (p.state !== "waiting" && inZone(p.x, p.y) && sees(p, a));
+    const can = online ? a.team === p.team || seen(a) : ended || a.team === p.team || (p.state !== "waiting" && L.inZoneNow(G, p.x, p.y) && sees(p, a));
     c.el.style.display = can ? "" : "none";
     c.wasVisible = can;
     if (can) dustFor(c, a, dt);
@@ -863,6 +868,7 @@ function frame(dt) {
   drawCatchAid();
   tensionSound(dt);
   drawFog();
+  drawZone();
   drawMini();
 }
 
