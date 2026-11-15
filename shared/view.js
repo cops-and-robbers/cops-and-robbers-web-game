@@ -36,6 +36,8 @@ export function viewFor(logic, G, me) {
   const view = {
     t: "s",
     time: Math.round(G.t * 100) / 100,
+    // 시작 멈춤이 남은 초. 0 이면 보내지 않는다
+    ...(G.intro > 0 ? { intro: Math.round(G.intro * 100) / 100 } : {}),
     phase: G.phase,
     me: {
       ...publicAgent(me),
