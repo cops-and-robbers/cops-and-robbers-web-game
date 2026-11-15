@@ -6,4 +6,6 @@
 - aquinn, Sirens and Alarm Noise (opengameart.org/content/sirens-and-alarm-noise, CC0)
 - BigSoundBank #0218 Heart beat (bigsoundbank.com, CC0)
 
+`z-` 로 시작하는 좀비 모드 소리 20개는 남의 소리를 쓰지 않고 이 저장소의 `tools/zsound.py` 가 직접 만들었어요. 이 저장소의 다른 코드와 같은 조건이에요.
+
 어떤 소리를 왜 골랐는지는 docs/sound.md 에 있어요.

@@ -21,6 +21,7 @@ const SAY_LINES = 5;
 const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false, shrink: false, mode: "classic", balance: "even" };
 const MODES = ["classic", "zombie"] as const;
 const BALANCES = ["surv", "even", "zomb"] as const;
+const ZOMBIE_DRAW_SEC = 5;
 // 공개 방은 이 간격으로 목록에 살아 있다고 알린다. 목록은 5분 동안 소식이 없는 방을 지운다
 const LIST_BEAT_MS = 2 * 60_000;
 const TICK_MS = 50;
@@ -78,6 +79,7 @@ export class Room extends DurableObject<Env> {
   private logic: Logic | null = null;
   private game: Game | null = null;
   private seed = 0;
+  private firsts: string[] = [];
   private scale = 1;
   private timer: ReturnType<typeof setInterval> | null = null;
   private emptySince = 0;
@@ -274,7 +276,8 @@ export class Room extends DurableObject<Env> {
     if (!Number.isInteger(cops) || !Number.isInteger(robs) || cops < 1 || robs < 1) return;
     if (cops + robs > MAX_PLAYERS || cops + robs < members.length) return;
     const before = this.seats();
-    const mode = MODES.includes(msg.mode) ? msg.mode : before.mode;
+    // 놀이 방식은 방을 만들 때(join 의 mode)만 정한다. 대기실에서 바꾸면 들어온 사람이 기대한 판과 달라진다
+    const mode = before.mode;
     const balance = BALANCES.includes(msg.balance) ? msg.balance : before.balance;
     const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open, shrink: typeof msg.shrink === "boolean" ? msg.shrink : before.shrink, mode, balance };
     const left: Record<Side, number> = mode === "zombie" ? { cop: Infinity, rob: Infinity, any: Infinity } : { cop: cops, rob: robs, any: Infinity };
@@ -349,7 +352,8 @@ export class Room extends DurableObject<Env> {
       ws.close(4004, "noRoom");
       return;
     }
-    const seats = this.seats();
+    const creating = !this.members().length && !!msg.create;
+    const seats = creating ? { ...DEFAULT_SEATS, mode: MODES.includes(msg.mode) ? msg.mode : "classic" } as Seats : this.seats();
     if (this.counting || this.members().length >= seats.cops + seats.robs) {
       this.send(ws, { t: "error", code: this.counting ? "playing" : "full" });
       ws.close(4002, "full");
@@ -460,7 +464,9 @@ export class Room extends DurableObject<Env> {
     const firsts = pool.slice(0, Math.min(nz, members.length - (seats.bots ? 0 : 1)));
     const rest = members.filter(m => !firsts.includes(m));
     const scale = mapScale(total);
-    const G = logic.newGame({ seed, theme, diff: "normal", mode: "zombie", balance: seats.balance, police: nz, robbers: total - nz, scale, intro: logic.CFG.INTRO, shrink: seats.shrink });
+    // 대기실에서 첫 좀비 뽑기(조명 1.5초 + 멈춤 0.9초)를 보여 주는 만큼 시작 멈춤을 늘린다
+    const G = logic.newGame({ seed, theme, diff: "normal", mode: "zombie", balance: seats.balance, police: nz, robbers: total - nz, scale, intro: logic.CFG.INTRO + ZOMBIE_DRAW_SEC, shrink: seats.shrink });
+    this.firsts = firsts.map(m => m.me.name);
     this.seed = seed;
     this.scale = scale;
     this.logic = logic;
@@ -508,7 +514,7 @@ export class Room extends DurableObject<Env> {
       catchRange: this.logic.CFG.CATCH_R,
       reveal: G.revealEvery,
       shrink: !!G.shrink,
-      ...(G.mode === "zombie" ? { mode: "zombie", balance: G.balance, look: agent.look, wait: G.wait } : {}),
+      ...(G.mode === "zombie" ? { mode: "zombie", balance: G.balance, look: agent.look, wait: G.wait, firsts: this.firsts } : {}),
     });
   }
 

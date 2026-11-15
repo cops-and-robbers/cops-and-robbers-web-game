@@ -413,10 +413,13 @@ async function checkControl(env) {
 async function checkZombie(env) {
   const zcode = `Z${Date.now().toString(36).slice(-6).toUpperCase()}`;
   const zs = [0, 1, 2].map(() => connect(env.base, env.key, zcode));
-  for (const [i, c] of zs.entries()) { await c.open; c.sendJson({ t: "join", name: `좀비${i + 1}`, create: i === 0 }); await waitFor(() => c.lobby, 3000, "좀비 방 입장"); }
-  zs[0].sendJson({ t: "seats", cops: 1, robs: 2, bots: false, mode: "zombie", balance: "even" });
-  await waitFor(() => zs.every(c => c.lobby?.mode === "zombie"), 3000, "좀비 모드 고르기");
-  check(zs.every(c => c.lobby.mode === "zombie" && c.lobby.balance === "even"), "방장이 좀비 모드를 고르면 모두 알아요");
+  // 놀이 방식은 방을 만들 때만 정한다
+  for (const [i, c] of zs.entries()) { await c.open; c.sendJson({ t: "join", name: `좀비${i + 1}`, create: i === 0, ...(i === 0 ? { mode: "zombie" } : {}) }); await waitFor(() => c.lobby, 3000, "좀비 방 입장"); }
+  await waitFor(() => zs.every(c => c.lobby?.mode === "zombie"), 3000, "좀비 모드 방");
+  check(zs.every(c => c.lobby.mode === "zombie" && c.lobby.balance === "even"), "좀비 모드로 만든 방은 모두 좀비 모드로 알아요");
+  zs[0].sendJson({ t: "seats", cops: 1, robs: 2, bots: false, mode: "classic" });
+  await waitFor(() => zs.every(c => c.lobby?.robs === 2), 3000, "인원 바꾸기");
+  check(zs.every(c => c.lobby.mode === "zombie" && c.lobby.robs === 2), "대기실에서는 놀이 방식을 바꿀 수 없고 인원만 바뀌어요");
   zs[1].sendJson({ t: "side", side: "cop" }); zs[2].sendJson({ t: "side", side: "cop" });
   await waitFor(() => zs[0].lobby.players.filter(p => p.side === "cop").length === 2, 3000, "고양이 칸 두 명");
   check(zs[0].lobby.players.filter(p => p.side === "cop").length === 2, "좀비 모드의 칸은 인원 제한 없이 생김새만 골라요");
@@ -427,6 +430,7 @@ async function checkZombie(env) {
     const firsts = zs.filter(c => c.start?.team === "police");
     check(zs.every(c => c.start?.mode === "zombie" && (c.start.look === "police" || c.start.look === "robber")), "좀비 판 시작 신호에 놀이 방식과 생김새가 실려요");
     check(firsts.length === 1, `첫 좀비는 사람 중 한 명이에요 (${firsts.length})`);
+    check(zs.every(c => Array.isArray(c.start?.firsts) && c.start.firsts.length === 1 && c.start.firsts[0] === firsts[0]?.lobby?.players.find(p => p.id === firsts[0].lobby.you)?.name), "좀비 판 시작 신호에 뽑힌 좀비 이름이 모두에게 실려요(대기실 조명 뽑기)");
     check(zs[1].start.look === "police" && zs[2].start.look === "police", "고양이 칸에 선 사람은 고양이 모습이에요");
     await waitFor(() => zs.every(c => c.over), 40000, "좀비 판 끝");
     check(zs.every(c => c.over && (c.over.winner === "police" || c.over.winner === "robber")), "좀비 판이 끝까지 돌아요");

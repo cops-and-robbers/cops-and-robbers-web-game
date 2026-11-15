@@ -16,6 +16,26 @@ function createSolo() {
   let theme = ["random", ...THEME_KEYS].includes(store.get("theme")) ? store.get("theme") : "random";
   // 구역 축소는 처음엔 꺼 둔다. 켠 사람만 다음에도 켜진 채로 연다
   let shrink = store.get("shrink") === "1";
+  // 좀비 모드(client/modes.js 에서 고름): 내 역할(첫 좀비 police, 생존자 robber, 무작위)과 판 균형은 따로 기억한다
+  let mode = "classic", zteam = ["police", "robber", "random"].includes(store.get("zteam")) ? store.get("zteam") : null;
+  let bal = ["surv", "even", "zomb"].includes(store.get("zbal")) ? store.get("zbal") : "even";
+  const BAL = { easy: "surv", normal: "even", hard: "zomb" }, DIFF_OF = { surv: "easy", even: "normal", zomb: "hard" };
+  // 고정 문구(data-t)를 모드에 맞게 바꾸고, 경찰과 도둑으로 돌아오면 원래 문구로 되돌린다
+  function applyMode() {
+    const Z = mode === "zombie" ? tt("zb").solo : null;
+    sheet.dataset.game = mode;
+    const chip = q("[data-mode-chip]"); chip.hidden = false; chip.textContent = tt("modes").name[mode];
+    q("#stTeamL").textContent = Z ? Z.role : TX.soloPage.team;
+    const art = { police: q('[data-role-pick="police"] .art img') };
+    if (!art.police.dataset.src) art.police.dataset.src = art.police.src;
+    art.police.src = Z ? ZB.url("police-front") : art.police.dataset.src;
+    q('[data-role-pick="police"] b').textContent = Z ? Z.first : tt("copName");
+    q('[data-role-pick="robber"] b').textContent = Z ? Z.surv : tt("robName");
+    q('[data-role-pick="random"] b').textContent = Z ? Z.random : "";
+    q('[data-role-pick="random"]').hidden = !Z;
+    q("#stDiffL").textContent = Z ? Z.balance : tt("diffLabel");
+    for (const k of ["easy", "normal", "hard"]) q(`[data-diff="${k}"] b`).textContent = Z ? Z.bal[BAL[k]] : TX.diff[k];
+  }
   let seed = newSeed(), shown = null, t = 0, spin = 0, spinT = 0, open = false, fromHome = false, wentFull = false;
   // 폰에서는 나가기를 고르는 칸 밖, 지도 위에 띄운다. 설정을 얼마나 내렸든 바로 나갈 수 있다
   const exitBtn = document.createElement("button");
@@ -94,21 +114,23 @@ function createSolo() {
   }
 
   function sync() {
-    qa("[data-role-pick]").forEach(b => { const on = b.dataset.rolePick === team; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
-    qa("[data-diff]").forEach(b => { const on = b.dataset.diff === diff; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
+    const zm = mode === "zombie", who = zm ? zteam : team, lv = zm ? DIFF_OF[bal] : diff;
+    qa("[data-role-pick]").forEach(b => { const on = b.dataset.rolePick === who; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
+    qa("[data-diff]").forEach(b => { const on = b.dataset.diff === lv; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
     qa("[data-theme-pick]").forEach(b => { const on = b.dataset.themePick === theme; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
     const go = $("soloGo");
     q("[data-shrink-pick]").setAttribute("aria-checked", shrink);
-    go.disabled = !team;
-    go.dataset.team = team || "";
-    go.textContent = team ? TX.soloPage.go[team] : TX.soloPage.pickTeam;
+    go.disabled = !who;
+    go.dataset.team = zm ? (who ? "zombie" : "") : team || "";
+    go.textContent = zm ? (who ? tt("zb").solo.go[who] : tt("zb").solo.pick) : team ? TX.soloPage.go[team] : TX.soloPage.pickTeam;
     q(".reroll").hidden = theme === "random";
     sheet.dataset.team = team || "";
     render();
   }
-  qa("[data-role-pick]").forEach(b => b.onclick = () => { team = b.dataset.rolePick; store.set("team", team); sync(); });
+  qa("[data-role-pick]").forEach(b => b.onclick = () => { if (mode === "zombie") { zteam = b.dataset.rolePick; store.set("zteam", zteam); } else { team = b.dataset.rolePick; store.set("team", team); } sync(); });
+  q("[data-mode-chip]").onclick = () => { hide(); sheet.className = "sheet"; Modes.open("solo", m => show(fromHome, false, m)); };
   q("[data-shrink-pick]").onclick = () => { shrink = !shrink; store.set("shrink", shrink ? "1" : "0"); sync(); };
-  qa("[data-diff]").forEach(b => b.onclick = () => { diff = b.dataset.diff; store.set("diff", diff); sync(); });
+  qa("[data-diff]").forEach(b => b.onclick = () => { if (mode === "zombie") { bal = BAL[b.dataset.diff]; store.set("zbal", bal); } else { diff = b.dataset.diff; store.set("diff", diff); } sync(); });
   qa("[data-theme-pick]").forEach(b => b.onclick = () => { theme = b.dataset.themePick; store.set("theme", theme); seed = newSeed(); sync(); });
   q(".reroll").onclick = () => { seed = newSeed(); sync(); };
   // 같은 줄 안에서는 화살표로 옮긴다(라디오 묶음)
@@ -119,8 +141,10 @@ function createSolo() {
     const n = items[(k + (e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]; n.focus(); n.click();
   }));
 
-  function show(home, full) {
+  function show(home, full, m) {
     open = true; fromHome = !!home;
+    if (m) mode = m;
+    applyMode();
     q(".stBack").hidden = !fromHome;
     // 폰에서 첫 화면 버튼으로 들어오면 주소창 없이 전체 화면으로. 누른 순간에만 허락되어 그 자리에서 부른다(아이폰 사파리는 지원하지 않아 그대로)
     if (full && isPhone() && !document.fullscreenElement) document.documentElement.requestFullscreen?.().then(() => { wentFull = true; }, () => {});
@@ -135,13 +159,15 @@ function createSolo() {
     fitStage();
   }
   $("soloGo").onclick = () => {
-    if (!team) return;
+    const zm = mode === "zombie";
+    if (zm ? !zteam : !team) return;
     const go = theme === "random" ? undefined : seed;
     // 지도를 고르자마자 누르면 0.14초 뒤 미리보기가 시작한 판을 덮어쓴다. 남은 미리보기를 지운다
     clearTimeout(pending);
     hide(); sheet.className = "sheet";
-    pickDiff = diff; pickTheme = theme; pickShrink = shrink;
-    start(team, go); syncRotate(); tryLandscape();
+    pickDiff = diff; pickTheme = theme; pickShrink = shrink; pickMode = mode; pickBalance = bal;
+    const who = zm ? (zteam === "random" ? (Math.random() < 1 / 6 ? "police" : "robber") : zteam) : team;
+    start(who, go); syncRotate(); tryLandscape();
   };
   const leave = () => {
     hide(); sheet.className = "sheet"; chars.forEach(c => c.el.remove()); chars = []; G = null;
@@ -155,4 +181,4 @@ function createSolo() {
   return { show, hide, get open() { return open; } };
 }
 let solo = null;
-const openSolo = (fromHome, full) => (solo ||= createSolo()).show(fromHome, full);
+const openSolo = (fromHome, full, mode) => (solo ||= createSolo()).show(fromHome, full, mode);

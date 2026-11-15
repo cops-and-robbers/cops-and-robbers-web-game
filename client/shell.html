@@ -719,12 +719,14 @@
     <div class="stHead">
       <button type="button" class="stBack" data-ta="toHome" aria-label="처음 화면으로" hidden></button>
       <h1 id="soloTitle" data-t="soloPage.title">혼자 해 보기</h1>
+      <button type="button" class="stModeChip" data-mode-chip hidden></button>
       <button type="button" class="langPick guidePick" data-solo-guide><svg class="g" aria-hidden="true" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="currentColor"/><path d="M8.3 6.6c0-.5.5-.8.9-.5l4.6 3.2c.4.3.4.8 0 1.1l-4.6 3.2c-.4.3-.9 0-.9-.5V6.6Z" fill="#fff"/></svg><span class="nm" data-t="guide">게임 방법</span></button>
     </div>
     <h2 class="stLabel" id="stTeamL" data-t="soloPage.team">팀</h2>
     <div class="teams" role="radiogroup" aria-labelledby="stTeamL">
       <button type="button" class="team police" role="radio" aria-checked="false" data-role-pick="police"><span class="art"><img src="data:image/svg+xml;base64,/*B64:police-chase.svg*/" alt=""></span><span class="tx"><b data-t="copName">경찰 냥파</b><small data-t="soloPage.copGoal">도둑을 모두 잡아 감옥에 보내요</small></span><i class="ck" aria-hidden="true"></i></button>
       <button type="button" class="team robber" role="radio" aria-checked="false" data-role-pick="robber"><span class="art"><img src="data:image/svg+xml;base64,/*B64:robber-chase.svg*/" alt=""></span><span class="tx"><b data-t="robName">도둑 도둥이</b><small data-t="soloPage.robGoal">끝날 때까지 잡히지 않고 버텨요</small></span><i class="ck" aria-hidden="true"></i></button>
+      <button type="button" class="team rnd" role="radio" aria-checked="false" data-role-pick="random" hidden><span class="art"><i class="q">?</i></span><span class="tx"><b></b></span><i class="ck" aria-hidden="true"></i></button>
     </div>
     <h2 class="stLabel" id="stDiffL" data-t="diffLabel">난이도</h2>
     <div class="diffs" role="radiogroup" aria-labelledby="stDiffL">

@@ -83,3 +83,111 @@ body.lobby-mode #stam { bottom:max(14px,env(safe-area-inset-bottom)); width:min(
 body.lobby-mode .char svg { filter:saturate(1) contrast(1) brightness(1); opacity:1; transition:filter .28s ease-out, opacity .28s; }
 body.lobby-mode .char.shade svg { filter:saturate(.55) contrast(.78) brightness(1.16); opacity:.92; }
 @media (prefers-reduced-motion:reduce) { body.lobby-mode .char svg { transition:none; } }
+
+/* ── 모드 카드 (client/modes.js) ── 꾸밈은 덜고 배지와 기록으로 다음 목표를 보여 준다 */
+#modes { z-index:24; background:linear-gradient(#DCEEFE 0%,#F2F8FE 62%,#CFEAC0 62.2%,#BFE3AE 100%); flex-direction:column; gap:14px; padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
+#modes .mTop { width:100%; max-width:760px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
+#modes .mBack { justify-self:start; display:flex; align-items:center; gap:6px; height:44px; padding:0 14px; border:0; border-radius:14px; background:#fff; box-shadow:var(--plate); font:inherit; font-size:14px; font-weight:800; color:var(--ink); cursor:pointer; }
+#modes .mBack i { width:9px; height:9px; border-left:2.6px solid var(--ink); border-bottom:2.6px solid var(--ink); transform:rotate(45deg); margin-left:3px; }
+#modes .mTitle { text-align:center; } #modes .mTitle small { display:block; font-size:12px; font-weight:700; color:var(--sub); } #modes .mTitle b { display:block; font-size:22px; font-weight:900; color:var(--ink); }
+#modes .mCards { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; }
+#modes .mcard { position:relative; width:min(300px,44vw); display:flex; flex-direction:column; padding:8px; border:0; border-radius:22px; background:#fff; box-shadow:0 6px 0 rgba(29,35,43,.14); font:inherit; text-align:left; color:var(--ink); cursor:pointer; transition:transform .15s, box-shadow .15s; --mc:#0088FF; }
+#modes .mcard.zombie { --mc:#7A5BD6; }
+#modes .mcard.on { transform:translateY(-6px); box-shadow:0 0 0 3px var(--mc), 0 10px 0 rgba(29,35,43,.12); }
+#modes .mcard:focus-visible { outline:3px solid var(--ink); outline-offset:3px; }
+#modes .mArt { position:relative; height:112px; border-radius:16px; overflow:hidden; display:flex; align-items:flex-end; justify-content:center; gap:0; }
+#modes .mArt.classic { background:linear-gradient(#E3F1FD 78%,#CDE9BC 78%); } #modes .mArt.zomb { background:linear-gradient(#2A2342 78%,#352C52 78%); }
+#modes .mArt img { height:76%; margin-bottom:6%; } #modes .mArt.classic img + img { height:64%; margin-left:-6px; }
+#modes .mMoon { position:absolute; left:20px; top:14px; width:24px; height:24px; border-radius:50%; background:#FFF1C2; }
+#modes .mcard.on .mSway { animation:scSway 1.15s ease-in-out infinite; transform-origin:50% 100%; }
+#modes .mNew { position:absolute; right:18px; top:18px; padding:2px 8px; border-radius:999px; background:#7A5BD6; color:#fff; font-size:10px; font-weight:900; letter-spacing:.04em; }
+#modes .mBody { display:flex; flex-direction:column; gap:3px; padding:11px 8px 4px; }
+#modes .mRow { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+#modes .mName { font-size:22px; font-weight:900; letter-spacing:-.01em; } #modes .mcard.zombie .mName { color:#3E2C80; }
+#modes .mMeta { font-size:11.5px; font-weight:700; color:#8A96A3; white-space:nowrap; }
+#modes .mDesc { font-size:13px; font-weight:600; color:#4A5867; }
+#modes .mRec { display:flex; align-items:center; gap:6px; margin-top:8px; padding-top:9px; border-top:1px solid #EEF1F4; }
+#modes .bdg { width:28px; height:28px; border-radius:50%; background:#EEF1F4; color:#B7C1CC; display:grid; place-items:center; flex:none; }
+#modes .bdg svg { width:62%; height:62%; } #modes .bdg.on { background:var(--mc); color:#fff; }
+#modes .mStat { margin-left:auto; text-align:right; line-height:1.2; } #modes .mStat b { display:block; font-size:12.5px; font-weight:900; } #modes .mStat small { display:block; font-size:10.5px; font-weight:700; color:#8A96A3; }
+#modes .mCheck { position:absolute; right:-8px; top:-8px; width:30px; height:30px; border-radius:50%; background:var(--mc); box-shadow:0 0 0 3px #fff; opacity:0; transform:scale(.6); transition:opacity .15s, transform .15s; }
+#modes .mCheck::after { content:""; position:absolute; left:10px; top:7px; width:7px; height:12px; border-right:3px solid #fff; border-bottom:3px solid #fff; transform:rotate(40deg); }
+#modes .mcard.on .mCheck { opacity:1; transform:none; }
+#modes .mFoot { width:100%; max-width:640px; display:flex; justify-content:flex-end; }
+#modes .mGo { height:48px; padding:0 26px; border:0; border-radius:14px; background:#0088FF; color:#fff; box-shadow:0 4px 0 #006ACC; font:inherit; font-size:16px; font-weight:900; cursor:pointer; }
+#modes .mGo[data-mode=zombie] { background:#7A5BD6; box-shadow:0 4px 0 #5B41AE; }
+#modes .mGo:active { transform:translateY(3px); box-shadow:none; }
+@media (max-height:420px) { #modes { gap:8px; } #modes .mArt { height:92px; } #modes .mTitle b { font-size:19px; } #modes .mBody { padding-top:8px; } #modes .mGo { height:44px; } }
+@media (max-aspect-ratio:1/1) { #modes .mcard { width:min(340px,90vw); } #modes .mFoot { justify-content:center; } }
+@media (prefers-reduced-motion:reduce) { #modes .mcard.on .mSway { animation:none; } #modes .mcard { transition:none; } }
+
+/* ── 혼자 하기: 모드 칩, 좀비 모드의 역할 세 칸 ── */
+#start .stModeChip { margin-right:auto; margin-left:8px; padding:3px 10px; border:0; border-radius:999px; background:#EEF1F5; color:var(--ink); font:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+#start[data-game=zombie] .stModeChip { background:#7A5BD6; color:#fff; }
+#start[data-game=zombie] .teams { grid-template-columns:repeat(3,1fr); }
+#start[data-game=zombie] .team small, #start[data-game=zombie] .diffs small, #start[data-game=zombie] .stRules { display:none; }
+#start[data-game=zombie] .team .art { height:72px; } #start[data-game=zombie] .team .art img { height:64px; }
+#start .team.rnd .art .q { font-size:34px; font-weight:900; color:#7A5BD6; font-style:normal; }
+#start .stGo:not(:disabled)[data-team=zombie] { background:#7A5BD6; color:#fff; box-shadow:0 4px 0 #5B41AE; }
+
+/* ── 대기실: 좀비 모드 표시, 방 설정의 놀이 방식과 판 균형, 첫 좀비 뽑기 ── */
+.code small em.zTag { font-style:normal; font-size:10px; font-weight:900; color:#fff; background:#7A5BD6; border-radius:6px; padding:1px 5px; }
+.srow.col { flex-direction:column; align-items:stretch; justify-content:center; gap:6px; padding:8px 0; }
+.srow .nm small { display:block; font-size:11px; font-weight:600; color:var(--sub); }
+#lob .seg { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:3px; padding:3px; border-radius:10px; background:#F0F2F5; }
+#lob .seg button { min-height:36px; border-radius:8px; font-size:12.5px; font-weight:800; color:var(--sub); white-space:nowrap; }
+#lob .seg button[aria-checked=true] { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.12); }
+#lob .seg button[data-act=mode-zombie][aria-checked=true] { background:#7A5BD6; color:#fff; }
+.why.next { background:rgba(29,35,43,.82); color:#fff; }
+#toast.zomb { background:#7A5BD6; color:#fff; }
+/* 좀비 뽑기 탐조등: 그림은 lobby.js 가 캔버스에 그리고, 여기는 글자와 바뀌는 순간만 */
+.zSpot { position:absolute; inset:0; z-index:20; pointer-events:none; }
+.zSpot canvas { position:absolute; inset:0; width:100%; height:100%; }
+.zSpot.land canvas { animation:zJolt .32s cubic-bezier(.3,1.6,.5,1); }
+.zSpotTx { position:absolute; left:50%; top:max(9%,30px); transform:translateX(-50%); text-align:center; color:#fff; white-space:nowrap; }
+.zSpotTx small { display:block; font-size:16px; font-weight:800; letter-spacing:.06em; color:#CFC3EE; opacity:0; transform:translateY(6px); animation:zLead .5s .35s ease-out forwards; }
+.zSpotTx b { display:block; min-height:1.15em; font-size:44px; font-weight:900; line-height:1.15; color:#E4FFD2; text-shadow:0 0 18px rgba(150,255,110,.55), 0 3px 0 #1E1530; }
+.zSpot.land .zSpotTx b { animation:zName .5s cubic-bezier(.2,1.5,.4,1); }
+@keyframes zLead { to { opacity:1; transform:none; } }
+@keyframes zName { 0% { opacity:0; transform:scale(1.5); filter:blur(6px); letter-spacing:.3em; } 30% { opacity:1; transform:scale(.94) translateX(-3px); } 45% { transform:scale(1.02) translateX(3px); } 100% { transform:none; filter:none; } }
+@keyframes zJolt { 0% { transform:translate(0,0); } 25% { transform:translate(-6px,3px); } 50% { transform:translate(5px,-2px); } 75% { transform:translate(-3px,1px); } 100% { transform:none; } }
+#lob.drawing > :not(.zSpot) { opacity:0; pointer-events:none; transition:opacity .25s; }
+@media (prefers-reduced-motion:reduce) { .zSpot.land canvas, .zSpot.land .zSpotTx b { animation:none; } .zSpotTx small { animation:none; opacity:1; transform:none; } }
+#start[data-game=zombie] .team b { white-space:nowrap; font-size:15px; }
+
+/* ── 좀비 모드 대기실: 밤 바닥, 방 코드 칸의 모드 그림, 정류장 표지판, 모드 줄 ── */
+.code.zroom { gap:8px; padding-left:6px; } .code .zIcon { width:36px; height:36px; border-radius:11px; background:#2A2342; object-fit:contain; object-position:center 20%; padding:3px; box-sizing:border-box; }
+body[data-lobby-mode=zombie] .wcount { color:#E6E0D3; }
+/* 구조차 정류장: 녹슨 기둥에 낡은 노란 표지판, 꼭대기에서 주황 경광등이 돈다 */
+.wstop { position:absolute; left:0; top:0; width:200px; height:210px; pointer-events:none; }
+.wstop b { position:absolute; left:6px; top:22px; width:188px; display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap; padding:10px 10px; box-sizing:border-box; border-radius:10px; background:linear-gradient(#F2C641,#D8A72C); border:4px solid #2A2418; box-shadow:0 6px 0 rgba(0,0,0,.35), inset 0 -6px 0 rgba(120,80,10,.25); color:#2A2418; font:900 24px/1.1 var(--font); transform:rotate(-4deg); }
+.wstop b svg { width:40px; height:24px; fill:#2A2418; flex:none; }
+.wstop i { position:absolute; left:93px; top:70px; width:14px; height:140px; border-radius:4px; background:linear-gradient(90deg,#7E858C,#5A6067 60%,#6E5A48); z-index:-1; }
+.wstop em { position:absolute; left:88px; top:0; width:24px; height:20px; border-radius:12px 12px 4px 4px; background:#FF9A2E; box-shadow:0 0 0 3px #2A2418; animation:zBeacon 1.4s ease-in-out infinite; }
+@keyframes zBeacon { 0%,100% { box-shadow:0 0 0 3px #2A2418, 0 0 0 rgba(255,154,46,0); filter:brightness(.8); } 50% { box-shadow:0 0 0 3px #2A2418, 0 0 34px 10px rgba(255,154,46,.55); filter:brightness(1.25); } }
+/* 흔들리는 가로등 빛 웅덩이: 바닥 위, 사람 아래 */
+.zPool { position:absolute; left:0; top:0; width:1240px; height:600px; z-index:2; pointer-events:none; border-radius:50%; background:radial-gradient(closest-side, rgba(222,236,180,.17), rgba(222,236,180,.07) 55%, transparent); mix-blend-mode:screen; animation:zFlicker 7s steps(1,end) infinite; }
+@keyframes zFlicker { 0%,100% { opacity:1; } 61% { opacity:.55; } 62% { opacity:1; } 64% { opacity:.4; } 65% { opacity:1; } 88% { opacity:.8; } 89% { opacity:1; } }
+/* 수풀과 어두운 틈에서 가끔 반짝이는 눈 */
+.zEyes { position:absolute; left:0; top:0; width:44px; height:20px; display:flex; justify-content:space-between; pointer-events:none; opacity:0; animation:zEyes 9s ease-in-out infinite; }
+.zEyes i { width:15px; height:10px; border-radius:50%; background:#E6FF9E; box-shadow:0 0 10px 4px rgba(200,255,120,.55); animation:zBlink 9s infinite; }
+@keyframes zEyes { 0%,52%,92%,100% { opacity:0; } 60%,84% { opacity:1; } }
+@keyframes zBlink { 0%,70%,73%,100% { transform:scaleY(1); } 71.5% { transform:scaleY(.1); } }
+.wsay.tip { font-size:24px; background:#FFC83D; color:#3A2A00; } .wsay.tip::after { background:#FFC83D; }
+.srow.modeRow { gap:10px; } .srow.modeRow .nm small { display:block; font-size:11px; font-weight:700; color:var(--sub); }
+.mIcon { width:40px; height:40px; border-radius:11px; display:grid; place-items:end center; overflow:hidden; flex:none; } .mIcon.classic { background:#E3F1FD; } .mIcon.zomb { background:#2A2342; }
+.mIcon img { height:34px; }
+#lob .bt.mini { height:36px; padding:0 12px; font-size:13px; color:#0088FF; box-shadow:none; background:#EEF4FF; }
+
+/* 좀비 공터의 밤 기운: 가장자리 보라빛 그늘과 낮게 흐르는 안개. 누르기를 막지 않는다 */
+.zMood { position:absolute; inset:0; z-index:1; pointer-events:none; box-shadow:inset 0 0 180px 60px rgba(10,8,22,.82); background:linear-gradient(rgba(10,8,22,.42), transparent 28%, transparent 78%, rgba(10,8,22,.35)); }
+.zMood i { position:absolute; left:-25%; right:-25%; height:24%; border-radius:50%; background:radial-gradient(ellipse at center, rgba(176,196,170,.16), transparent 70%); animation:zFog 18s linear infinite; }
+.zMood i:nth-child(1) { bottom:6%; } .zMood i:nth-child(2) { bottom:30%; animation-duration:26s; animation-direction:reverse; opacity:.7; } .zMood i:nth-child(3) { bottom:52%; height:18%; animation-duration:34s; opacity:.45; background:radial-gradient(ellipse at center, rgba(170,150,220,.14), transparent 70%); }
+body[data-lobby-mode=zombie] #lob .grow .line { white-space:normal; text-align:center; line-height:1.3; max-width:100%; background:rgba(16,12,28,.86); }
+/* 좁은 폰에서는 안내 줄 대신 시작 버튼 위 "시작하면 좀비를 뽑아요"가 같은 말을 한다 */
+@media (max-width:899px) { body[data-lobby-mode=zombie] #lob .grow .line { display:none; } }
+@keyframes zFog { from { transform:translateX(-8%); } to { transform:translateX(8%); } }
+#lob .bt.look { display:inline-flex; align-items:center; gap:6px; padding:0 12px 0 8px; }
+#lob .bt.look img { height:30px; width:auto; }
+@media (max-width:899px) { #lob .bt.look { font-size:0; gap:0; padding:0 7px; } }
+@media (prefers-reduced-motion:reduce) { .zMood i, .zPool, .zEyes, .zEyes i, .wstop em { animation:none; } .zEyes { opacity:.8; } }

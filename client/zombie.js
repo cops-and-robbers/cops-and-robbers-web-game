@@ -164,8 +164,8 @@ const ZB = (() => {
       if (e.r === p) { play("free"); haptic([0, 120, 80, 120]); toast(Z.iEscaped, "good"); }
       else toast(Z.xEscaped(nm(e.r)), p.team === "robber" ? "good" : "bad");
     }
-    if (e.type === "vanRadio" && p.team === "robber") { play("reveal"); haptic(200); const s = stops().filter(x => !x.isOpen).sort((a, b) => a.open - b.open)[0]; toast(Z.radio(s ? Math.max(1, Math.ceil(s.open - G.t)) : G.zb.radio), "good"); }
-    if (e.type === "vanOpen") { play("go"); toast(p.team === "robber" ? Z.vanOpenS : Z.vanOpenZ, p.team === "robber" ? "good" : "bad"); }
+    if (e.type === "vanRadio" && p.team === "robber") { play("zRadio"); haptic(200); const s = stops().filter(x => !x.isOpen).sort((a, b) => a.open - b.open)[0]; toast(Z.radio(s ? Math.max(1, Math.ceil(s.open - G.t)) : G.zb.radio), "good"); }
+    if (e.type === "vanOpen") { play("zVan"); toast(p.team === "robber" ? Z.vanOpenS : Z.vanOpenZ, p.team === "robber" ? "good" : "bad"); }
     if (e.type === "vanLeave") toast(Z.vanLeave);
     return ["bitten", "turned", "boarded", "vanRadio", "vanOpen", "vanLeave"].includes(e.type);
   }

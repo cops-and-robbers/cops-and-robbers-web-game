@@ -11,7 +11,7 @@ logic = (ROOT / "shared/logic.js").read_text(encoding="utf-8")
 # 좀비 화면(zombie.js)은 첫 화면 미리보기에서도 불리니 game.js 앞에 둔다. 안의 함수는 판이 돌 때만 game.js 의 값을 쓴다
 game = (ROOT / "client/zombie.js").read_text(encoding="utf-8") + "\n" + (ROOT / "client/game.js").read_text(encoding="utf-8") + "\n" + (ROOT / "client/zone.js").read_text(encoding="utf-8")
 scenes = (ROOT / "client/scenes.js").read_text(encoding="utf-8")
-net = (ROOT / "client/tutorial.js").read_text(encoding="utf-8") + (ROOT / "client/guide.js").read_text(encoding="utf-8") + (ROOT / "client/solo.js").read_text(encoding="utf-8") + (ROOT / "client/lobby.js").read_text(encoding="utf-8") + (ROOT / "client/net.js").read_text(encoding="utf-8")
+net = (ROOT / "client/tutorial.js").read_text(encoding="utf-8") + (ROOT / "client/guide.js").read_text(encoding="utf-8") + (ROOT / "client/modes.js").read_text(encoding="utf-8") + (ROOT / "client/solo.js").read_text(encoding="utf-8") + (ROOT / "client/lobby.js").read_text(encoding="utf-8") + (ROOT / "client/net.js").read_text(encoding="utf-8")
 css = (ROOT / "client/lobby.css").read_text(encoding="utf-8") + (ROOT / "client/scenes.css").read_text(encoding="utf-8")
 i18n = (ROOT / "client/i18n.js").read_text(encoding="utf-8")
 out = shell.replace("</head>", "<style>" + css + "</style>\n</head>", 1).replace("/*ENGINE*/", engine).replace("/*SVGS*/", svgs).replace("/*LOGIC*/", logic).replace("/*SCENES*/", scenes).replace("/*GAME*/", game).replace("/*NET*/", net).replace("/*I18N*/", i18n)
