@@ -16,10 +16,9 @@ function createSolo() {
   let theme = ["random", ...THEME_KEYS].includes(store.get("theme")) ? store.get("theme") : "random";
   // 구역 축소는 처음엔 꺼 둔다. 켠 사람만 다음에도 켜진 채로 연다
   let shrink = store.get("shrink") === "1";
-  // 좀비 모드(client/modes.js 에서 고름): 내 역할(첫 좀비 police, 생존자 robber, 무작위)과 판 균형은 따로 기억한다
+  // 좀비 모드(client/modes.js 에서 고름): 내 역할(좀비 police, 생존자 robber, 무작위)은 따로 기억한다.
+  // 판 균형(생존자 쪽, 반반, 좀비 쪽)은 헷갈려서 고르지 않고 늘 반반이다. 난이도는 경찰과 도둑처럼 봇의 반응 속도다
   let mode = "classic", zteam = ["police", "robber", "random"].includes(store.get("zteam")) ? store.get("zteam") : null;
-  let bal = ["surv", "even", "zomb"].includes(store.get("zbal")) ? store.get("zbal") : "even";
-  const BAL = { easy: "surv", normal: "even", hard: "zomb" }, DIFF_OF = { surv: "easy", even: "normal", zomb: "hard" };
   // 고정 문구(data-t)를 모드에 맞게 바꾸고, 경찰과 도둑으로 돌아오면 원래 문구로 되돌린다
   function applyMode() {
     const Z = mode === "zombie" ? tt("zb").solo : null;
@@ -33,8 +32,6 @@ function createSolo() {
     q('[data-role-pick="robber"] b').textContent = Z ? Z.surv : tt("robName");
     q('[data-role-pick="random"] b').textContent = Z ? Z.random : "";
     q('[data-role-pick="random"]').hidden = !Z;
-    q("#stDiffL").textContent = Z ? Z.balance : tt("diffLabel");
-    for (const k of ["easy", "normal", "hard"]) q(`[data-diff="${k}"] b`).textContent = Z ? Z.bal[BAL[k]] : TX.diff[k];
   }
   let seed = newSeed(), shown = null, t = 0, spin = 0, spinT = 0, open = false, fromHome = false, wentFull = false;
   // 폰에서는 나가기를 고르는 칸 밖, 지도 위에 띄운다. 설정을 얼마나 내렸든 바로 나갈 수 있다
@@ -66,9 +63,12 @@ function createSolo() {
 
   // ── 뒤에서 보이는 지도 ──
   // 혼자 하기 판과 같은 값(편, 난이도에 따라 지도 크기와 건물 양이 다르다)으로 만든다. 편을 아직 안 골랐으면 경찰 값으로 만들고, 고르면 다시 만든다
-  const previewTheme = () => (theme === "random" ? THEME_KEYS[spin % THEME_KEYS.length] : theme);
+  // 좀비 모드는 늘 좀비 지도(버려진 마을)라 지도 고르기를 숨기고 "다른 지도"로 모양만 바꾼다
+  const zMap = () => mode === "zombie";
+  const previewTheme = () => (zMap() ? "zombie" : theme === "random" ? THEME_KEYS[spin % THEME_KEYS.length] : theme);
+  const spinning = () => theme === "random" && !zMap();
   // 지도는 테마, 씨앗, 그리고 편과 난이도가 정하는 크기와 건물 양으로만 달라진다. 같으면 다시 만들지 않는다(보통 난이도는 편을 바꿔도 같다)
-  const mapKey = () => { const s = L.DIFF[diff][team || "police"]; return `${previewTheme()}:${theme === "random" ? spin : seed}:${s.scale}:${s.cover}`; };
+  const mapKey = () => { const s = L.DIFF[diff][team || "police"]; return `${previewTheme()}:${spinning() ? spin : seed}:${s.scale}:${s.cover}`; };
   let pending = 0;
   // 누른 칸의 반응이 먼저 그려지게 지도는 나중에 만든다. 지도를 만드는 동안(느린 폰에서 0.2초쯤) 움직임이 멈추니,
   // 그 사이 지도를 잠깐 흐렸다가 새 지도로 다시 보인다. 연달아 누르면 마지막 것만 만든다
@@ -82,7 +82,7 @@ function createSolo() {
     const key = previewTheme();
     shown = mapKey();
     chars.forEach(c => c.el.remove()); chars = [];
-    G = newGame({ seed: theme === "random" ? 1000 + spin * 7 : seed, theme: key, role: team || "police", diff });
+    G = newGame({ seed: spinning() ? 1000 + spin * 7 : seed, theme: key, role: team || "police", diff, ...(zMap() ? { mode: "zombie" } : {}) });
     ended = false;
     document.querySelectorAll(".bush").forEach(n => n.remove());
     bakeMap(); bakeBushes();
@@ -90,12 +90,12 @@ function createSolo() {
     const f = $("soloMap");
     f.querySelector("b").textContent = TX.theme[key];
     f.querySelector("span").textContent = TX.soloPage.mapNote[key];
-    f.classList.toggle("random", theme === "random");
+    f.classList.toggle("random", spinning());
   }
   // 카메라는 지도 가운데를 크게 돌며 천천히 지나간다. 움직임을 줄이도록 설정한 사람에게는 멈춰 있다
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   function drift(dt) {
-    if (theme === "random") { spinT += dt; if (spinT > 3.2) { spinT = 0; spin++; render(true); } }
+    if (spinning()) { spinT += dt; if (spinT > 3.2) { spinT = 0; spin++; render(true); } }
     t += still ? 0 : dt;
     const cx = CFG.W / 2 + Math.cos(t * 0.09) * CFG.W * 0.22, cy = CFG.H / 2 + Math.sin(t * 0.13) * CFG.H * 0.2;
     camX = cx - W / 2 / zoom; camY = cy - H / 2 / zoom;
@@ -114,7 +114,7 @@ function createSolo() {
   }
 
   function sync() {
-    const zm = mode === "zombie", who = zm ? zteam : team, lv = zm ? DIFF_OF[bal] : diff;
+    const zm = mode === "zombie", who = zm ? zteam : team, lv = diff;
     qa("[data-role-pick]").forEach(b => { const on = b.dataset.rolePick === who; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
     qa("[data-diff]").forEach(b => { const on = b.dataset.diff === lv; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
     qa("[data-theme-pick]").forEach(b => { const on = b.dataset.themePick === theme; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
@@ -123,14 +123,14 @@ function createSolo() {
     go.disabled = !who;
     go.dataset.team = zm ? (who ? "zombie" : "") : team || "";
     go.textContent = zm ? (who ? tt("zb").solo.go[who] : tt("zb").solo.pick) : team ? TX.soloPage.go[team] : TX.soloPage.pickTeam;
-    q(".reroll").hidden = theme === "random";
+    q(".reroll").hidden = spinning();
     sheet.dataset.team = team || "";
     render();
   }
   qa("[data-role-pick]").forEach(b => b.onclick = () => { if (mode === "zombie") { zteam = b.dataset.rolePick; store.set("zteam", zteam); } else { team = b.dataset.rolePick; store.set("team", team); } sync(); });
   q("[data-mode-chip]").onclick = () => { hide(); sheet.className = "sheet"; Modes.open("solo", m => show(fromHome, false, m)); };
   q("[data-shrink-pick]").onclick = () => { shrink = !shrink; store.set("shrink", shrink ? "1" : "0"); sync(); };
-  qa("[data-diff]").forEach(b => b.onclick = () => { if (mode === "zombie") { bal = BAL[b.dataset.diff]; store.set("zbal", bal); } else { diff = b.dataset.diff; store.set("diff", diff); } sync(); });
+  qa("[data-diff]").forEach(b => b.onclick = () => { diff = b.dataset.diff; store.set("diff", diff); sync(); });
   qa("[data-theme-pick]").forEach(b => b.onclick = () => { theme = b.dataset.themePick; store.set("theme", theme); seed = newSeed(); sync(); });
   q(".reroll").onclick = () => { seed = newSeed(); sync(); };
   // 같은 줄 안에서는 화살표로 옮긴다(라디오 묶음)
@@ -161,11 +161,11 @@ function createSolo() {
   $("soloGo").onclick = () => {
     const zm = mode === "zombie";
     if (zm ? !zteam : !team) return;
-    const go = theme === "random" ? undefined : seed;
+    const go = spinning() ? undefined : seed;
     // 지도를 고르자마자 누르면 0.14초 뒤 미리보기가 시작한 판을 덮어쓴다. 남은 미리보기를 지운다
     clearTimeout(pending);
     hide(); sheet.className = "sheet";
-    pickDiff = diff; pickTheme = theme; pickShrink = shrink; pickMode = mode; pickBalance = bal;
+    pickDiff = diff; pickTheme = theme; pickShrink = shrink; pickMode = mode;
     const who = zm ? (zteam === "random" ? (Math.random() < 1 / 6 ? "police" : "robber") : zteam) : team;
     start(who, go); syncRotate(); tryLandscape();
   };
@@ -176,7 +176,7 @@ function createSolo() {
   };
   q(".stBack").onclick = leave; exitBtn.onclick = leave;
   // 고르는 칸의 게임 방법: 안내를 보는 동안 지도 미리보기를 멈추고, 닫으면 다시 그린다
-  q("[data-solo-guide]").onclick = e => { const b = e.currentTarget; hide(); (guide ||= createGuide()).open(b, () => show(fromHome)); };
+  q("[data-solo-guide]").onclick = e => { const b = e.currentTarget; hide(); (guide ||= createGuide()).open(b, () => show(fromHome), mode); };
   addEventListener("resize", () => { if (open) { layout(); } });
   return { show, hide, get open() { return open; } };
 }

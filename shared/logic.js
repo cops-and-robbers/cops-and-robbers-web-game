@@ -44,6 +44,10 @@ function createGameLogic() {
       roofs: [["#E1EFFC", "#BCD8F2"], ["#E8E5FA", "#CEC8F0"], ["#DDF2E7", "#BCE2CC"], ["#FFF0DB", "#F0D3AE"], ["#DCECF9", "#B5D2EC"]], win: "#FFFFFF", bin: [["#A7C8E8", "#8DB3DA"], ["#AEDCBD", "#93CBA6"]], trees: 0.5, species: "round", trunk: "#C99A73", bushes: ["#86C687", "#A6DA97", "#C9EBB4"], fog: "18,23,32", fogA: 0.5 },
     night: { speck: "#3A5268", curb: "#5A6A90", cross: "rgba(200,210,235,.35)", flower: ["#FFFFFF"], winOff: "#3A4E73", winOn: 0.55, dust: "#5A6B8F", name: "밤 골목", cover: 1.05, bush: 1, vision: 0.78, lot: 1, ground: "#33485F", road: "#4A5A80", line: "#3B4A70", out: "#26364E", park: "#2E4559", plaza: "#506089", jail: "#58698F",
       roofs: [["#66778F", "#55657E"], ["#6B6C90", "#58597B"], ["#5E7484", "#4C6170"]], win: "#FFD978", bin: [["#3E4C6E", "#33405E"]], trees: 0.4, species: "round", trunk: "#5A4040", bushes: ["#1E2C55", "#2A3A69", "#3D4F80"], fog: "6,9,18", fogA: 0.7 },
+    // 좀비 모드 전용 지도: 밤 골목을 바탕으로 회녹색으로 눌렀다. 창은 거의 꺼지고 가로등은 군데군데 나갔다. 바닥 꾸밈(금, 웅덩이, 발자국, 잔해)은 client/game.js zombieDecor.
+    // 좀비 판은 늘 이 지도이고, 경찰과 도둑의 무작위 지도에는 나오지 않는다. 판의 성격(건물, 덤불, 시야)은 밤 골목과 거의 같게 둬 판 균형이 흔들리지 않게 한다
+    zombie: { speck: "#56634F", curb: "#545D57", cross: "rgba(200,210,190,.22)", flower: ["#B9C4A6"], winOff: "#2C3631", winOn: 0.16, dust: "#5E6A5E", name: "버려진 마을", cover: 1.05, bush: 1, vision: 0.78, lot: 1, ground: "#323E37", road: "#3D4447", line: "#33393C", out: "#222A26", park: "#2D3B31", plaza: "#48504C", jail: "#48504C",
+      roofs: [["#5E6660", "#4C544F"], ["#635C6C", "#514A5A"], ["#586456", "#475245"]], win: "#D6E58A", bin: [["#38423D", "#2E3732"]], trees: 0.4, species: "round", trunk: "#4A3C34", bushes: ["#1B2920", "#25372A", "#34503A"], fog: "6,10,8", fogA: 0.74 },
     park: { speck: "#C9E6B2", curb: "#F4F7EF", cross: "rgba(255,255,255,.7)", flower: ["#FFFFFF", "#FFE7A6"], winOff: "#F6F9FF", winOn: 0, dust: "#CFE3B6", name: "공원", cover: 0.42, bush: 2.1, vision: 1.05, lot: 0.8, ground: "#D6EDBE", road: "#EDF1E8", line: "#D3DCC8", out: "#B8D79E", park: "#CDEBB4", plaza: "#F0F3EC", jail: "#E3E9DC",
       roofs: [["#FFF0DB", "#F0D3AE"], ["#DDF2E7", "#BCE2CC"], ["#FAE4EA", "#EDC6D2"]], win: "#FFFFFF", bin: [["#AEDCBD", "#93CBA6"]], trees: 0.42, species: "round", trunk: "#C99A73", bushes: ["#7FC283", "#9FD691", "#C4E9AE"], fog: "18,32,23", fogA: 0.42 },
     city: { speck: "#D7E3EC", curb: "#F7FAFC", cross: "rgba(255,255,255,.95)", flower: ["#FFFFFF"], winOff: "#F1F8FF", winOn: 0, dust: "#D3DEE8", name: "도심", cover: 1.3, bush: 0.55, vision: 0.95, lot: 0.82, ground: "#E2EBF2", road: "#D8E3EE", line: "#C3D1DF", out: "#C7D5E2", park: "#DCEFD0", plaza: "#EBF1F6", jail: "#D9E3EC",
@@ -327,8 +331,9 @@ function createGameLogic() {
     const rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     // 고른 진영과 난이도로 지도 조건과 상대 봇의 실력을 정한다
     const diff = DIFF[opts.diff || "normal"], side = diff[opts.role || "police"];
-    const names = Object.keys(THEMES);
-    const theme = opts.theme && THEMES[opts.theme] ? opts.theme : names[Math.floor(rnd() * names.length)];
+    // 좀비 판은 늘 좀비 지도. 경찰과 도둑은 좀비 지도를 고르지 않는다
+    const names = Object.keys(THEMES).filter(k => k !== "zombie");
+    const theme = opts.mode === "zombie" ? "zombie" : opts.theme && THEMES[opts.theme] && opts.theme !== "zombie" ? opts.theme : names[Math.floor(rnd() * names.length)];
     const th = THEMES[theme];
     const map = makeMap(seed ^ 0x51ED27, { scale: opts.scale ?? side.scale, cover: opts.cover ?? side.cover, theme });
     // intro: 시작 멈춤이 남은 초. 정하지 않으면 0 이라 게임 방법 장면, 검사 판은 그대로 돈다

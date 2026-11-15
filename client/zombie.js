@@ -17,10 +17,19 @@ const ZB = (() => {
   }
   const url = name => "data:image/svg+xml," + encodeURIComponent(svg(name));
   // 엔진은 팔다리 막대를 그림 정보(DEFS)의 색으로 그린다. 좀비로 붙일 때만 잠깐 바꿔 끼운다
+  // 뒷모습은 정면 그림에서 얼굴을 지운 자리를 몸 색으로 덧칠한다(DEFS.recolor). 그 색도 같이 바꿔야 옆구리에 경찰 파랑이 남지 않는다
   function mountZ(name) {
-    const def = window.CharRig.DEFS[name], saved = def?.limbs?.map(l => l.color);
+    const def = window.CharRig.DEFS[name], saved = def?.limbs?.map(l => l.color), paint = def?.recolor ? { ...def.recolor } : null;
     if (saved) def.limbs.forEach(l => l.color = recolor(l.color));
-    try { return mount(svg(name), name); } finally { if (saved) def.limbs.forEach((l, i) => l.color = saved[i]); }
+    if (paint) for (const k in def.recolor) def.recolor[k] = recolor(def.recolor[k]);
+    let rig;
+    try { rig = mount(svg(name), name); } finally { if (saved) def.limbs.forEach((l, i) => l.color = saved[i]); if (paint) Object.assign(def.recolor, paint); }
+    // 쥐 좀비의 뒷모습은 앞으로 뻗은 손이 등 뒤에서 어색하게 삐져나와 보여서 손과 팔을 숨긴다(앞으로 뻗어 가려졌다고 본다)
+    if (name === "robber-back") {
+      for (const g of [...(rig.parts.handL || []), ...(rig.parts.handR || [])]) g.setAttribute("display", "none");
+      for (const L of rig.limbs || []) if (/^hand/.test(L.to[0])) L.el.setAttribute("display", "none");
+    }
+    return rig;
   }
   const zombie = a => isZ() && a.team === "police";
   const lookOf = a => a.look || a.team;

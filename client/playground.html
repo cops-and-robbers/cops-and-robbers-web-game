@@ -190,7 +190,7 @@
     const flip = document.createElementNS(NS, "g"); svg.append(flip); flip.append(all);
     updateLimbs(); // 처음부터 제자리에 둔다. 안 그러면 첫 장면에 왼쪽 위 모서리에 점이 찍힌다
     return {
-      svg, def, parts, all, flip,
+      svg, def, parts, all, flip, limbs,
       set(part, tf) { (parts[part] || []).forEach(g => g.setAttribute("transform", tf)); },
       updateLimbs,
       reset() { Object.values(parts).flat().forEach(g => { g.removeAttribute("transform"); g.style.opacity = ""; }); all.removeAttribute("transform"); updateLimbs(); },
@@ -414,16 +414,19 @@
       }
     } };
   };
-  // 앞모습: 손을 가슴 높이로 들고 좌우로 조금 휘청인다
+  // 앞모습과 뒷모습: 팔을 앞으로 들고 좌우로 조금 휘청인다.
+  // 냥파 앞모습에서 팔로 읽히는 건 몸 양옆의 큰 동그라미 둘(DEFS 의 cheeks, 7번 8번)이다. 몸을 가리거나 막대 팔을 덧그리면 뜯겨 나간 듯 보여서,
+  // 그 동그라미만 몸에 붙인 채 조금 올리고 앞으로(살짝 크게, 안쪽으로) 내민다. 뒷모습은 몸만 휘청인다
   MOTIONS.shambleFront = (rig) => {
     const d = rig.def, rob = d.name.startsWith("robber"); let ph = 0; const arm = new Spring(90, 6);
+
     return { update(dt, ctx = {}) {
       const speed = ctx.speed ?? 0.9, T = 1.15 / (0.55 + 0.45 * speed);
       ph = (ph + dt / T) % 1; const u = limp(ph);
       const sway = 3 * Math.sin(u * TAU), y = 2.5 * Math.abs(Math.sin(u * TAU)), a = arm.step(y * 1.4, dt);
       rig.all.setAttribute("transform", piv(d.cx, d.ground, sway, 1, 1, 0, y));
       if (rob) { rig.set("handL", piv(41, 113, 0, 1.12, 1.12, 8, -12 + a)); rig.set("handR", piv(119, 113, 0, 1.12, 1.12, -8, -12 + a * 0.7)); }
-      else { rig.set("armL", piv(42, 170, 0, 1.1, 1.1, 12, -16 + a)); rig.set("armR", piv(138, 170, 0, 1.1, 1.1, -12, -16 + a * 0.7)); }
+      else if (d.name === "police-front") rig.set("cheeks", piv(90, 118, 0, 0.97, 1.05, 0, -5 - a * 0.6));
       const L = Math.max(0, Math.sin(u * TAU)), R = Math.max(0, -Math.sin(u * TAU));
       const fl = rob ? [[61, 140], [99, 140]] : [[52, 196], [126, 196]];
       rig.set("footL", piv(fl[0][0], fl[0][1], 0, 1, 1, 0, -4 * L));

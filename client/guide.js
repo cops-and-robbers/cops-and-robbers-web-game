@@ -1,9 +1,10 @@
 // 게임 방법. 영상 대신 실제 게임 엔진으로 짧은 장면을 연기시켜 보여 준다.
 // 지도, 캐릭터, 시야, 위치 공개, 감옥, 화면 위 표시는 게임 그대로이고, 사람 입력 자리에 대본(drive)이 들어간다.
 // 화면을 둘로 나눠 한쪽은 설명, 한쪽은 게임 장면이다. 넓은 화면은 왼쪽, 폰 가로는 오른쪽(넘기는 손), 폰 세로는 아래 설명. 설계는 docs/guide.md
+// 놀이 방식마다 장면 묶음이 따로 있다(경찰과 도둑, 좀비 모드). 위 탭으로 바꾸고, 좀비 대기실과 좀비 혼자 하기에서 열면 좀비 모드로 연다
 function createGuide() {
   const touch = matchMedia("(pointer:coarse)").matches;
-  const copy = TX.guideCopy;
+  const base = TX.guideCopy;
 
   // 장면 지도 하나: 가운데 큰길과 세로 길, 왼쪽 아래 감옥, 길가 수풀. 모든 장면이 같은 동네라 장면이 바뀌어도 낯설지 않다
   const tree = (x, y, crown) => ({ x, y, w: 28, h: 20, kind: "tree", crown, species: "round" });
@@ -86,15 +87,64 @@ function createGuide() {
       } },
   ];
 
+  // 좀비 모드 장면. 같은 동네에서 감옥만 빼고 연기한다(좀비 판은 감옥을 그리지 않는다). police 가 좀비, robber 가 생존자
+  const ZSCENES = [
+    // 시작: 좀비 하나가 가운데서 잠깐 기다리는 동안 생존자 셋이 흩어지고, 깨어나면 쫓아온다
+    { key: "zgoal", team: "robber", police: 1, robbers: 3, wait: 3, len: 8,
+      setup(G) { const [z] = G.police, [me, r2, r3] = G.robbers; place(z, 1000, 830, "waiting"); place(me, 1130, 830); place(r2, 1080, 790); place(r3, 1160, 870); },
+      drive(t, G) {
+        const [z] = G.police, [me, r2, r3] = G.robbers;
+        toward(r2, 1535, t < 1.6 ? 800 : 420); toward(r3, 1535, t < 1.4 ? 860 : 1350);
+        if (G.phase === "play") { z.sprint = true; toward(z, me.x, me.y); }
+        return { ...toward(me, 2300, 820), sprint: G.phase === "play" };
+      } },
+    // 물기: 내가 좀비. 다가가 물면 생존자가 비틀거리다 좀비가 된다
+    { key: "zbite", team: "police", police: 1, robbers: 2, len: 7.5,
+      setup(G) { place(G.police[0], 900, 820, "free"); place(G.robbers[0], 1240, 830); place(G.robbers[1], 2450, 1550); G.robbers[0].faceA = 0; },
+      drive(t, G) {
+        const r = G.robbers.find(a => a.id === 1) || G.police.find(a => a.id === 1), p = G.player;
+        const free = r && r.team === "robber" && r.state === "free", gap = free ? Math.hypot(r.x - p.x, r.y - p.y) : 1e9, near = gap < 78;
+        // 생존자는 좀비가 가까이 와서야 알아채고 걷듯 달아난다. 좀비는 달려서 따라잡는다
+        if (free && gap < 230) toward(r, 2200, 830); else if (r) still(r);
+        const v = free ? toward(p, r.x, r.y) : { x: 0, y: 0 };
+        return { ...v, sprint: free, catch: near };
+      } },
+    // 심장 소리: 내가 생존자. 수풀에 숨어 있는데 안 보이는 좀비가 길을 따라 다가오면 가장자리가 붉게 뛴다. 지나가면 반대쪽으로 빠져나간다
+    { key: "zheart", team: "robber", police: 1, robbers: 2, len: 8, focus: { x: 1200, y: 760 },
+      setup(G) { place(G.police[0], 500, 830, "free"); place(G.robbers[0], 1205, 690); place(G.robbers[1], 2450, 1550); G.robbers[0].faceA = Math.PI / 2; },
+      drive(t, G) {
+        const z = G.police[0];
+        if (t < 5.2) toward(z, 1700, 830); else toward(z, 2300, 830);
+        return t > 5.6 ? { ...toward(G.player, 900, 520), sprint: true } : { x: 0, y: 0 };
+      } },
+    // 구조차: 무전이 오고 정류장이 뜬다. 차가 서면 노란 칸 안에서 잠깐 버텨 탄다. 좀비가 뒤에서 쫓아온다
+    { key: "zvan", team: "robber", police: 1, robbers: 2, len: 9, focus: G => ({ x: (G.player.x + 1950) / 2, y: 820 }),
+      setup(G) {
+        place(G.robbers[0], 1250, 820); place(G.robbers[1], 300, 1550); place(G.police[0], 760, 830, "free");
+        G.van.stops = [{ radio: 0, open: G.t + 2.6, close: null, x: 1950, y: 820, wave: 0 }];
+      },
+      drive(t, G) {
+        if (t > 0.3 && !G.zRadioShown) { G.zRadioShown = true; G.events.push({ type: "vanRadio", n: 0 }); }
+        const z = G.police[0]; z.sprint = true; toward(z, G.player.state === "free" ? G.player.x : 1950, 820, 190);
+        return G.player.state === "free" ? { ...toward(G.player, 1950, 820, 30), sprint: true } : { x: 0, y: 0 };
+      } },
+  ];
+
+  const SETS = { classic: { scenes: SCENES, copy: base }, zombie: { scenes: ZSCENES, copy: TX.zbGuide } };
+  let set = "classic";
+  const cur = () => SETS[set];
+
   // ── 화면 ──
   const el = document.createElement("div");
   el.id = "guide"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-labelledby", "gTitle");
-  const chip = team => `<span class="gChip ${team}">${copy.team[team]}</span>`;
+  // 좀비 모드의 편 칩은 경찰 파랑, 도둑 초록 대신 좀비 보라, 생존자 노랑
+  const chip = team => `<span class="gChip ${set === "zombie" ? { police: "zomb", robber: "surv", all: "all" }[team] : team}">${cur().copy.team[team]}</span>`;
   el.innerHTML = `<div class="gPanel">
       <div class="gHead"><b class="gKicker">${tt("guide")}</b><span class="gCount" aria-hidden="true"></span><button class="gClose" aria-label="${tt("close")}"></button></div>
-      <ol class="gList">${copy.steps.map((s, i) => `<li><button data-step="${i}"><span class="n">${i + 1}</span><span class="t">${s.title}</span>${chip(s.team)}</button></li>`).join("")}</ol>
+      <div class="gModes" role="tablist">${["classic", "zombie"].map(m => `<button role="tab" data-gmode="${m}">${tt("modes").name[m]}</button>`).join("")}</div>
+      <ol class="gList"></ol>
       <div class="gNow"><div class="gNowHead">${""}</div><h2 id="gTitle" tabindex="-1"></h2><p class="gText"></p></div>
-      <div class="gFoot"><div class="gDots" aria-hidden="true"></div><button class="gPause" aria-label="${copy.pause}"></button><button class="gPrev">${copy.prev}</button><button class="gNext"></button></div>
+      <div class="gFoot"><div class="gDots" aria-hidden="true"></div><button class="gPause" aria-label="${base.pause}"></button><button class="gPrev">${base.prev}</button><button class="gNext"></button></div>
       <div class="gLoop" aria-hidden="true"><i></i></div>
     </div>
     <div class="gFinger f1" aria-hidden="true"></div><div class="gFinger f2" aria-hidden="true"></div>`;
@@ -147,11 +197,16 @@ function createGuide() {
   }
 
   function load(i) {
+    const SCENES = cur().scenes, copy = cur().copy;
     idx = i; sc = SCENES[i]; t = 0; catchT = 0;
     // 판 길이는 실제와 같게 둔다. 장면은 몇 초라 판이 끝나지 않는다
     Object.assign(CFG, { WAIT: sc.wait ?? 0, DURATION: 180, AUTO_ESCAPE: false, RESCUE_SEC: 1.2 });
-    showGame(sc.team, { role: sc.team, seed: 2611, theme: "town", diff: "normal", police: sc.police, robbers: sc.robbers, reveal: 35 }, G2 => {
-      L.loadMap(MAP); G2.map = MAP; G2.theme = "town"; G2.th = THEMES.town;
+    showGame(sc.team, { role: sc.team, seed: 2611, theme: set === "zombie" ? "zombie" : "town", diff: "normal", police: sc.police, robbers: sc.robbers, reveal: 35, ...(set === "zombie" ? { mode: "zombie", balance: "even" } : {}) }, G2 => {
+      // 좀비 모드 장면은 좀비 지도(버려진 마을) 색과 바닥으로 연기한다
+      const th = set === "zombie" ? "zombie" : "town";
+      L.loadMap(MAP); G2.map = MAP; G2.theme = th; G2.th = THEMES[th];
+      // 좀비 판은 깨어나는 시각을 G.wait 로 쓴다
+      if (set === "zombie") G2.wait = sc.wait ?? 0;
       if (!sc.wait) { G2.phase = "play"; for (const c of G2.police) c.state = "free"; }
       G2.nextReveal = G2.t + 35;
       sc.setup(G2);
@@ -170,7 +225,7 @@ function createGuide() {
     el.querySelectorAll("[data-step]").forEach(b => { const on = +b.dataset.step === i; b.classList.toggle("on", on); b.setAttribute("aria-current", on ? "step" : "false"); });
     q(".gDots").innerHTML = SCENES.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("");
     q(".gPrev").disabled = i === 0;
-    q(".gNext").textContent = i < SCENES.length - 1 ? copy.next : copy.done;
+    q(".gNext").textContent = i < SCENES.length - 1 ? base.next : base.done;
     camTarget = aim; const [cx, cy] = aim(G.player); camX = cx; camY = cy;
     layout();
   }
@@ -191,26 +246,36 @@ function createGuide() {
 
   function setHold(on) {
     hold = on; paused = on;
-    const b = q(".gPause"); b.classList.toggle("play", on); b.setAttribute("aria-label", on ? copy.play : copy.pause);
+    const b = q(".gPause"); b.classList.toggle("play", on); b.setAttribute("aria-label", on ? base.play : base.pause);
   }
-  function show(i) { setHold(false); load(Math.max(0, Math.min(SCENES.length - 1, i))); q("#gTitle").focus({ preventScroll: true }); }
+  function show(i) { setHold(false); load(Math.max(0, Math.min(cur().scenes.length - 1, i))); q("#gTitle").focus({ preventScroll: true }); }
+  // 장면 목록과 탭을 지금 묶음에 맞춘다
+  function useSet(m) {
+    set = SETS[m] ? m : "classic";
+    q(".gList").innerHTML = cur().copy.steps.map((s, i) => `<li><button data-step="${i}"><span class="n">${i + 1}</span><span class="t">${s.title}</span>${chip(s.team)}</button></li>`).join("");
+    el.querySelectorAll("[data-step]").forEach(b => { b.onclick = () => show(+b.dataset.step); });
+    el.querySelectorAll("[data-gmode]").forEach(b => { const on = b.dataset.gmode === set; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+    el.dataset.set = set;
+  }
+  el.querySelectorAll("[data-gmode]").forEach(b => { b.onclick = () => { if (b.dataset.gmode !== set) { useSet(b.dataset.gmode); show(0); } }; });
   q(".gPrev").onclick = () => show(idx - 1);
-  q(".gNext").onclick = () => (idx < SCENES.length - 1 ? show(idx + 1) : close());
+  q(".gNext").onclick = () => (idx < cur().scenes.length - 1 ? show(idx + 1) : close());
   q(".gClose").onclick = () => close();
   q(".gPause").onclick = () => setHold(!hold);
-  el.querySelectorAll("[data-step]").forEach(b => { b.onclick = () => show(+b.dataset.step); });
   const onKey = e => {
     if (!open) return;
     if (e.key === "Escape") { e.preventDefault(); close(); }
-    else if (e.key === "ArrowRight" && !e.target.closest?.("input")) { e.preventDefault(); if (idx < SCENES.length - 1) show(idx + 1); }
+    else if (e.key === "ArrowRight" && !e.target.closest?.("input")) { e.preventDefault(); if (idx < cur().scenes.length - 1) show(idx + 1); }
     else if (e.key === "ArrowLeft" && !e.target.closest?.("input")) { e.preventDefault(); if (idx > 0) show(idx - 1); }
     e.stopPropagation();
   };
   addEventListener("keydown", onKey, true);
   addEventListener("resize", () => { if (open) layout(); });
 
-  function openGuide(from, after) {
+  // mode: "zombie" 면 좀비 모드 장면으로 연다. 없으면 경찰과 도둑
+  function openGuide(from, after, mode) {
     if (open) return;
+    useSet(mode === "zombie" ? "zombie" : "classic");
     open = true; opener = from || document.activeElement; onClosed = after || null;
     // 지금 떠 있는 첫 화면을 기억했다가 닫으면 그대로 돌려놓는다
     restore = [...document.querySelectorAll(".sheet.show")].map(s => [s, s.className]);

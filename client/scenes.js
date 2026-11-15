@@ -162,7 +162,7 @@ const Scenes = (() => {
     // 좀비 판: 낮 하늘 대신 달밤과 지붕 그림자, 경찰차 대신 휘청이며 지나가는 좀비
     box.innerHTML = Z
       ? `<div class="scWaitBg scNight"><i class="scMoon"></i><i class="scRoofs"></i><i class="scMist"></i></div>
-      <div class="scCar scWalker"><img src="${ZB.url(`${z.look === "police" ? "robber" : "police"}-front`)}" alt=""></div>
+      <div class="scCar scWalker"></div>
       <div class="scWaitL"><div class="scTeam"><img src="${ZB.url(`${z.look}-front`)}" alt="">${esc(Z.teamZ)}</div><small>${esc(Z.timerWait)}</small><b class="scCount">00:12</b><p>${esc(Z.waitLine)}</p></div>
       <div class="scWaitR"><div class="scCard"><img src="${ART.flag}" alt=""><div><small>${esc(Z.missionLabel)}</small><p>${esc(Z.mission)}</p></div></div><div class="scCard scGuide"><img src="${ART.bulb}" alt=""><div><small></small><p></p></div></div></div>`
       : `<div class="scWaitBg" style="background-image:url(${ART.day})"></div>
@@ -170,6 +170,18 @@ const Scenes = (() => {
       <div class="scWaitL"><div class="scTeam"><img src="${svgUrl("police-front")}" alt="">${esc(s.teamCop)}</div><small>${esc(s.waitLabel)}</small><b class="scCount">00:15</b><p>${esc(s.waitCop)}</p></div>
       <div class="scWaitR"><div class="scCard"><img src="${ART.flag}" alt=""><div><small>${esc(s.missionLabel)}</small><p>${esc(s.mission)}</p></div></div><div class="scCard scGuide"><img src="${ART.bulb}" alt=""><div><small></small><p></p></div></div></div>`;
     layer().appendChild(box);
+    // 지나가는 좀비 둘: 판의 캐릭터 엔진으로 팔을 앞으로 뻗고 발을 끄는 옆걸음(shambleSide)을 그대로 걷는다
+    if (Z) {
+      const walkers = ["police", "robber"].map((look, i) => {
+        const rig = ZB.mountZ(`${look}-side`), d = rig.def, w = document.createElement("div");
+        rig.svg.setAttribute("viewBox", `0 0 ${d.w} ${d.h}`); rig.svg.style.overflow = "visible";
+        w.className = "scWalk"; w.style.aspectRatio = `${d.w} / ${d.h}`; w.style.animationDelay = `-${i * 5.5}s`; w.append(rig.svg);
+        box.querySelector(".scWalker").append(w);
+        return { rig, mot: CharRig.MOTIONS.shambleSide(rig) };
+      });
+      if (!reduce()) { let last = performance.now(); const step = now => { if (!box.isConnected) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const k of walkers) { k.mot.update(dt, { speed: 0.6 }); k.rig.updateLimbs(); } requestAnimationFrame(step); }; requestAnimationFrame(step); }
+      else for (const k of walkers) { k.mot.update(0.3, { speed: 0.6 }); k.rig.updateLimbs(); }
+    }
     const guide = Z ? Z.guideZ(revealEvery) : s.guideCop(revealEvery), gs = box.querySelector(".scGuide small"), gp = box.querySelector(".scGuide p"), count = box.querySelector(".scCount");
     let shown = -1;
     const t0 = performance.now();

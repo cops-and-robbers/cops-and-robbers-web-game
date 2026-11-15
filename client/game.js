@@ -32,6 +32,12 @@ const ART_PATHS = new Map();
 // 낮 색으로 그린 부품을 테마 색으로 바꾼다
 function artColors(T) {
   const [lo, mid, hi] = T.bushes, dark = G.theme === "night";
+  // 좀비 지도는 밤처럼 어둡되 파랑 대신 시든 초록
+  if (G.theme === "zombie") return {
+    "#86C687": lo, "#A6DA97": mid, "#C9EBB4": hi,
+    "#7DBE7E": "#15221A", "#93CF8C": "#1E3123", "#B7E3A1": "#2B4430", "#D6F0C2": "#425A43",
+    "#F4FBEF": "#586C56", "#C99A73": T.trunk, "#AE7F5B": "#3A2E28", "#FFD36B": "#B4AE5E",
+  };
   return {
     "#86C687": lo, "#A6DA97": mid, "#C9EBB4": hi,
     "#7DBE7E": dark ? "#17234A" : lo, "#93CF8C": dark ? "#22305E" : "#93CF8C", "#B7E3A1": dark ? "#2F3F70" : "#B7E3A1", "#D6F0C2": dark ? "#4A5D88" : "#D6F0C2",
@@ -80,17 +86,19 @@ function bakeMap() {
   // 좀비 대기실 공터(bare)는 꽃 없이 비워 둔다
   for (let k = 0; k < (G.map.bare ? 0 : 420); k++) {
     const px = hash(k * 3.1 + seed) * CFG.W, py = hash(k * 7.7 + seed * 1.3) * CFG.H;
-    if (onRoad(px, py) || Math.hypot(px - CFG.JAIL.x, py - CFG.JAIL.y) < CFG.GATE_R + 30 || L.solidAt(px, py)) continue;
+    if (onRoad(px, py) || (!ZB.isZ() && Math.hypot(px - CFG.JAIL.x, py - CFG.JAIL.y) < CFG.GATE_R + 30) || L.solidAt(px, py)) continue;
     const inPark = L.PARKS.some(p => Math.hypot((px - p.x) / p.rx, (py - p.y) / p.ry) < 1);
-    if (k % 3 === 0 || inPark) drawArt(x, "flower", px, py + 10, 18 + hash(k) * 8, artCol);
+    // 좀비 지도에는 꽃 대신 마른 풀만
+    if ((k % 3 === 0 || inPark) && G.theme !== "zombie") drawArt(x, "flower", px, py + 10, 18 + hash(k) * 8, artCol);
     else { x.strokeStyle = T.speck; x.lineWidth = 4; x.beginPath(); x.moveTo(px - 9, py + 4); x.quadraticCurveTo(px - 6, py - 6, px - 3, py + 4); x.moveTo(px + 1, py + 4); x.quadraticCurveTo(px + 4, py - 8, px + 7, py + 4); x.stroke(); }
   }
+  if (G.theme === "zombie") zombieDecor(x, seed);
   // 감옥 마당: 울타리를 세우면 통과할 때 어색해서 바닥에 그린다
   const J = CFG.JAIL;
-  // 좀비 판에는 감옥이 없어 광장 바닥만 둔다
-  x.fillStyle = T.plaza; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.fill();
-  x.strokeStyle = T.curb; x.lineWidth = 8; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.stroke();
+  // 좀비 판에는 감옥이 없다. 광장과 글자를 남기면 좀비가 감옥에서 시작하는 것처럼 보여 헷갈려서 바닥 그대로 둔다
   if (!ZB.isZ()) {
+    x.fillStyle = T.plaza; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.fill();
+    x.strokeStyle = T.curb; x.lineWidth = 8; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.stroke();
     x.fillStyle = T.jail; x.beginPath(); x.arc(J.x, J.y, J.r, 0, 7); x.fill();
     x.strokeStyle = G.theme === "night" ? "#C9CFDC" : "#FFFFFF"; x.lineWidth = 9; x.beginPath(); x.arc(J.x, J.y, J.r - 5, 0, 7); x.stroke();
   }
@@ -102,12 +110,19 @@ function bakeMap() {
   if (!G.shrink) { zonePath(); x.strokeStyle = "#E2574C"; x.lineWidth = 8; x.setLineDash([40, 26]); x.stroke(); x.setLineDash([]); }
   // 건물: 그림자, 벽, 지붕, 문, 창. 벽이 충돌 칸 안에 그대로 들어간다
   // 밤에는 가로등 빛이 길에 고인다. 그림이라 부딪히지 않는다
+  // 좀비 지도는 가로등이 드문드문 남았고 빛이 누렇게 바랬다
   if (G.theme === "night") {
     x.save(); x.globalCompositeOperation = "lighter";
     for (const r of L.ROADS) { const len = Math.max(r.w, r.h), hor = r.w > r.h; for (let k = 120; k < len; k += 420) { const lx = hor ? r.x + k : r.x + r.w / 2, ly = hor ? r.y + r.h / 2 : r.y + k, g = x.createRadialGradient(lx, ly, 8, lx, ly, 170); g.addColorStop(0, "rgba(255,214,130,.22)"); g.addColorStop(1, "rgba(255,214,130,0)"); x.fillStyle = g; x.beginPath(); x.arc(lx, ly, 170, 0, 7); x.fill(); } }
     x.restore();
   }
+  if (G.theme === "zombie") {
+    x.save(); x.globalCompositeOperation = "lighter";
+    for (const [i, r] of L.ROADS.entries()) { const len = Math.max(r.w, r.h), hor = r.w > r.h; for (let k = 160; k < len; k += 520) { if (hash(i * 31 + k + seed) < 0.4) continue; const lx = hor ? r.x + k : r.x + r.w / 2, ly = hor ? r.y + r.h / 2 : r.y + k, g = x.createRadialGradient(lx, ly, 8, lx, ly, 160); g.addColorStop(0, "rgba(214,230,150,.17)"); g.addColorStop(1, "rgba(214,230,150,0)"); x.fillStyle = g; x.beginPath(); x.arc(lx, ly, 160, 0, 7); x.fill(); } }
+    x.restore();
+  }
   // 감옥 글자
+  if (ZB.isZ()) return;
   x.font = `800 30px ${getComputedStyle(document.documentElement).getPropertyValue("--font")}`; x.textAlign = "center";
   const w = x.measureText(tt("jail")).width + 78, sy = J.y - J.r - 62;
   x.fillStyle = "rgba(29,35,43,.18)"; rr(x, J.x - w / 2 + 4, sy + 6, w, 50, 16); x.fill();
@@ -116,9 +131,63 @@ function bakeMap() {
   if (SIREN_IMG.complete) x.drawImage(SIREN_IMG, J.x - w / 2 + 19, sy + 14, 18, 22);
   x.fillStyle = "#fff"; x.fillText(tt("jail"), J.x + 16, sy + 36);
 }
+// 좀비 지도(THEMES.zombie) 바닥: 갈라진 길과 패인 웅덩이, 한쪽 발을 끌며 지나간 발자국, 흩어진 종이와 타이어.
+// 무섭되 피나 상처는 그리지 않는다(아이도 하는 게임). 바닥 그림이라 부딪히지 않고, 같은 씨앗이면 늘 같은 자리다
+function zombieDecor(x, seed) {
+  let n = seed * 7.31 + 3; const r = () => hash(n += 1.618);
+  x.lineCap = "round"; x.lineJoin = "round";
+  function crack(cx, cy, a, steps, w) {
+    for (let i = 0; i < steps; i++) {
+      const len = 22 + r() * 34, nx = cx + Math.cos(a) * len, ny = cy + Math.sin(a) * len;
+      x.strokeStyle = "rgba(170,180,165,.09)"; x.lineWidth = 1.5; x.beginPath(); x.moveTo(cx + 2, cy + 2); x.lineTo(nx + 2, ny + 2); x.stroke();
+      x.strokeStyle = "#1C2225"; x.lineWidth = Math.max(1.4, w * (1 - i / steps)); x.beginPath(); x.moveTo(cx, cy); x.lineTo(nx, ny); x.stroke();
+      if (r() < 0.2 && i < steps - 2) crack(nx, ny, a + (r() < 0.5 ? -1 : 1) * (0.6 + r() * 0.5), Math.ceil((steps - i) / 2), w * 0.6);
+      cx = nx; cy = ny; a += (r() - 0.5) * 0.9;
+    }
+  }
+  function puddle(px, py, rx) {
+    const ry = rx * (0.3 + r() * 0.1);
+    x.fillStyle = "rgba(10,14,16,.42)"; x.beginPath(); x.ellipse(px, py, rx, ry, 0, 0, 7); x.fill();
+    const g = x.createLinearGradient(px - rx, py - ry, px + rx, py + ry); g.addColorStop(0, "rgba(160,180,200,.16)"); g.addColorStop(0.5, "rgba(160,180,200,.03)"); g.addColorStop(1, "rgba(160,180,200,.1)");
+    x.fillStyle = g; x.beginPath(); x.ellipse(px, py, rx - 5, Math.max(2, ry - 3), 0, 0, 7); x.fill();
+  }
+  function footprint(px, py, a, drag) {
+    x.save(); x.translate(px, py); x.rotate(a); x.fillStyle = "rgba(8,11,10,.36)";
+    x.beginPath(); x.ellipse(0, 0, 12, 7, 0, 0, 7); x.fill(); x.beginPath(); x.ellipse(13, 0, 5.5, 6, 0, 0, 7); x.fill();
+    if (drag) { x.strokeStyle = "rgba(8,11,10,.18)"; x.lineWidth = 8; x.beginPath(); x.moveTo(-6, 0); x.lineTo(-34, 0); x.stroke(); }
+    x.restore();
+  }
+  function tire(px, py) {
+    x.fillStyle = "rgba(0,0,0,.28)"; x.beginPath(); x.ellipse(px + 5, py + 7, 40, 22, 0, 0, 7); x.fill();
+    x.fillStyle = "#181A1C"; x.beginPath(); x.ellipse(px, py, 40, 22, 0, 0, 7); x.fill();
+    x.fillStyle = "#2C3236"; x.beginPath(); x.ellipse(px, py - 2, 19, 9, 0, 0, 7); x.fill();
+  }
+  // 길: 금과 패인 웅덩이
+  for (const rd of L.ROADS) {
+    const len = Math.max(rd.w, rd.h), hor = rd.w > rd.h;
+    for (let k = 80; k < len; k += 150 + r() * 130) {
+      const px = hor ? rd.x + k : rd.x + r() * rd.w, py = hor ? rd.y + r() * rd.h : rd.y + k;
+      crack(px, py, r() * 6.3, 5 + Math.floor(r() * 6), 4);
+      if (r() < 0.3) puddle(px + (r() - 0.5) * 60, py + (r() - 0.5) * 30, 34 + r() * 40);
+    }
+  }
+  // 땅: 웅덩이 몇 개와 금
+  for (let i = 0; i < 18; i++) { const px = r() * CFG.W, py = r() * CFG.H; if (L.solidAt(px, py)) continue; if (i % 2) puddle(px, py, 46 + r() * 60); else crack(px, py, r() * 6.3, 6, 3.5); }
+  // 발자국: 길을 따라 비틀비틀 이어진 줄 셋
+  for (let k = 0; k < 3 && L.ROADS.length; k++) {
+    const rd = L.ROADS[Math.floor(r() * L.ROADS.length)], hor = rd.w > rd.h, len = Math.max(rd.w, rd.h), start = r() * len * 0.5, span = Math.min(len - start, 700 + r() * 600);
+    for (let s = 0, i = 0; s < span; s += 34, i++) {
+      const wob = Math.sin(s / 90 + k) * 16, side = i % 2 ? 1 : -1, mid = (hor ? rd.h : rd.w) / 2;
+      footprint(hor ? rd.x + start + s : rd.x + mid + wob + side * 12, hor ? rd.y + mid + wob + side * 12 : rd.y + start + s, hor ? 0 : Math.PI / 2, side > 0);
+    }
+  }
+  // 흩어진 종이와 버려진 타이어
+  for (let i = 0; i < 70; i++) { const px = r() * CFG.W, py = r() * CFG.H; x.save(); x.translate(px, py); x.rotate(r() * 6.3); x.fillStyle = r() < 0.5 ? "rgba(205,200,184,.32)" : "rgba(160,168,156,.28)"; x.fillRect(-9, -6, 18 + r() * 8, 12); x.restore(); }
+  for (let i = 0; i < 10; i++) { const px = r() * CFG.W, py = r() * CFG.H; if (!L.solidAt(px, py)) tire(px, py); }
+}
 const SIREN_IMG = new Image(); SIREN_IMG.src = "data:image/svg+xml;base64,/*B64:siren.svg*/";
 function drawBuilding(x, b, T, i, seed) {
-    const [roof, wall] = T.roofs[(i * 7 + seed) % T.roofs.length], wh = Math.min(84, Math.max(46, b.h * 0.4)), rh = b.h - wh, night = G.theme === "night";
+    const [roof, wall] = T.roofs[(i * 7 + seed) % T.roofs.length], wh = Math.min(84, Math.max(46, b.h * 0.4)), rh = b.h - wh, night = G.theme === "night" || G.theme === "zombie";
     x.fillStyle = night ? "rgba(8,14,34,.35)" : "rgba(70,110,160,.14)"; rr(x, b.x + 10, b.y + 14, b.w + 4, b.h + 4, 16); x.fill();
     // 벽(앞면)
     x.fillStyle = wall; rr(x, b.x, b.y, b.w, b.h, 14); x.fill();
@@ -145,7 +214,7 @@ function drawBuilding(x, b, T, i, seed) {
       x.fillStyle = lit ? T.win : T.winOff; rr(x, wx, wy, cw, ch, 5); x.fill();
       if (!night) { x.fillStyle = "rgba(120,170,220,.22)"; rr(x, wx, wy + ch - 6, cw, 6, 3); x.fill(); }
     }
-    if (door >= 0) { const dx = gx + door * 40 - 2, dh = Math.min(wh - 16, 40); x.fillStyle = night ? "#2E3C5E" : "#A9C9E8"; rr(x, dx, b.y + b.h - 10 - dh, 30, dh, 8); x.fill(); }
+    if (door >= 0) { const dx = gx + door * 40 - 2, dh = Math.min(wh - 16, 40); x.fillStyle = G.theme === "zombie" ? "#26302B" : night ? "#2E3C5E" : "#A9C9E8"; rr(x, dx, b.y + b.h - 10 - dh, 30, dh, 8); x.fill(); }
 }
 function rr(x, a, b, w, h, r) { x.beginPath(); x.roundRect(a, b, w, h, r); }
 // 윤곽은 낮은 주파수로만 흔들어 납작한 실루엣으로 둔다. 잎을 하나하나 찍지 않는다(앱 그림체가 면 위주다)
@@ -164,7 +233,7 @@ function crown(x, cx, cy, rx, ry, pal, seed, snow) {
   x.restore();
 }
 // 그림자는 건물과 같은 방향(오른쪽 아래)으로 떨어진다
-const groundShadow = (x, cx, cy, rx, ry) => { x.fillStyle = G.theme === "night" ? "rgba(8,14,34,.32)" : G.theme === "snow" ? "rgba(29,35,43,.15)" : "rgba(52,96,72,.17)"; x.beginPath(); x.ellipse(cx + rx * 0.1, cy + ry * 0.25, rx, ry, 0, 0, 7); x.fill(); };
+const groundShadow = (x, cx, cy, rx, ry) => { x.fillStyle = G.theme === "night" || G.theme === "zombie" ? "rgba(8,14,34,.32)" : G.theme === "snow" ? "rgba(29,35,43,.15)" : "rgba(52,96,72,.17)"; x.beginPath(); x.ellipse(cx + rx * 0.1, cy + ry * 0.25, rx, ry, 0, 0, 7); x.fill(); };
 function drawBush(x, b, w, h, foot, pal, seed, snow) {
   const cx = w / 2;
   if (b.hedge && !snow) {
@@ -335,7 +404,7 @@ function locomotion(c, dt) {
   const v = `${k}-${c.facing}`;
   // 좀비는 팔을 뻗고 발을 끄는 걸음(playground.html shambleSide, shambleFront)
   if (c.facing === "side") ensureMotion(c, v, c.zombie ? "shambleSide" : "runSide", c.hide && !c.zombie ? hideOpts : {});
-  else if (c.zombie && c.facing === "front") ensureMotion(c, v, "shambleFront", {});
+  else if (c.zombie) ensureMotion(c, v, "shambleFront", {});
   else ensureMotion(c, v, "runFront", {});
   goView(c, v);
 }
@@ -820,10 +889,14 @@ function showEnd() {
 }
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random", pickShrink = QS.get("shrink") === "1";
-// 놀이 방식은 모드 카드(client/modes.js)와 혼자 하기에서 고른다. 주소(?mode=zombie&balance=even)로도 열 수 있다
-let pickMode = QS.get("mode") === "zombie" ? "zombie" : "classic", pickBalance = QS.get("balance") || "even";
+// 놀이 방식은 모드 카드(client/modes.js)와 혼자 하기에서 고른다. 주소(?mode=zombie)로도 열 수 있다. 좀비 판 균형은 늘 반반
+let pickMode = QS.get("mode") === "zombie" ? "zombie" : "classic";
+// 좀비 모드에서 고른 모습(고양이 cop, 쥐 rob). 대기실 "모습 바꾸기"가 남기고, 다음 방과 혼자 하기가 이어 쓴다
+const savedLook = () => { try { const v = localStorage.getItem("zlook"); return v === "cop" || v === "rob" ? v : null; } catch { return null; } };
 function start(r, seed) {
-  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: pickBalance, ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) });
+  const zLook = pickMode === "zombie" ? savedLook() : null;
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: "even", ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) },
+    G2 => { if (zLook && G2.player) G2.player.look = zLook === "rob" ? "robber" : "police"; });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";

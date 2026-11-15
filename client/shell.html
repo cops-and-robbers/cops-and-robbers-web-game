@@ -545,6 +545,13 @@
   @media (hover:hover) { #guide .gList button:not(.on):hover { background:#F5F7FA; } }
   #guide .gChip { flex:none; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:800; background:#EEF1F5; color:var(--sub); }
   #guide .gChip.police { background:#E3F2FE; color:#1C72B8; } #guide .gChip.robber { background:#E3F6EA; color:#1C8A4B; }
+  #guide .gChip.zomb { background:#ECE6FA; color:#6A4FC0; } #guide .gChip.surv { background:#FFF3D6; color:#9A6A00; }
+  /* 놀이 방식 탭: 경찰과 도둑, 좀비 모드 */
+  #guide .gModes { display:flex; gap:4px; margin-top:10px; padding:3px; border-radius:12px; background:#F0F3F6; }
+  #guide .gModes button { flex:1; min-height:34px; border:0; border-radius:9px; background:none; color:var(--sub); font:inherit; font-size:13px; font-weight:800; cursor:pointer; white-space:nowrap; }
+  #guide .gModes button.on { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.12); }
+  #guide[data-set=zombie] .gModes button.on { background:#7A5BD6; color:#fff; }
+  #guide[data-set=zombie] .gList button.on { background:#F3EEFD; } #guide[data-set=zombie] .gList button.on .n { background:#7A5BD6; }
   #guide .gNowHead { display:flex; margin-top:10px; }
   #guide h2 { margin:8px 0 6px; font-size:19px; font-weight:800; line-height:1.35; outline:none; }
   #guide .gText { margin:0; font-size:15px; line-height:1.6; color:#3E4756; }

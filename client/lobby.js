@@ -35,7 +35,7 @@ function createLobbyScene(net) {
       tree(700, 1150, 74), tree(1180, 470, 66), tree(2060, 470, 70), tree(2500, 1180, 72), tree(640, 760, 64), tree(2560, 760, 68),
     ],
     bushes: [hedge(860, 700, 58), hedge(2350, 700, 62), hedge(1170, 1160, 72), hedge(2060, 1170, 70), hedge(620, 1000, 50), hedge(2580, 980, 50)],
-    theme: "night", bare: true,
+    theme: "zombie", bare: true,
   };
   const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const stroke2 = (x1, y1, x2, y2, r, j) => { const n = a => (r() - .5) * a; return `M${(x1 + n(6)).toFixed(1)} ${(y1 + n(6)).toFixed(1)}Q${((x1 + x2) / 2 + n(j)).toFixed(1)} ${((y1 + y2) / 2 + n(j)).toFixed(1)} ${(x2 + n(6)).toFixed(1)} ${(y2 + n(6)).toFixed(1)}`; };
@@ -83,8 +83,6 @@ function createLobbyScene(net) {
   function paintLot() {
     const m = $("map").getContext("2d"), r = rng(907), A = { x0: 650, x1: 2550, y0: 600, y1: 1190 };
     m.save();
-    // 밤 공기: 지도 전체를 회녹색으로 눌러 경찰과 도둑의 밤 골목과 다르게 보이게
-    m.globalCompositeOperation = "multiply"; m.fillStyle = "#8C998F"; m.fillRect(0, 0, MW, MH); m.globalCompositeOperation = "source-over";
     // 가장자리가 부서진 아스팔트
     const edge = new Path2D(), jag = () => (r() - .5) * 34;
     edge.moveTo(A.x0, A.y0 + jag());
@@ -224,6 +222,8 @@ function createLobbyScene(net) {
   let lob = null, fullEl = null, counts = {}, bumpT = 0, countN = 0, revealed = null, seatsOpen = false, sayOpen = false, moved = false, copied = false, codeDone = false, flash = false;
   const sideAt = x => x < ZX[1] ? "cop" : x > ZX[2] ? "rob" : "any";
   // 좀비 모드 공터에서 사람이 서는 자리: 가운데 둘레로 흩어 선다
+  // 모습 바꾸기: 내 칸(편이 아니라 생김새)을 바꿔 서버에 알린다. 서버는 시작할 때 이 칸으로 생김새를 정한다
+  function pickLook(side) { me.side = side; me.a.team = side === "rob" ? "robber" : "police"; morph(me, side); renderTag(me); net.send({ t: "side", side }); renderHud(); }
   // 뽑기 도중의 시점과 정리(방을 나가면 바로 걷는다)
   let spotCam = null, spotEnd = null;
   // 대기실의 한 사람을 좀비 모습으로 바꿔 붙인다. 판이 시작되면 게임이 다시 그린다
@@ -239,7 +239,8 @@ function createLobbyScene(net) {
   const sayList = () => (zm() ? ZL().say : COPY.say);
   const here = side => [...people.values()].filter(p => p.side === side).length;
   const spotIn = (side, i = 0) => { const z = { cop: [ZX[0], ZX[1]], any: [ZX[1], ZX[2]], rob: [ZX[2], ZX[3]] }[side], cw = (z[1] - z[0] - 60) / 3, col = i % 3, row = Math.floor(i / 3); return { x: z[0] + 30 + cw * (col + .5), y: 775 + (row % 2) * 130 + (col % 2) * 14 }; };
-  const rig = (a, kind) => { const t = a.team, pl = G.player; a.team = kind; G.player = null; const c = makeChar(a); a.team = t; G.player = pl; chars.push(c); return c; };
+  // 그림은 편이 아니라 생김새(look)를 따른다. 빌려 온 캐릭터에 남은 생김새를 두면 고양이 칸에 선 사람도 쥐로 그려지니, 만드는 동안 kind 로 맞춘다
+  const rig = (a, kind) => { const t = a.team, lk = a.look, pl = G.player; a.team = kind; a.look = kind; G.player = null; const c = makeChar(a); a.team = t; a.look = lk; G.player = pl; chars.push(c); return c; };
   // 가운데 사람의 회색 모습. 이름으로 정해서 모두의 화면에서 같고, 칸에 들어가기 전에는 바뀌지 않는다
   const lookOf = name => [...String(name)].reduce((h, c) => h * 31 + c.codePointAt(0) | 0, 7) & 1 ? "rob" : "cop";
   function makePerson(name, side, isBot) {
@@ -255,7 +256,8 @@ function createLobbyScene(net) {
   }
   function renderTag(p) {
     const mine = p === me;
-    p.tag.className = `wtag ${mine ? "me " + (p.side === "any" ? "" : p.side) : ""} ${p.isBot ? "bot" : ""}`;
+    // 좀비 모드의 칸은 편이 아니라 생김새라 이름표를 경찰 파랑, 도둑 초록으로 칠하지 않는다
+    p.tag.className = `wtag ${mine ? "me " + (p.side === "any" || zm() ? "" : p.side) : ""} ${p.isBot ? "bot" : ""}`;
     p.tag.textContent = p.isBot ? COPY.bot : nameOf(p.name);
     const add = t => { const e = document.createElement("em"); e.textContent = t; p.tag.append(e); };
     if (p.hostMark) add(COPY.host);
@@ -285,7 +287,7 @@ function createLobbyScene(net) {
     if (!active) return;
     const st = startState(), total = S.cops + S.robs, n = people.size, alone = n === 1 && !S.bots, hostName = [...people.values()].find(p => p.hostMark)?.name || "";
     const line = !moved ? (zm() ? ZL().hint : COPY.hint) : (S.host ? "" : COPY.wait(""));
-    let h = `<div class="row1"><div class="lp code${zm() ? " zroom" : ""}">${zm() ? `<img class="zIcon" src="${ZB.url("police-front")}" alt="">` : ""}<div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}${S.shrink ? `<em class="zoneTag">${COPY.shrink}</em>` : ""}${zm() ? `<em class="zTag">${tt("modes").name.zombie} · ${tt("zb").solo.bal[S.balance || "even"]}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
+    let h = `<div class="row1"><div class="lp code${zm() ? " zroom" : ""}">${zm() ? `<img class="zIcon" src="${ZB.url("police-front")}" alt="">` : ""}<div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}${S.shrink ? `<em class="zoneTag">${COPY.shrink}</em>` : ""}${zm() ? `<em class="zTag">${tt("modes").name.zombie}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
       <button class="bt ${S.host && alone ? "main" : ""}" data-act="invite">${copied ? COPY.copied : COPY.invite}</button>
       <button class="bt ic" data-act="say" aria-label="${tt("sayOpen")}" aria-expanded="${sayOpen}">${ICON.say}</button>
       ${zm() && me ? `<button class="bt look" data-act="look" aria-label="${ZL().look}"><img src="${svgUrl(me.flip === "rob" ? "robber-front" : "police-front")}" alt="">${ZL().look}</button>` : ""}
@@ -293,11 +295,9 @@ function createLobbyScene(net) {
       <div class="grow">${line ? `<div class="line" data-line></div>` : ""}</div>
       ${S.host ? `<button class="bt" data-act="seats" aria-expanded="${seatsOpen}">${COPY.seats}</button>` : ""}
       <button class="bt quiet" data-act="quit">${COPY.quit}</button></div>`;
-    const M = tt("modes"), seg = (pre, list, cur, name) => `<div class="seg" role="radiogroup">${list.map(k => `<button data-act="${pre}-${k}" role="radio" aria-checked="${k === cur}">${name(k)}</button>`).join("")}</div>`;
     const totStep = d => { const off = d > 0 ? total >= MAX_TOTAL : total - 1 < Math.max(2, people.size); return `<button class="step" data-act="tot-${d}" aria-disabled="${off}" aria-label="${tt(d > 0 ? "addOne" : "removeOne", ZL().people)}"><i>${d > 0 ? "+" : "−"}</i></button>`; };
     if (seatsOpen && S.host) h += `<div class="lp sheetR">
-      ${zm() ? `<div class="srow"><span class="nm">${ZL().people}</span>${totStep(-1)}<span class="num">${total}</span>${totStep(1)}</div>
-      <div class="srow tall col"><span class="nm">${ZL().balance}<small>${ZL().firstOne}</small></span>${seg("bal", ["surv", "even", "zomb"], S.balance || "even", k => tt("zb").solo.bal[k])}</div>` : `<div class="srow cop"><span class="nm">${COPY.copN}</span>${stepBtn("cop", -1)}<span class="num">${S.cops}</span>${stepBtn("cop", 1)}</div>
+      ${zm() ? `<div class="srow"><span class="nm">${ZL().people}</span>${totStep(-1)}<span class="num">${total}</span>${totStep(1)}</div>` : `<div class="srow cop"><span class="nm">${COPY.copN}</span>${stepBtn("cop", -1)}<span class="num">${S.cops}</span>${stepBtn("cop", 1)}</div>
       <div class="srow rob"><span class="nm">${COPY.robN}</span>${stepBtn("rob", -1)}<span class="num">${S.robs}</span>${stepBtn("rob", 1)}</div>`}
       <div class="srow"><button class="switch" role="switch" data-act="bots" aria-checked="${S.bots}"><span>${COPY.bots}</span><i></i></button></div>
       <div class="srow tall"><button class="switch" role="switch" data-act="shrink" aria-checked="${!!S.shrink}"><span>${COPY.shrink}<small>${COPY.shrinkSub}</small></span><i></i></button></div>
@@ -324,13 +324,9 @@ function createLobbyScene(net) {
     if (seat) { if (b.getAttribute("aria-disabled") === "true") return; const d = Number(seat[2]); net.send({ t: "seats", cops: S.cops + (seat[1] === "cop" ? d : 0), robs: S.robs + (seat[1] === "rob" ? d : 0), bots: S.bots }); return; }
     if (a.startsWith("kick-")) { net.kick(a.slice(5)); return; }
     if (a === "bots") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: !S.bots }); return; }
-    // 놀이 방식과 판 균형. 좀비 모드의 인원은 한 칸(cops 1 + robs 나머지)으로 보낸다
-    // 놀이 방식은 방 설정 안에서 고르지 않고 모드 카드를 띄워 고른다(client/modes.js)
-    if (a === "look") { const side = me.flip === "rob" ? "cop" : "rob"; me.side = side; me.a.team = side === "rob" ? "robber" : "police"; morph(me, side); renderTag(me); net.send({ t: "side", side }); renderHud(); return; }
-    if (a === "mode-cards") { seatsOpen = false; renderHud(); Modes.open("lobby", mode => { if (mode !== (zm() ? "zombie" : "classic")) net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, mode }); }, zm() ? "zombie" : "classic"); return; }
-    const md = /^mode-(classic|zombie)$/.exec(a), bl = /^bal-(surv|even|zomb)$/.exec(a), tot = /^tot-(-?1)$/.exec(a);
-    if (md) { if (md[1] !== (zm() ? "zombie" : "classic")) net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, mode: md[1] }); return; }
-    if (bl) { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, balance: bl[1] }); return; }
+    // 놀이 방식은 방을 만들 때만 정한다. 좀비 모드의 인원은 한 칸(cops 1 + robs 나머지)으로 보낸다
+    if (a === "look") { const side = me.flip === "rob" ? "cop" : "rob"; try { localStorage.setItem("zlook", side); } catch { /* 이번 방에서만 */ } pickLook(side); return; }
+    const tot = /^tot-(-?1)$/.exec(a);
     if (tot) { if (b.getAttribute("aria-disabled") === "true") return; const n = S.cops + S.robs + Number(tot[1]); net.send({ t: "seats", cops: 1, robs: n - 1, bots: S.bots }); return; }
     if (a === "open") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, open: !S.open }); return; }
     if (a === "shrink") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, shrink: !S.shrink }); return; }
@@ -353,8 +349,9 @@ function createLobbyScene(net) {
       chars.forEach(c => c.el.remove()); chars = [];
       // 지난 판의 장면(MVP 공개 등)이 남아 있으면 걷는다. 대기실에서는 시작 장면을 띄우지 않는다(game.js drawHud)
       Scenes.reset();
-      const z = m.mode === "zombie", theme = z ? "night" : "town", MAP = z ? ZOMBIE_LOBBY_MAP : LOBBY_MAP;
-      G = newGame({ seed: 11, theme, role: "police", police: 4, robbers: 4 });
+      const z = m.mode === "zombie", theme = z ? "zombie" : "town", MAP = z ? ZOMBIE_LOBBY_MAP : LOBBY_MAP;
+      // 좀비 지도는 좀비 판에서만 고르게 되어 있어(newGame) 대기실은 테마를 직접 입힌다
+      G = newGame({ seed: 11, theme, role: "police", police: 4, robbers: 4 }); G.theme = theme; G.th = THEMES[theme];
       L.loadMap(MAP); G.map = MAP; CFG.WAIT = 1e9; G.phase = "wait"; G.nextReveal = 1e9; role = "police"; ended = false;
       pool = [...G.agents]; G.agents = []; G.events.length = 0; people = new Map(); bots = []; me = null; G.player = pool[0];
       document.querySelectorAll(".bush").forEach(n => n.remove());
@@ -393,6 +390,8 @@ function createLobbyScene(net) {
           p = makePerson(info.name, info.side, false); people.set(info.id, p);
           const sp = zm() ? lotSpot(people.size - 1) : spotIn(info.side, here(info.side) - 1); p.a.x = sp.x; p.a.y = sp.y;
           if (info.id === m.you) { me = p; G.player = p.a; }
+          // 지난번에 고른 모습이 있으면 들어오자마자 그 모습으로 선다(좀비 모드)
+          if (p === me && zm() && info.side === "any" && savedLook() && savedLook() !== p.flip) later(() => me === p && pickLook(savedLook()), 0);
           if (p.a !== G.player) p.a.isPlayer = true;
         }
         p.hostMark = i === 0;
