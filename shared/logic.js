@@ -21,7 +21,22 @@ function createGameLogic() {
     // 마지막 크기는 앱의 40% 가 아니라 70%: 시야가 구역에 비해 넓어 40% 면 봇 125판에서 경찰이 다 이겼다(70% 면 54%). docs/shrink.md
     // 앱은 한 번에 줄지만 화면이 곧 몸인 온라인은 경계가 MOVE 초 동안 걸어오듯 줄어든다. 감옥 문 둘레는 늘 구역 안에 남긴다
     SHRINK: { STAGES: 4, FINAL: 0.7, MOVE: 8, WARN: 10, JAIL_ROOM: 160 },
+    // 좀비 모드. 좀비는 잡는 편(team "police"), 생존자는 도망치는 편(team "robber")에 얹어 잡기·위치 공개·시야를 그대로 쓴다.
+    // 생김새(고양이, 쥐)는 편과 따로 look 에 둔다. 물리면 TURN 초 비틀거린 뒤 좀비 편으로 옮긴다
+    // 판 균형 세 단계: 첫 좀비 수(two 명부터 2명), 걷기(첫 좀비가 혼자일 때 alone), 달리기(sprint 속도로 stam 초. 생존자와 같다), 위치 공개 간격, 깨어나는 시간,
+    // 구조차 무전(생존자만 먼저), 정류장(waves: 끝나기 VAN_AT 초 전에 n 곳, 다음 물결은 VAN_NEXT 초 뒤. close 면 앞 정류장이 떠난다), 타는 시간, 혼자 남으면 열리는 정류장까지
+    ZOMBIE: {
+      // HEART: 안 보이는 좀비가 이만큼 가까우면 생존자에게 심장 소리가 들린다(봇도 같은 거리에서 알아챈다). BITE_HOLD: 문 좀비가 그 자리에 멈추는 초
+      TURN: 2, BITE_HOLD: 2, HEART: 300, STOP_R: 110, VAN_AT: 50, VAN_NEXT: 20, STOP_GAP: 700,
+      BAL: {
+        surv: { two: 99, run: 205, alone: 230, sprint: 316, stam: 3.4, reveal: 55, wake: 15, radio: 25, waves: [{ n: 3 }, { n: 1 }], board: 1, last: 15 },
+        even: { two: 99, run: 212, alone: 236, sprint: 316, stam: 3.4, reveal: 45, wake: 12, radio: 20, waves: [{ n: 2 }, { n: 2 }], board: 1, last: 20 },
+        zomb: { two: 99, run: 220, alone: 244, sprint: 316, stam: 3.4, reveal: 35, wake: 10, radio: 12, waves: [{ n: 1, close: true }, { n: 1 }], board: 1.5, last: 30 },
+      },
+    },
   };
+  // 사람 수와 판 균형으로 정하는 첫 좀비 수. 서버가 첫 좀비를 뽑을 때도 같은 값을 쓴다
+  const zombieFirst = (total, balance = "even") => Math.max(1, Math.min(total - 1, total >= (CFG.ZOMBIE.BAL[balance] || CFG.ZOMBIE.BAL.even).two ? 2 : 1));
 
   // 테마는 색만이 아니라 판의 성격을 바꾼다. 건물과 덤불의 양, 시야, 골목 폭
   const THEMES = {
@@ -318,11 +333,16 @@ function createGameLogic() {
     const map = makeMap(seed ^ 0x51ED27, { scale: opts.scale ?? side.scale, cover: opts.cover ?? side.cover, theme });
     // intro: 시작 멈춤이 남은 초. 정하지 않으면 0 이라 게임 방법 장면, 검사 판은 그대로 돈다
     const G = { t: 0, intro: opts.intro ?? 0, rnd, over: null, phase: "wait", agents: [], police: [], robbers: [], intel: new Map(), pings: [], revealEvery: opts.reveal ?? side.reveal, rescueT: 0, events: [], playerRole: opts.role || null, stats: { catches: 0, rescues: 0, reveals: 0, outReveals: 0 }, map, theme, th, diff: opts.diff || "normal", vision: CFG.VISION * th.vision };
-    G.nextReveal = CFG.WAIT + G.revealEvery;
-    if (opts.shrink) G.shrink = shrinkPlan();
+    // 좀비 모드: 잡는 편이 깨어나는 시간과 위치 공개 간격은 판 균형을 따른다
+    const zombie = opts.mode === "zombie";
+    const bal = zombie ? (CFG.ZOMBIE.BAL[opts.balance] ? opts.balance : "even") : null;
+    if (zombie) { G.mode = "zombie"; G.balance = bal; G.zb = CFG.ZOMBIE.BAL[bal]; if (opts.reveal === undefined) G.revealEvery = G.zb.reveal; }
+    G.wait = zombie ? G.zb.wake : CFG.WAIT;
+    G.nextReveal = G.wait + G.revealEvery;
+    if (opts.shrink) G.shrink = shrinkPlan(G.wait);
     const mk = (team, name, x, y, isPlayer) => {
       const enemy = opts.role && team !== opts.role;
-      const a = { id: G.agents.length, team, name, x, y, vision: G.vision * (enemy ? diff.vision : 1), thinkEvery: enemy ? diff.think : 0.25, sprintAt: enemy ? diff.sprintAt : 1, vx: 0, vy: 0, ix: 0, iy: 0, faceA: team === "police" ? Math.PI / 2 : rnd() * 6.28, sprint: false, stam: 1, tired: false, state: team === "police" ? "waiting" : "free", action: null, catchCd: 0, caughtN: 0, lock: 0, breakT: 0, inBush: false, isPlayer: !!isPlayer && !opts.botPlayer, path: [], goal: null, thinkT: rnd() * 0.3, repathT: 0, ai: { mode: "go", seenT: -99, hideUntil: 0, q: [], lastX: x, lastY: y, stuckT: 0 }, s: { catches: 0, caught: 0, rescued: 0, escapes: 0, spotted: 0, hideT: 0, dist: 0 } };
+      const a = { id: G.agents.length, team, look: team, name, x, y, vision: G.vision * (enemy ? diff.vision : 1), thinkEvery: enemy ? diff.think : 0.25, sprintAt: enemy ? diff.sprintAt : 1, vx: 0, vy: 0, ix: 0, iy: 0, faceA: team === "police" ? Math.PI / 2 : rnd() * 6.28, sprint: false, stam: 1, tired: false, state: team === "police" ? "waiting" : "free", action: null, catchCd: 0, caughtN: 0, lock: 0, breakT: 0, inBush: false, isPlayer: !!isPlayer && !opts.botPlayer, path: [], goal: null, thinkT: rnd() * 0.3, repathT: 0, ai: { mode: "go", seenT: -99, hideUntil: 0, q: [], lastX: x, lastY: y, stuckT: 0 }, s: { catches: 0, caught: 0, rescued: 0, escapes: 0, spotted: 0, hideT: 0, dist: 0 } };
       G.agents.push(a); (team === "police" ? G.police : G.robbers).push(a); return a;
     };
     // 경찰은 감옥 앞에서 대기, 도둑은 네 귀퉁이 쪽 먼 자리에서 시작한다
@@ -335,15 +355,105 @@ function createGameLogic() {
     while (starts.length < nRobbers) starts.push(SPOTS[starts.length % SPOTS.length]);
     for (let i = 0; i < nRobbers; i++) mk("robber", ROBBER_NAMES[i % ROBBER_NAMES.length], starts[i].x, starts[i].y, opts.role === "robber" && i === 0);
     G.player = G.agents.find(a => a.isPlayer) || null;
+    if (zombie) {
+      // 생김새는 편과 상관없이 섞는다. 사람 판에서는 서버가 대기실에서 고른 모습으로 덮어쓴다
+      G.agents.forEach((a, i) => { a.look = i % 2 ? "robber" : "police"; a.origin = a.team; });
+      G.stats.escaped = 0;
+      G.van = vanPlan(G);
+    }
     return G;
+  }
+
+  // ───────── 좀비 모드: 구조차 ─────────
+  // 정류장 시각은 판 시작에 정하고, 자리는 무전 때(생존자에게 알릴 때) 그 순간 좀비들에게서 가장 먼 길 위로 고른다
+  function vanPlan(G) {
+    const Z = CFG.ZOMBIE, b = G.zb, stops = [];
+    const first = CFG.DURATION - Z.VAN_AT;
+    b.waves.forEach((w, i) => {
+      const open = first + i * Z.VAN_NEXT;
+      for (let k = 0; k < w.n; k++) stops.push({ radio: open - b.radio, open, close: w.close ? open + Z.VAN_NEXT : null, x: null, y: null, wave: i });
+    });
+    return { stops, last: false };
+  }
+  // 정류장 후보: 큰길 위의 걸을 수 있는 자리
+  function vanSpots(G) {
+    if (G.van.spots) return G.van.spots;
+    const out = [];
+    for (const r of ROADS) {
+      const along = r.w >= r.h, len = along ? r.w : r.h;
+      for (let s = 60; s < len - 60; s += 120) {
+        const x = along ? r.x + s : r.x + r.w / 2, y = along ? r.y + r.h / 2 : r.y + s;
+        if (!solidAt(x, y) && inZone(x, y) && dist({ x, y }, CFG.JAIL) > CFG.GATE_R) out.push({ x, y });
+      }
+    }
+    return (G.van.spots = out.length ? out : SPOTS.slice());
+  }
+  function placeStop(G, stop) {
+    const zs = G.police.filter(p => p.state !== "escaped");
+    const cx = zs.reduce((s, p) => s + p.x, 0) / (zs.length || 1), cy = zs.reduce((s, p) => s + p.y, 0) / (zs.length || 1);
+    const taken = G.van.stops.filter(s => s !== stop && s.x !== null && (s.close === null || G.t < s.close));
+    let best = null, bs = -1;
+    for (const p of vanSpots(G)) {
+      if (G.shrink && !inZoneNow(G, p.x, p.y)) continue;
+      if (taken.some(s => dist(s, p) < CFG.ZOMBIE.STOP_GAP)) continue;
+      const sc = Math.min(Math.hypot(p.x - cx, p.y - cy), ...zs.map(z => dist(z, p)).concat([1e9])) + G.rnd() * 60;
+      if (sc > bs) { bs = sc; best = p; }
+    }
+    best ||= vanSpots(G)[0];
+    stop.x = best.x; stop.y = best.y;
+  }
+  const stopOpen = (G, s) => s.x !== null && G.t >= s.open && (s.close === null || G.t < s.close);
+  // 생존자는 무전 때부터, 좀비는 차가 선 뒤부터 안다
+  const stopKnown = (G, s, team) => s.x !== null && (s.close === null || G.t < s.close) && (team === "robber" ? G.t >= s.radio : G.t >= s.open);
+  function updateVan(G, dt) {
+    const V = G.van;
+    // 생존자가 한 명만 남으면 정류장 하나를 일찍 연다. 숨어서 시간만 보내지 않게
+    const alive = G.robbers.filter(r => r.state === "free");
+    if (!V.last && G.phase === "play" && alive.length === 1 && G.robbers.length > 1) {
+      V.last = true;
+      const open = G.t + G.zb.last;
+      if (open < CFG.DURATION && !V.stops.some(s => s.open <= open && (s.close === null || s.close > open))) V.stops.push({ radio: G.t, open, close: null, x: null, y: null, wave: -1, last: true });
+    }
+    for (const s of V.stops) {
+      if (s.x === null && G.t >= s.radio) { placeStop(G, s); emit(G, "vanRadio", { n: s.wave }); }
+      if (!s.opened && stopOpen(G, s)) { s.opened = true; emit(G, "vanOpen", {}); }
+      if (s.close !== null && !s.closed && G.t >= s.close) { s.closed = true; emit(G, "vanLeave", {}); }
+    }
+    // 차 옆 칸에서 버티면 탄다. 칸을 벗어나면 처음부터
+    for (const r of alive) {
+      const at = V.stops.find(s => stopOpen(G, s) && dist(s, r) < CFG.ZOMBIE.STOP_R);
+      if (!at) { r.boardT = 0; continue; }
+      r.boardT = (r.boardT || 0) + dt;
+      if (r.boardT >= G.zb.board) {
+        r.state = "escaped"; r.boardT = 0; r.ix = r.iy = 0; r.vx = r.vy = 0; r.sprint = false; r.path = []; r.goal = null;
+        r.s.escapeAt = G.t; G.stats.escaped++;
+        emit(G, "boarded", { r });
+      }
+    }
+  }
+
+  // 물리면 비틀거리다 좀비 편이 된다
+  function bite(G, r, by) {
+    r.state = "turning"; r.action = null; r.turnT = CFG.ZOMBIE.TURN; r.s.caught++; r.s.survT = G.t; r.boardT = 0;
+    by.s.catches++; G.stats.catches++; G.intel.delete(r.id);
+    r.path = []; r.goal = null; r.vx = r.vy = 0; r.ix = r.iy = 0; r.sprint = false;
+    // 문 좀비는 잠깐 멈춘다. 옆에 있던 생존자가 도망칠 틈이다
+    by.holdT = CFG.ZOMBIE.BITE_HOLD;
+    emit(G, "bitten", { r, by });
+  }
+  function turn(G, r) {
+    G.robbers.splice(G.robbers.indexOf(r), 1); G.police.push(r);
+    r.team = "police"; r.state = "free"; r.catchCd = 1; r.thinkT = 0.3; r.stam = 0; r.tired = true;
+    r.ai = { mode: "patrol", seenT: -99, hideUntil: 0, q: [], lastX: r.x, lastY: r.y, stuckT: 0 };
+    emit(G, "turned", { r });
   }
 
   const emit = (G, type, data) => G.events.push({ type, ...data });
 
   // ───────── 구역 축소 ─────────
   // 시각과 크기는 판이 시작할 때 다 정해진다. 화면도 같은 값으로 newGame 을 불러 같은 계획을 얻어서, 판 중에 구역을 따로 보내지 않는다
-  function shrinkPlan() {
-    const S = CFG.SHRINK, J = CFG.JAIL, gap = (CFG.DURATION - CFG.WAIT) / (S.STAGES + 1);
+  function shrinkPlan(wait = CFG.WAIT) {
+    const S = CFG.SHRINK, J = CFG.JAIL, gap = (CFG.DURATION - wait) / (S.STAGES + 1);
     let near = 1e9;
     for (let i = 0, j = ZONE.length - 1; i < ZONE.length; j = i++) {
       const a = ZONE[j], b = ZONE[i], dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((J.x - a.x) * dx + (J.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
@@ -351,7 +461,7 @@ function createGameLogic() {
     }
     const end = Math.min(1, Math.max(S.FINAL, (CFG.GATE_R + S.JAIL_ROOM) / near));
     const at = [], k = [1];
-    for (let i = 1; i <= S.STAGES; i++) { at.push(Math.round((CFG.WAIT + gap * i) * 10) / 10); k.push(1 - (1 - end) * i / S.STAGES); }
+    for (let i = 1; i <= S.STAGES; i++) { at.push(Math.round((wait + gap * i) * 10) / 10); k.push(1 - (1 - end) * i / S.STAGES); }
     return { at, k, move: S.MOVE, warn: S.WARN, cx: J.x, cy: J.y };
   }
   // t 때의 크기. 줄어드는 동안은 이어지게 옮긴다
@@ -395,14 +505,16 @@ function createGameLogic() {
   const catchable = r => (r.state === "free" || r.state === "breaking") && !(r.protect > 0);
 
   function move(G, a, dt) {
-    const blockedNow = a.action || a.state === "jailed" || a.state === "caught" || a.state === "waiting";
+    if (a.holdT > 0) a.holdT -= dt;
+    const blockedNow = a.action || a.holdT > 0 || a.state === "jailed" || a.state === "caught" || a.state === "waiting" || a.state === "turning" || a.state === "escaped";
     let tx = 0, ty = 0;
     if (!blockedNow) {
       const m = Math.hypot(a.ix, a.iy);
-      const canSprint = a.sprint && !a.tired && a.stam > 0 && m > 0.1;
-      const speed = canSprint ? CFG.SPRINT[a.team] : CFG.RUN;
+      // 좀비 걸음(a.run)은 판 균형을 따르고, 달리기(a.sprintSpd, a.stamSec)는 생존자와 같다
+      const canSprint = a.sprint && !a.noSprint && !a.tired && a.stam > 0 && m > 0.1;
+      const speed = canSprint ? (a.sprintSpd || CFG.SPRINT[a.team]) : (a.run || CFG.RUN);
       if (m > 0.05) { const s = Math.min(1, m); tx = a.ix / m * s * speed; ty = a.iy / m * s * speed; }
-      if (canSprint) { a.stam = Math.max(0, a.stam - dt / CFG.STAMINA[a.team]); if (a.stam === 0) a.tired = true; }
+      if (canSprint) { a.stam = Math.max(0, a.stam - dt / (a.stamSec || CFG.STAMINA[a.team])); if (a.stam === 0) a.tired = true; }
       else { a.stam = Math.min(1, a.stam + dt / CFG.REGEN); if (a.tired && a.stam > 0.3) a.tired = false; }
     } else if (a.action && a.action.name === "catch" && a.action.t < CFG.CATCH_HIT_AT) {
       tx = a.action.dx * CFG.CATCH_DASH; ty = a.action.dy * CFG.CATCH_DASH;
@@ -477,7 +589,7 @@ function createGameLogic() {
         let hit = null, bd = CFG.CATCH_R;
         for (const r of G.robbers) { if (!catchable(r)) continue; const d = dist(a, r); if (d < bd && lineOfSight(a, r)) { bd = d; hit = r; } }
         if (!hit && lock && catchable(lock) && dist(a, lock) < CFG.CATCH_R + CFG.CATCH_GRACE && lineOfSight(a, lock)) hit = lock;
-        if (hit) arrest(G, hit, a); else emit(G, "catchMiss", { a });
+        if (hit) (G.mode === "zombie" ? bite : arrest)(G, hit, a); else emit(G, "catchMiss", { a });
       }
       if (a.action.t >= CFG.CATCH_LEN) a.action = null;
     }
@@ -485,6 +597,7 @@ function createGameLogic() {
 
   function updateRobberState(G, r, dt) {
     if (r.protect > 0) r.protect -= dt;
+    if (r.state === "turning") { r.turnT -= dt; if (r.turnT <= 0) turn(G, r); return; }
     if (r.state === "caught") {
       r.caughtT -= dt;
       if (r.caughtT <= 0) {
@@ -578,6 +691,16 @@ function createGameLogic() {
       return;
     }
     a.sprint = false;
+    // 좀비 모드: 구조차가 서면 짝수 번째 좀비는 정류장을 지킨다. 나머지는 위치 공개를 쫓는다
+    if (G.mode === "zombie" && idx % 2 === 0) {
+      const open = G.van.stops.filter(s => stopKnown(G, s, "police"));
+      if (open.length) {
+        const s = open[(idx / 2) % open.length];
+        if (!a.goal || reached(a, 60) || dist(a.goal, s) > 200) setGoal(G, a, s.x + (G.rnd() - 0.5) * 180, s.y + (G.rnd() - 0.5) * 180);
+        a.ai.mode = "guard";
+        return;
+      }
+    }
     if (a.ai.mode === "chase") {
       // 놓쳤다. 마지막 본 자리까지 간 뒤 주변 숨을 곳을 뒤진다
       const k = G.intel.get(a.ai.chaseId);
@@ -655,9 +778,20 @@ function createGameLogic() {
   }
 
   function thinkRobber(G, a) {
-    if (a.state === "caught" || a.state === "jailed") { a.ix = a.iy = 0; a.sprint = false; return; }
-    const threats = G.police.filter(p => p.state === "free" && sees(a, p));
+    if (a.state === "caught" || a.state === "jailed" || a.state === "turning" || a.state === "escaped") { a.ix = a.iy = 0; a.sprint = false; return; }
+    const threats = G.police.filter(p => p.state === "free" && (sees(a, p) || (G.mode === "zombie" && dist(a, p) < CFG.ZOMBIE.HEART)));
     const near = threats.length ? Math.min(...threats.map(p => dist(a, p))) : 1e9;
+    // 좀비 모드: 무전을 들으면 가장 가까운 정류장으로 간다. 좀비가 코앞이면 먼저 피한다
+    if (G.mode === "zombie" && near > 200) {
+      const known = G.van.stops.filter(s => stopKnown(G, s, "robber")).sort((p, q) => dist(a, p) - dist(a, q));
+      if (known.length) {
+        const s = known[0], d = dist(a, s);
+        if (!a.goal || dist(a.goal, s) > 40) setGoal(G, a, s.x, s.y);
+        a.ai.mode = "van";
+        a.sprint = near < 420 || (d > 500 && a.stam > 0.6) || (stopOpen(G, s) && d < 400);
+        return;
+      }
+    }
     if (a.state === "inJail" || a.state === "breaking") {
       if (a.state === "inJail" || !a.goal || reached(a)) {
         const s = pickHide(G, a, threats) || SPOTS[0];
@@ -718,6 +852,13 @@ function createGameLogic() {
     const pool = list => list.filter(a => humans > 1 ? a.isPlayer : true);
     const free = a => (a.state === "free" ? 1 : 0);
     const best = (list, cmp) => pool(list).sort(cmp)[0] || null;
+    // 좀비 모드: 좀비는 많이 감염시킨 사람, 생존자는 먼저 탈출한 사람 → 물리지 않은 사람 → 오래 버틴 사람
+    if (G.mode === "zombie") {
+      const z = best(G.police, (a, b) => b.s.catches - a.s.catches || b.s.dist - a.s.dist || a.id - b.id);
+      const esc = a => (a.s.escapeAt ?? 1e9), alive = a => (a.s.survT ?? 1e9);
+      const s = best(G.agents.filter(a => a.origin === "robber"), (a, b) => esc(a) - esc(b) || alive(b) - alive(a) || b.s.dist - a.s.dist || a.id - b.id);
+      return { police: z ? z.id : null, robber: s ? s.id : null };
+    }
     const cop = best(G.police, (a, b) => b.s.catches - a.s.catches || b.s.dist - a.s.dist || a.id - b.id);
     const rob = best(G.robbers, (a, b) => a.s.caught - b.s.caught || free(b) - free(a) || b.s.rescued - a.s.rescued || b.s.hideT - a.s.hideT || b.s.dist - a.s.dist || a.id - b.id);
     return { police: cop ? cop.id : null, robber: rob ? rob.id : null };
@@ -733,7 +874,7 @@ function createGameLogic() {
     // 시작 멈춤 - 아무도 움직이지 않고 시계도 가지 않는다
     if (G.intro > 0) { G.intro = Math.max(0, G.intro - dt); return; }
     G.t += dt;
-    if (G.phase === "wait" && G.t >= CFG.WAIT) {
+    if (G.phase === "wait" && G.t >= G.wait) {
       G.phase = "play"; for (const p of G.police) p.state = "free";
       emit(G, "dispatch", {});
     }
@@ -743,6 +884,8 @@ function createGameLogic() {
       if (i < P.at.length && G.t >= P.at[i]) { G.shrinkN = i + 1; emit(G, "shrink", { n: i + 1, of: P.at.length }); }
     }
     G.pings = G.pings.filter(p => G.t - p.t < (p.out ? CFG.OUT_PING_SHOW : CFG.REVEAL_SHOW));
+    // 좀비 걸음: 첫 좀비가 혼자일 때만 조금 빠르다
+    if (G.mode === "zombie") { const alone = G.police.length === 1; for (const z of G.police) { z.run = alone ? G.zb.alone : G.zb.run; z.sprintSpd = G.zb.sprint; z.stamSec = G.zb.stam; } }
     G.agents.forEach((a, i) => {
       if (a.catchCd > 0) a.catchCd -= dt;
       if (!a.isPlayer) {
@@ -758,7 +901,7 @@ function createGameLogic() {
       if (a.team === "robber") { updateRobberState(G, a, dt); updateOut(G, a, dt); }
     });
     // 몸끼리 통과하지 않게 살짝 밀어낸다
-    const body = G.agents.filter(a => a.state !== "jailed" && a.state !== "caught" && a.state !== "waiting");
+    const body = G.agents.filter(a => a.state !== "jailed" && a.state !== "caught" && a.state !== "waiting" && a.state !== "escaped");
     for (let i = 0; i < body.length; i++) for (let j = i + 1; j < body.length; j++) {
       const a = body[i], b = body[j]; const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
       if (d > 0.01 && d < 46) {
@@ -767,6 +910,17 @@ function createGameLogic() {
         if (!solidAt(b.x + dx * k, b.y + dy * k)) { b.x += dx * k; b.y += dy * k; }
       }
     }
+    if (G.mode === "zombie") {
+      if (G.phase === "play") updateVan(G, dt);
+      // 한 명이라도 타면 생존자 승리. 아무도 못 타고 끝나거나 모두 감염되면 좀비 승리
+      if (G.phase === "play") {
+        const left = G.robbers.some(r => r.state === "free" || r.state === "turning");
+        const win = G.stats.escaped ? "robber" : "police";
+        if (!left) finish(G, win, G.stats.escaped ? "escaped" : "allInfected");
+        else if (G.t >= CFG.DURATION) finish(G, win, G.stats.escaped ? "escaped" : "noEscape");
+      }
+      return;
+    }
     updateRescue(G, dt);
     if (G.phase === "play") {
       if (!G.robbers.some(r => r.state === "free")) finish(G, "police", "allArrested");
@@ -774,7 +928,7 @@ function createGameLogic() {
     }
   }
 
-  return { loadMap, inCone, zoneK, shrinkState, inZoneNow, inZoneK, CFG, THEMES, DIFF, newGame, step, pickMvp, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
+  return { loadMap, inCone, zoneK, shrinkState, inZoneNow, inZoneK, CFG, THEMES, DIFF, newGame, step, pickMvp, zombieFirst, stopKnown, stopOpen, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
     get BUILDINGS() { return BUILDINGS; }, get BUSHES() { return BUSHES; }, get SPOTS() { return SPOTS; }, get ZONE() { return ZONE; }, get ROADS() { return ROADS; }, get PARKS() { return PARKS; } };
 }
 
