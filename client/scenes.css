@@ -1,0 +1,93 @@
+  /* 앱 4.0.1 게임 시작·MVP 장면 (client/scenes.js). 색은 게임 팀 색, 글꼴은 Pretendard 굵은 글씨 */
+  #scenes { position:absolute; inset:0; z-index:15; pointer-events:none; overflow:hidden; }
+  .scRole { position:absolute; inset:0; overflow:hidden; }
+  .scDim { position:absolute; inset:0; background:#1D232B; }
+  .scBand { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) rotate(-7deg); }
+  .scStripes { position:absolute; inset:0; display:flex; flex-direction:column; }
+  .scStripes i { flex:1; display:block; clip-path:polygon(3% 0,100% 0,97% 100%,0 100%); }
+  .scSpeed { position:absolute; display:flex; transform:rotate(-7deg); } .scSpeed i { display:block; height:100%; border-radius:999px; }
+  .scRoleArt { position:absolute; right:3%; bottom:0; width:auto; transform-origin:50% 62.5%; }
+  .scRoleTx { position:absolute; left:7%; top:50%; max-width:56%; transform:translateY(-50%); }
+  .scRoleTx small { display:block; font-size:clamp(13px,3.4vh,18px); font-weight:700; }
+  .scRoleTx p { margin:.35em 0 0; font-size:clamp(30px,10vh,64px); font-weight:900; line-height:1.12; letter-spacing:-.02em; white-space:nowrap; }
+  .scRoleTx em { display:block; margin-top:.55em; font-style:normal; font-size:clamp(17px,5vh,28px); font-weight:800; }
+  .scRoleTx b { font-weight:900; }
+
+  .scWait { position:absolute; inset:0; overflow:hidden; background:#E7F4FF; display:flex; align-items:flex-start; justify-content:center; gap:5%; padding:max(9vh,58px) 6% 0; }
+  .scWaitBg { position:absolute; inset:0; background-size:cover; background-position:center bottom; }
+  .scCar { position:absolute; left:0; right:0; bottom:3%; height:min(16vh,72px); }
+  .scCar img { position:absolute; bottom:0; height:100%; animation:scDrive 7s linear infinite; }
+  @keyframes scDrive { from { left:-160px; } to { left:100%; } }
+  .scWaitL { position:relative; flex:1; max-width:360px; text-align:center; }
+  .scTeam { display:inline-flex; align-items:center; gap:6px; font-size:clamp(16px,4.6vh,20px); font-weight:800; color:#69B6FF; }
+  .scTeam img { height:1.4em; }
+  .scWaitL small { display:block; margin-top:clamp(8px,4vh,28px); font-size:clamp(13px,3.6vh,16px); font-weight:700; color:#76899E; }
+  .scCount { display:block; margin-top:4px; font-size:clamp(46px,17vh,88px); font-weight:900; line-height:1; color:var(--police); font-variant-numeric:tabular-nums; letter-spacing:-.02em; transition:transform .2s; }
+  .scCount.final { transform:scale(1.14); }
+  .scWaitL p { margin:clamp(6px,2.4vh,16px) 0 0; font-size:clamp(14px,4vh,18px); font-weight:800; color:#485665; }
+  .scWaitR { position:relative; flex:1; max-width:380px; display:flex; flex-direction:column; gap:clamp(8px,2.6vh,14px); margin-top:clamp(4px,3vh,24px); }
+  .scCard { display:flex; align-items:flex-start; gap:8px; background:#fff; border-radius:16px; padding:clamp(10px,3vh,16px) 16px; box-shadow:var(--soft); text-align:left; }
+  .scCard > img { width:20px; height:20px; flex:none; margin-top:1px; }
+  .scCard small { display:block; font-size:13px; font-weight:600; color:#76899E; }
+  .scCard p { margin:3px 0 0; font-size:clamp(13px,3.8vh,15px); font-weight:800; color:var(--ink); line-height:1.3; }
+  .scGuide.fresh > div { animation:scFade .45s ease-out both; }
+  @keyframes scFade { from { opacity:0; transform:translateY(4px); } }
+
+  .scDispatch { position:absolute; inset:0; background:#000; pointer-events:auto; display:flex; align-items:center; justify-content:center; }
+  .scBeam { position:absolute; inset:0; }
+  .scSirenWrap { position:relative; display:flex; flex-direction:column; align-items:center; }
+  .scSiren, .scGlow { height:clamp(104px,40vh,229px); aspect-ratio:185/229; }
+  .scGlow { position:absolute; top:0; left:50%; translate:-50% 0; background:#E2574C; -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; opacity:0; }
+  .scSiren { position:relative; }
+  .scDispatch .scNum { display:block; min-height:1em; margin-top:clamp(8px,4vh,40px); font-size:clamp(54px,20vh,96px); font-weight:900; line-height:1; color:#fff; font-variant-numeric:tabular-nums; }
+  .scDispatch.mini { background:none; pointer-events:none; display:block; }
+  .scEdge { position:absolute; inset:0; }
+  .scPill { position:absolute; left:50%; top:max(19%,74px); transform:translateX(-50%); display:flex; align-items:center; gap:10px; padding:6px 20px 6px 10px; border-radius:999px; background:rgba(18,23,31,.88); color:#fff; box-shadow:var(--soft); transition:background .2s; }
+  .scPill img { height:40px; }
+  .scPill .scNum { display:block; min-width:1.1em; margin:0; font-size:32px; font-weight:900; line-height:1; text-align:center; font-variant-numeric:tabular-nums; }
+  .scDispatch.mini.go .scPill { background:var(--danger); }
+
+  .scEnd { position:absolute; inset:0; pointer-events:auto; background:rgba(18,23,32,.55); display:flex; align-items:center; justify-content:center; }
+  .scOverCard { position:relative; z-index:1; min-width:min(80vw,340px); padding:28px 36px; border-radius:24px; background:#fff; text-align:center; box-shadow:var(--soft); }
+  .scOverCard b { display:block; font-size:22px; font-weight:900; color:var(--ink); }
+  .scOverCard b.tease { font-size:28px; color:var(--team); }
+  .scOverCard p { margin:8px 0 0; font-size:14px; color:var(--sub); }
+  .scOverCard.shake { animation:scShake .5s linear; }
+  @keyframes scShake { 8% { transform:translateX(13px); } 25% { transform:translateX(-10px); } 42% { transform:translateX(8px); } 58% { transform:translateX(-6px); } 75% { transform:translateX(3px); } 92% { transform:translateX(-1px); } }
+  .scStage { position:absolute; inset:0; overflow:hidden; animation:scIn .35s ease-out both; }
+  @keyframes scIn { from { opacity:0; transform:scale(.92); } }
+  .scStage.light { background:#fff; } .scStage.dark { background:#12171F; }
+  .scLit { position:absolute; inset:0; }
+  /* 캐릭터 발끝이 아래 "화면을 누르면" 띠(바닥 4vh + 44px)에 가리지 않게 그 위에 세운다 */
+  .scGlowRing { position:absolute; left:34%; top:calc(50% - max(14px,4vh) / 2 - 22px); height:min(78vh,330px); translate:-50% -50%; }
+  .scMvpArt { position:absolute; left:34%; bottom:calc(max(14px,4vh) + 56px); height:min(calc(100vh - max(14px,4vh) - 56px - 56px),300px); translate:-50% 0; transform-origin:50% 100%; }
+  .scMvpTx { position:absolute; left:58%; top:50%; transform:translateY(-50%); max-width:38%; }
+  .scMvpTx small { display:block; font-size:clamp(14px,4vh,18px); font-weight:700; color:#93A2B3; }
+  .scPillTeam { display:inline-block; margin-top:clamp(8px,2.4vh,14px); padding:6px 16px; border-radius:999px; font-size:clamp(14px,4vh,18px); font-weight:800; }
+  .light .scPillTeam { background:var(--police); color:#fff; } .dark .scPillTeam { background:var(--robber); color:#12171F; }
+  .scMvpTx b { display:flex; align-items:center; gap:6px; margin-top:clamp(10px,4vh,22px); font-size:clamp(20px,6.4vh,28px); font-weight:900; overflow-wrap:anywhere; }
+  .scMvpTx b img { height:1.1em; }
+  .light .scMvpTx b { color:var(--ink); } .dark .scMvpTx b { color:#fff; }
+  .scMvpTx p { margin:8px 0 0; font-size:clamp(13px,3.8vh,16px); font-weight:600; }
+  .light .scMvpTx p { color:#5D6F83; } .dark .scMvpTx p { color:#B1BCC8; }
+  .scSpot, .scConfetti { position:absolute; inset:0; pointer-events:none; }
+  .scConfetti img { position:absolute; }
+  .scTap { position:absolute; z-index:2; left:16px; right:16px; bottom:max(14px,4vh); height:44px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:14px; color:#B1BCC8; background:rgba(255,255,255,.15); opacity:0; transition:opacity .2s; }
+  .scTap.light { color:#93A2B3; background:rgba(177,188,200,.15); }
+  .scTap.show { opacity:1; }
+  .scSkip { position:absolute; z-index:3; top:max(12px,env(safe-area-inset-top)); right:max(16px,env(safe-area-inset-right)); padding:8px 16px; border:0; border-radius:999px; background:rgba(29,35,43,.55); color:#fff; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  /* 좁은 세로 화면(가로로 돌리기 전)에서도 겹치지 않게 */
+  @media (max-aspect-ratio:1/1) {
+    .scRoleTx { left:6%; right:6%; max-width:none; } .scRoleArt { right:-6%; }
+    .scRoleTx small { font-size:clamp(13px,3.6vw,16px); } .scRoleTx p { font-size:clamp(28px,9vw,44px); } .scRoleTx em { font-size:clamp(16px,5vw,22px); }
+    .scWait { flex-direction:column; align-items:center; padding-top:12vh; gap:3vh; } .scWaitL, .scWaitR { max-width:420px; width:100%; flex:none; }
+    .scGlowRing { left:50%; top:auto; bottom:calc(max(14px,4vh) + 270px); translate:-50% 30%; height:min(72vw,330px); } .scMvpArt { left:50%; bottom:calc(max(14px,4vh) + 270px); height:min(48vw,240px,calc(100vh - max(14px,4vh) - 340px)); }
+    .scMvpTx { left:8%; right:8%; top:auto; bottom:calc(max(14px,4vh) + 64px); transform:none; max-width:none; text-align:center; } .scMvpTx b { justify-content:center; }
+  }
+  #endMvp { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:10px; }
+  #endMvp:empty { display:none; }
+  #endMvp span { display:flex; flex-direction:column; align-items:center; min-width:110px; padding:6px 12px 8px; border-radius:12px; background:#F3F5F8; font-size:15px; font-weight:800; color:var(--ink); }
+  #endMvp i { font-style:normal; font-size:11px; font-weight:700; color:var(--sub); }
+  #endMvp span.me { box-shadow:inset 0 0 0 2px var(--team); }
+  @media (max-height:500px) and (min-aspect-ratio:1/1) { #endMvp { grid-column:2; margin-top:6px; } }
+  @media (prefers-reduced-motion:reduce) { .scCar img, .scStage, .scGuide.fresh > div, .scOverCard.shake { animation:none; } .scCount { transition:none; } }
