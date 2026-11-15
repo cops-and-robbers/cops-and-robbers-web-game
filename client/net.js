@@ -154,9 +154,11 @@ function createOnline() {
       CFG.AUTO_ESCAPE = m.autoEscape;
       CFG.CATCH_R = m.catchRange;
       // 맵 크기는 인원에 따라 서버가 정한다. 예전 서버는 보내지 않아 1로 본다
-      showGame(m.team, { seed: m.seed, scale: m.scale ?? 1, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers, reveal: m.reveal, intro: m.intro ?? 0, shrink: !!m.shrink }, G2 => {
+      showGame(m.team, { seed: m.seed, scale: m.scale ?? 1, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers, reveal: m.reveal, intro: m.intro ?? 0, shrink: !!m.shrink, mode: m.mode, balance: m.balance }, G2 => {
         G2.player = G2.agents[m.you];
         G2.player.isPlayer = true;
+        // 좀비 판: 내 생김새는 시작 신호로, 남의 생김새는 보일 때 갱신으로 받는다
+        if (m.mode === "zombie" && m.look) G2.player.look = m.look;
         // 못 본 상대의 이름은 받지 않으니 진영으로 부른다
         for (const a of G2.agents) if (a !== G2.player) a.name = tt(a.team === "police" ? "cop" : "rob");
       });
@@ -180,6 +182,8 @@ function createOnline() {
     G.pings = s.pings.map(k => ({ x: k.x, y: k.y, t: s.time - k.age, id: G.player.id }));
     G.intel = new Map((s.intel || []).map((k, i) => [i, { x: k.x, y: k.y, t: s.time }]));
     for (const o of [s.me, ...s.others]) applyAgent(o, now);
+    // 좀비 판: 내가 아는 정류장, 심장 소리 단계, 타는 중인 초, 탄 사람 수
+    if (G.mode === "zombie") { G.zVan = s.van || []; G.zHeart = s.me.heart || 0; G.zBoard = s.me.board || 0; G.stats.escaped = s.escaped || 0; }
     const me = G.player;
     me.stam = s.me.stamina;
     me.tired = !!s.me.tired;
@@ -206,6 +210,8 @@ function createOnline() {
     a.vy = o.vy;
     a.faceA = o.face;
     a.state = o.state;
+    // 좀비 판: 편과 다른 생김새만 실려 온다. 물려 편이 바뀌었으면 옮긴다(그림은 client/zombie.js 가 맞춘다)
+    if (G.mode === "zombie") { a.look = o.look || o.team; if (o.team && o.team !== a.team) ZB.switchTeam(a, o.team); }
     a.inBush = !!o.bush;
     a.protect = o.safe ? 1 : 0;
     if (o.catching) a.action ||= { name: "catch", dx: Math.cos(o.face) };
