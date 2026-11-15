@@ -742,7 +742,8 @@ function drawHud(dt) {
   $("status").textContent = line;
   // 경찰 대기 숫자는 대기 장면(client/scenes.js)이 맡는다
   const waitBig = false;
-  Scenes.sync(G, role, TX.theme[G.theme] ?? G.th.name);
+  // 대기실과 게임 방법 안내도 장식용 판(phase "wait")을 쓰니, 시작 장면은 실제 판에서만 띄운다
+  if (!driver && !document.body.classList.contains("lobby-mode")) Scenes.sync(G, role, TX.theme[G.theme] ?? G.th.name);
   $("bigCount").className = waitBig ? "show" : ""; if (waitBig) $("bigCount").textContent = Math.ceil(left);
   $("stamFill").style.width = (p.stam * 100) + "%"; $("stamFill").className = p.tired ? "tired" : "";
   const out = !inZone(p.x, p.y);
