@@ -4,6 +4,8 @@
 const round = v => Math.round(v);
 
 export function canSee(logic, G, me, other) {
+  // 구조차를 탄 사람은 지도에서 빠진다
+  if (other.state === "escaped" && !G.over) return false;
   if (G.over || other.team === me.team) return true;
   return me.state !== "waiting" && logic.inZoneNow(G, me.x, me.y) && logic.sees(me, other);
 }
@@ -21,6 +23,8 @@ function publicAgent(a) {
     state: a.state,
     bush: a.inBush ? 1 : 0,
     catching: a.action?.name === "catch" ? 1 : 0,
+    // 좀비 모드: 편과 다른 생김새(고양이, 쥐)일 때만 싣는다
+    ...(a.look && a.look !== a.team ? { look: a.look } : {}),
     ...(a.protect > 0 ? { safe: 1 } : {}),
   };
 }
@@ -54,6 +58,18 @@ export function viewFor(logic, G, me) {
     nextReveal: Math.round(G.nextReveal * 10) / 10,
     freeRobbers: G.robbers.filter(r => r.state === "free").length,
   };
+  if (G.mode === "zombie") {
+    // 구조차: 생존자는 무전 때부터, 좀비는 차가 선 뒤부터 안다
+    view.van = G.van.stops.filter(s => logic.stopKnown(G, s, me.team)).map(s => ({ x: round(s.x), y: round(s.y), open: s.open, ...(s.close !== null ? { close: s.close } : {}) }));
+    view.escaped = G.stats.escaped;
+    if (me.boardT > 0) view.me.board = Math.round(me.boardT * 10) / 10;
+    // 심장 소리: 가장 가까운 좀비까지를 세 단계로만. 위치와 방향은 보내지 않는다
+    if (me.team === "robber" && me.state === "free") {
+      const d = Math.min(1e9, ...G.police.filter(p => p.state === "free").map(p => logic.dist(me, p)));
+      const H = logic.CFG.ZOMBIE.HEART;
+      view.me.heart = d < H * 0.4 ? 3 : d < H * 0.7 ? 2 : d < H ? 1 : 0;
+    }
+  }
   if (me.team === "police") {
     view.intel = [...G.intel.values()]
       .filter(k => G.t - k.t < 6)
@@ -68,6 +84,8 @@ export function eventsFor(logic, G, me, events) {
   for (const e of events) {
     const actor = e.a;
     if (actor && actor !== me && !canSee(logic, G, me, actor)) continue;
+    // 구조차 무전은 생존자에게만
+    if (e.type === "vanRadio" && me.team !== "robber") continue;
     out.push({
       type: e.type,
       ...(e.r ? { r: e.r.id } : {}),
