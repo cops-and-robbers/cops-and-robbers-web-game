@@ -9,7 +9,7 @@
 | `join` | `name` 처음 입장, `token` 끊겼다 돌아올 때 |
 | `start` | 방장만 보낼 수 있어요. 3초 뒤 시작해요 |
 | `side` | `side` `cop`, `any`, `rob`. 칸이 바뀔 때만 보내요 |
-| `seats` | 방장만. `cops`, `robs`, `bots`, `open` 공개 방. 합쳐서 8명까지. `open` 을 빼면 그대로 둬요 |
+| `seats` | 방장만. `cops`, `robs`, `bots`, `open` 공개 방, `shrink` 구역 축소. 합쳐서 8명까지. `open`, `shrink` 를 빼면 그대로 둬요 |
 | `say` | `i` 정해진 말 번호 |
 | `input` | `x`, `y` -1~1 이동, `s` 달리기, `c` 잡기. 초당 20번을 넘으면 버려요 |
 | `ping` | `n` 지연 측정, `rtt` 직전에 잰 왕복 시간(ms, 판 결과에 사람별로 남아요) |
@@ -22,12 +22,12 @@
 | `t` | 내용 |
 | --- | --- |
 | `joined` | `token` 돌아올 때 쓰는 값 |
-| `lobby` | `players` 명단(`id`, `name`, `side`), `you`, `host` 내가 방장인지, `cops`, `robs`, `bots`, `open`, `max` |
+| `lobby` | `players` 명단(`id`, `name`, `side`), `you`, `host` 내가 방장인지, `cops`, `robs`, `bots`, `open`, `shrink`, `max` |
 | `count` | `ms` 시작까지 남은 시간 |
 | `say` | `id` 말한 사람, `i` 정해진 말 번호 |
-| `start` | `seed` 같은 지도를 만드는 값, `scale` 지도 크기(인원 4명까지 1, 8명이면 1.2), `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값, `intro` 판 시작 멈춤 초(역할 배너가 뜨는 동안 아무도 못 움직이고 시계도 안 가요) |
+| `start` | `seed` 같은 지도를 만드는 값, `scale` 지도 크기(인원 4명까지 1, 8명이면 1.2), `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값, `intro` 판 시작 멈춤 초(역할 배너가 뜨는 동안 아무도 못 움직이고 시계도 안 가요), `shrink` 구역 축소 판인지. 축소 시각과 크기는 화면이 같은 값으로 `newGame` 을 불러 직접 얻어요(`docs/shrink.md`) |
 | `s` | 갱신. `time`, `phase`, `intro` 남은 시작 멈춤(멈춤 동안만), `me`(도둑은 `out` 구역 밖에 있은 초), `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel` |
-| `e` | 사건 목록. 위치는 싣지 않아요. 구역 밖 공개가 시작되면 `outReveal`(`r` 그 도둑) 한 번 |
+| `e` | 사건 목록. 위치는 싣지 않아요. 구역 밖 공개가 시작되면 `outReveal`(`r` 그 도둑) 한 번. 구역 축소 판은 경계가 줄기 시작할 때 `shrink`(`n` 몇 번째) |
 | `over` | `winner`, `reason`, `stats`, `mine` 내 기록, `mvp` 팀별 MVP `{ police: {id, name}, robber: {id, name} }`(후보가 없는 팀은 `null`) |
 | `pong` | `n` |
 | `where` | `entry` 들어온 Cloudflare 위치, `room` 방 서버 위치 |

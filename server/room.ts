@@ -18,7 +18,7 @@ const CATCH_RANGE = 90;
 const CATCH_HIT_SEC = 0.16;
 const SAY_LINES = 5;
 // 처음에는 비밀 방이다. 친구끼리 하는 게임이라 모르는 사람이 갑자기 들어오지 않게 한다
-const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false };
+const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false, shrink: false };
 // 공개 방은 이 간격으로 목록에 살아 있다고 알린다. 목록은 5분 동안 소식이 없는 방을 지운다
 const LIST_BEAT_MS = 2 * 60_000;
 const TICK_MS = 50;
@@ -42,6 +42,8 @@ interface Seats {
   robs: number;
   bots: boolean;
   open: boolean;
+  // 구역 축소 모드. 판 시작 때 logic 이 시각과 크기를 정해서 판 중에는 더 보내지 않는다
+  shrink: boolean;
 }
 // 대기실 상태는 접속에 붙여 둔다. 방이 잠들어도 남고 저장 비용이 들지 않는다
 interface Attachment {
@@ -219,6 +221,7 @@ export class Room extends DurableObject<Env> {
         robs: seats.robs,
         bots: seats.bots,
         open: seats.open,
+        shrink: seats.shrink,
         max: MAX_PLAYERS,
       });
     }
@@ -261,7 +264,7 @@ export class Room extends DurableObject<Env> {
     if (!Number.isInteger(cops) || !Number.isInteger(robs) || cops < 1 || robs < 1) return;
     if (cops + robs > MAX_PLAYERS || cops + robs < members.length) return;
     const before = this.seats();
-    const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open };
+    const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open, shrink: typeof msg.shrink === "boolean" ? msg.shrink : before.shrink };
     const left: Record<Side, number> = { cop: cops, rob: robs, any: Infinity };
     for (const { ws: w, me: m } of members) {
       const side: Side = left[m.side] > 0 ? m.side : "any";
@@ -406,7 +409,7 @@ export class Room extends DurableObject<Env> {
 
     const police = seats.bots ? seats.cops : cops.length, robbers = seats.bots ? seats.robs : robs.length;
     const scale = mapScale(police + robbers);
-    const G = logic.newGame({ seed, theme, diff: "normal", police, robbers, reveal: REVEAL_SEC, scale, intro: logic.CFG.INTRO });
+    const G = logic.newGame({ seed, theme, diff: "normal", police, robbers, reveal: REVEAL_SEC, scale, intro: logic.CFG.INTRO, shrink: seats.shrink });
     this.seed = seed;
     this.scale = scale;
     this.logic = logic;
@@ -453,6 +456,7 @@ export class Room extends DurableObject<Env> {
       autoEscape: this.logic.CFG.AUTO_ESCAPE,
       catchRange: this.logic.CFG.CATCH_R,
       reveal: G.revealEvery,
+      shrink: !!G.shrink,
     });
   }
 

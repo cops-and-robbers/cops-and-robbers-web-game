@@ -232,9 +232,19 @@ try {
     check(shown?.n === PLAYERS && shown.host === clients[0].lobby.players[0].name && shown.state === "open", `공개 방은 방장 이름과 인원으로 목록에 나와요 (${JSON.stringify(shown)})`);
   }
 
+  // 구역 축소: 방장이 켜면 모두 알고, 공개 여부는 그대로이고, 시작 신호에 실린다(docs/shrink.md)
+  {
+    const L = clients[0].lobby, wasOpen = !!L.open;
+    clients[0].sendJson({ t: "seats", cops: L.cops, robs: L.robs, bots: L.bots, shrink: true });
+    sentMessages++;
+    await waitFor(() => clients.every(c => c.lobby?.shrink), 3000, "구역 축소 켜기");
+    check(clients.every(c => c.lobby.shrink && !!c.lobby.open === wasOpen), "방장이 구역 축소를 켜면 모두 알고 다른 설정은 그대로예요");
+  }
+
   clients[0].sendJson({ t: "start" });
   sentMessages++;
   await waitFor(() => clients.every(c => c.start), 9000, "시작");
+  check(clients.every(c => c.start.shrink === true), "구역 축소를 켠 판은 시작 신호에 실려요");
   // 자동 배포가 판이 끝날 때까지 기다리려면 도는 판 수가 보여야 한다(tools/wait-live.mjs)
   const liveNow = async () => (await (await fetch(`${env.base}/live`)).json()).playing;
   if (!REMOTE) {
