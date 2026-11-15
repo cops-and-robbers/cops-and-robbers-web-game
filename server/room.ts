@@ -18,7 +18,9 @@ const CATCH_RANGE = 90;
 const CATCH_HIT_SEC = 0.16;
 const SAY_LINES = 5;
 // 처음에는 비밀 방이다. 친구끼리 하는 게임이라 모르는 사람이 갑자기 들어오지 않게 한다
-const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false, shrink: false };
+const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false, shrink: false, mode: "classic", balance: "even" };
+const MODES = ["classic", "zombie"] as const;
+const BALANCES = ["surv", "even", "zomb"] as const;
 // 공개 방은 이 간격으로 목록에 살아 있다고 알린다. 목록은 5분 동안 소식이 없는 방을 지운다
 const LIST_BEAT_MS = 2 * 60_000;
 const TICK_MS = 50;
@@ -44,6 +46,9 @@ interface Seats {
   open: boolean;
   // 구역 축소 모드. 판 시작 때 logic 이 시각과 크기를 정해서 판 중에는 더 보내지 않는다
   shrink: boolean;
+  // 놀이 방식과 좀비 모드의 판 균형. 좀비 모드에서 cops + robs 는 방 인원이고, 칸은 생김새(고양이, 쥐)만 고른다
+  mode: (typeof MODES)[number];
+  balance: (typeof BALANCES)[number];
 }
 // 대기실 상태는 접속에 붙여 둔다. 방이 잠들어도 남고 저장 비용이 들지 않는다
 interface Attachment {
@@ -54,6 +59,8 @@ interface Attachment {
   side: Side;
   seats: Seats;
   agentId?: number;
+  // 지난 좀비 판의 첫 좀비. 다음 뽑기에서 뺀다
+  firstZ?: boolean;
 }
 interface Rate {
   windowStart: number;
@@ -222,6 +229,8 @@ export class Room extends DurableObject<Env> {
         bots: seats.bots,
         open: seats.open,
         shrink: seats.shrink,
+        mode: seats.mode,
+        balance: seats.balance,
         max: MAX_PLAYERS,
       });
     }
@@ -240,7 +249,8 @@ export class Room extends DurableObject<Env> {
     if (side !== "cop" && side !== "any" && side !== "rob") return;
     if (side === me.side) return;
     const seats = this.seats();
-    if (side !== "any") {
+    // 좀비 모드의 칸은 생김새만 고르니 인원 제한이 없다
+    if (side !== "any" && seats.mode !== "zombie") {
       const here = this.members().filter(m => m.me.side === side).length;
       if (here >= (side === "cop" ? seats.cops : seats.robs)) {
         this.send(ws, { t: "error", code: "sideFull", side: me.side });
@@ -264,8 +274,10 @@ export class Room extends DurableObject<Env> {
     if (!Number.isInteger(cops) || !Number.isInteger(robs) || cops < 1 || robs < 1) return;
     if (cops + robs > MAX_PLAYERS || cops + robs < members.length) return;
     const before = this.seats();
-    const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open, shrink: typeof msg.shrink === "boolean" ? msg.shrink : before.shrink };
-    const left: Record<Side, number> = { cop: cops, rob: robs, any: Infinity };
+    const mode = MODES.includes(msg.mode) ? msg.mode : before.mode;
+    const balance = BALANCES.includes(msg.balance) ? msg.balance : before.balance;
+    const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open, shrink: typeof msg.shrink === "boolean" ? msg.shrink : before.shrink, mode, balance };
+    const left: Record<Side, number> = mode === "zombie" ? { cop: Infinity, rob: Infinity, any: Infinity } : { cop: cops, rob: robs, any: Infinity };
     for (const { ws: w, me: m } of members) {
       const side: Side = left[m.side] > 0 ? m.side : "any";
       left[side]--;
@@ -298,6 +310,7 @@ export class Room extends DurableObject<Env> {
     if (members.length === 0) return false;
     if (this.seats().bots) return true;
     if (members.length < 2) return false;
+    if (this.seats().mode === "zombie") return true;
     const n = (side: Side) => members.filter(m => m.me.side === side).length;
     return n("cop") + n("any") > 0 && n("rob") + n("any") > 0;
   }
@@ -346,7 +359,7 @@ export class Room extends DurableObject<Env> {
     const fresh = back && Date.now() - back.at <= REJOIN_MS ? back : undefined;
     if (fresh) this.lobbyLost.delete(msg.token);
     const token = fresh ? msg.token as string : crypto.randomUUID();
-    const sideBack: Side = fresh && (fresh.side === "any" || this.members().filter(m => m.me.side === fresh.side).length < (fresh.side === "cop" ? seats.cops : seats.robs)) ? fresh.side : "any";
+    const sideBack: Side = fresh && (fresh.side === "any" || seats.mode === "zombie" || this.members().filter(m => m.me.side === fresh.side).length < (fresh.side === "cop" ? seats.cops : seats.robs)) ? fresh.side : "any";
     // 게임 안에서 머리 위에 뜨니 짧게 받는다. 글자가 잘리지 않게 글자 단위로 자른다
     const name = typeof msg.name === "string" ? Array.from(msg.name.replace(/\s+/g, " ").trim()).slice(0, MAX_NAME).join("") : "";
     ws.serializeAttachment({ token, pid: fresh?.pid ?? crypto.randomUUID().slice(0, 8), name: name || "참가자", joinedAt: fresh?.joinedAt ?? Date.now(), side: sideBack, seats } satisfies Attachment);
@@ -396,6 +409,7 @@ export class Room extends DurableObject<Env> {
       }
       return list;
     };
+    if (seats.mode === "zombie") return this.beginZombie(logic, members, seed, theme, seats, shuffle);
     // 고른 편은 바꾸지 않는다. 가운데 사람만 남은 자리로 들어가고, 한쪽이 비지 않게 먼저 채운다
     const cops = members.filter(m => m.me.side === "cop");
     const robs = members.filter(m => m.me.side === "rob");
@@ -437,6 +451,43 @@ export class Room extends DurableObject<Env> {
     this.report();
   }
 
+  // 좀비 모드: 첫 좀비는 사람 중에서 무작위로 뽑고, 지난 판 첫 좀비는 뺀다(다 빠지면 모두 중에서). 칸은 생김새만 정한다
+  private beginZombie(logic: Logic, members: { ws: WebSocket; me: Attachment }[], seed: number, theme: string, seats: Seats, shuffle: <T>(list: T[]) => T[]): void {
+    const total = seats.bots ? Math.max(members.length, seats.cops + seats.robs) : members.length;
+    const nz = logic.zombieFirst(total, seats.balance);
+    const fresh = members.filter(m => !m.me.firstZ);
+    const pool = shuffle([...(fresh.length ? fresh : members)]);
+    const firsts = pool.slice(0, Math.min(nz, members.length - (seats.bots ? 0 : 1)));
+    const rest = members.filter(m => !firsts.includes(m));
+    const scale = mapScale(total);
+    const G = logic.newGame({ seed, theme, diff: "normal", mode: "zombie", balance: seats.balance, police: nz, robbers: total - nz, scale, intro: logic.CFG.INTRO, shrink: seats.shrink });
+    this.seed = seed;
+    this.scale = scale;
+    this.logic = logic;
+    this.game = G;
+    this.emptySince = 0;
+    this.lost.clear();
+    this.netLog = new Map();
+    this.tickGap = { last: 0, max: 0, late: 0, n: 0 };
+    const lookOf = (m: Attachment) => (m.side === "cop" ? "police" : m.side === "rob" ? "robber" : [...m.name].reduce((h, c) => (h * 31 + c.codePointAt(0)!) | 0, 7) & 1 ? "robber" : "police");
+    const seat = (list: { ws: WebSocket; me: Attachment }[], agents: any[], first: boolean) => {
+      const open = shuffle([...agents]);
+      list.forEach(({ ws, me }, i) => {
+        const agent = open[i];
+        agent.isPlayer = true;
+        agent.name = me.name;
+        agent.look = lookOf(me);
+        ws.serializeAttachment({ ...me, agentId: agent.id, firstZ: first } satisfies Attachment);
+        this.sendStart(ws, agent);
+      });
+    };
+    seat(firsts, G.police, true);
+    seat(rest, G.robbers, false);
+    this.timer = setInterval(() => this.tick(), TICK_MS);
+    this.reportLive(true);
+    this.report();
+  }
+
   private sendStart(ws: WebSocket, agent: any): void {
     const G = this.game;
     this.send(ws, {
@@ -457,6 +508,7 @@ export class Room extends DurableObject<Env> {
       catchRange: this.logic.CFG.CATCH_R,
       reveal: G.revealEvery,
       shrink: !!G.shrink,
+      ...(G.mode === "zombie" ? { mode: "zombie", balance: G.balance, look: agent.look, wait: G.wait } : {}),
     });
   }
 
@@ -563,7 +615,8 @@ export class Room extends DurableObject<Env> {
       humans: G.agents.filter((a: any) => a.isPlayer).length,
       scale: this.scale,
       theme: G.theme,
-      sec: Math.round(Math.max(0, G.t - this.logic.CFG.WAIT)),
+      mode: G.mode || "classic",
+      sec: Math.round(Math.max(0, G.t - (G.wait ?? this.logic.CFG.WAIT))),
       ...G.stats,
       // 사람별 왕복 시간(ms)과 다시 연결한 횟수. 편만 남기고 이름과 캐릭터 번호는 남기지 않는다
       net: [...this.netLog.entries()].map(([id, r]) => {
