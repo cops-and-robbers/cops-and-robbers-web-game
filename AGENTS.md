@@ -31,7 +31,7 @@ pnpm run build   # dist/game.html
 | 화면 문구, 영어와 일본어 | `docs/i18n.md` |
 | 게임 방법 안내(첫 화면 버튼, 장면 대본) | `docs/guide.md` |
 | 혼자 하기 시작 화면(팀, 난이도, 지도 고르기) | `docs/solo-start.md` |
-| 좀비 모드 규칙(감염, 구조차, 판 균형, 첫 좀비) | `docs/zombie.md` |
+| 좀비 모드(규칙, 화면, 모드 카드, 대기실) | `docs/zombie.md` |
 | 구역 축소 모드(방 옵션, 흰 선, 남은 시간 칸) | `docs/shrink.md` |
 | 무엇을 어떤 순서로 만드는지 | `docs/roadmap.md` |
 
