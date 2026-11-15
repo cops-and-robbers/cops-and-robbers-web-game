@@ -137,6 +137,8 @@ function createSolo() {
   $("soloGo").onclick = () => {
     if (!team) return;
     const go = theme === "random" ? undefined : seed;
+    // 지도를 고르자마자 누르면 0.14초 뒤 미리보기가 시작한 판을 덮어쓴다. 남은 미리보기를 지운다
+    clearTimeout(pending);
     hide(); sheet.className = "sheet";
     pickDiff = diff; pickTheme = theme; pickShrink = shrink;
     start(team, go); syncRotate(); tryLandscape();
