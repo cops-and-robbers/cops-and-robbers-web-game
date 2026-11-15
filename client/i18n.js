@@ -146,6 +146,16 @@ const I18N = {
         {team: "robber", title: "감옥 문을 열어 줘요", text: "잡히면 감옥에 갇혀요. 같은 편이 감옥 문 앞에 잠깐 서 있으면 문이 열려요. 막 나온 도둑은 잠깐 동안 잡히지 않아요."},
       ],
     },
+    // 좀비 모드 게임 방법(client/guide.js ZSCENES). 같은 순서로 네 장면
+    zbGuide: {
+      team: { all: "모두", police: "좀비", robber: "생존자" },
+      steps: [
+        {team: "all", title: "한 명이 좀비로 시작해요", text: "시작하면 한 명이 좀비로 뽑혀요. 좀비가 잠깐 제자리에서 기다리는 동안 생존자는 멀리 흩어져요."},
+        {team: "police", title: "물어서 좀비를 늘려요", touch: "좀비는 생존자에게 다가가 물기 버튼을 눌러요. 물린 생존자는 잠깐 비틀거리다 좀비가 돼요.", pc: "좀비는 생존자에게 다가가 Space를 눌러요. 물린 생존자는 잠깐 비틀거리다 좀비가 돼요."},
+        {team: "robber", title: "심장이 뛰면 좀비가 가까워요", text: "안 보이는 좀비가 가까이 오면 심장 소리가 빨라지고 화면 가장자리가 붉게 뛰어요. 수풀에 숨거나 반대쪽으로 달려요."},
+        {team: "robber", title: "구조차를 타면 이겨요", text: "끝나기 전에 무전이 오면 지도에 정류장이 떠요. 구조차가 서면 노란 칸 안에 잠깐 머물러 타요. 한 명이라도 타면 생존자가, 아무도 못 타면 좀비가 이겨요."},
+      ],
+    },
     // 혼자 하기 화면(client/solo.js). 첫 화면 칸 이름 "solo" 와 겹치지 않게 soloPage
     soloPage: {
       title: "혼자 해 보기", team: "팀", map: "지도", reroll: "다른 지도", rulesTitle: "규칙 한눈에 보기", pickTeam: "팀을 골라 주세요",
@@ -263,6 +273,15 @@ const I18N = {
         {team: "robber", title: "Let your teammates out", text: "Caught robbers are locked in jail. Stand in front of the jail door for a moment to open it for your teammates. Robbers who just got out can't be caught for a short while."},
       ],
     },
+    zbGuide: {
+      team: { all: "Everyone", police: "Zombie", robber: "Survivor" },
+      steps: [
+        {team: "all", title: "One player starts as the zombie", text: "When the game starts, one player is picked as the zombie. The zombie waits in place for a moment while survivors scatter."},
+        {team: "police", title: "Bite to spread", touch: "As a zombie, get close to a survivor and tap Bite. A bitten survivor staggers for a moment, then turns.", pc: "As a zombie, get close to a survivor and press Space. A bitten survivor staggers for a moment, then turns."},
+        {team: "robber", title: "A racing heart means a zombie is near", text: "When a zombie you can't see gets close, the heartbeat speeds up and the screen edges pulse red. Hide in a bush or run the other way."},
+        {team: "robber", title: "Catch the van to win", text: "Before the end, a radio call puts a stop on the map. When the van pulls in, stay inside the yellow box for a moment to board. If anyone boards, survivors win. If no one does, zombies win."},
+      ],
+    },
     soloPage: {
       title: "Play solo", team: "Side", map: "Map", reroll: "New map", rulesTitle: "Rules at a glance", pickTeam: "Pick a side",
       go: { police: "Start as a cop", robber: "Start as a robber" },
@@ -377,6 +396,15 @@ const I18N = {
         {team: "police", title: "黄色い印が出たら", touch: "泥棒の足元に黄色い印が出たら、「捕まえる」を押しましょう。捕まった泥棒は牢屋に入ります。", pc: "泥棒の足元に黄色い印が出たら、Spaceを押しましょう。捕まった泥棒は牢屋に入ります。"},
         {team: "all", title: "赤い印をチェック", text: "ときどき警察の地図に赤い印が出て、泥棒がどこにいるかわかります。赤い点線の外に長くいる泥棒も、赤い印で表示されます。"},
         {team: "robber", title: "仲間を牢屋から出そう", text: "捕まると牢屋に閉じ込められます。仲間が牢屋の扉の前に少しの間立つと、扉が開きます。出たばかりの泥棒は、少しの間は捕まりません。"},
+      ],
+    },
+    zbGuide: {
+      team: { all: "みんな", police: "ゾンビ", robber: "生存者" },
+      steps: [
+        {team: "all", title: "ひとりがゾンビで始まります", text: "始まるとひとりがゾンビに選ばれます。ゾンビが少しその場で待つあいだに、生存者は遠くへ散らばります。"},
+        {team: "police", title: "かんで仲間を増やします", touch: "ゾンビは生存者に近づいて「かむ」ボタンを押します。かまれた生存者は少しふらついてからゾンビになります。", pc: "ゾンビは生存者に近づいてSpaceを押します。かまれた生存者は少しふらついてからゾンビになります。"},
+        {team: "robber", title: "鼓動が速いとゾンビが近い", text: "見えないゾンビが近づくと鼓動が速くなり、画面のふちが赤く脈打ちます。茂みに隠れるか反対へ走りましょう。"},
+        {team: "robber", title: "救助車に乗れば勝ち", text: "終わる前に無線が来ると地図に停留所が出ます。救助車が着いたら黄色い枠の中に少しとどまって乗ります。ひとりでも乗れば生存者、だれも乗れなければゾンビの勝ちです。"},
       ],
     },
     soloPage: {

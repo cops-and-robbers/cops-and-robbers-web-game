@@ -173,7 +173,7 @@ function createSolo() {
   };
   q(".stBack").onclick = leave; exitBtn.onclick = leave;
   // 고르는 칸의 게임 방법: 안내를 보는 동안 지도 미리보기를 멈추고, 닫으면 다시 그린다
-  q("[data-solo-guide]").onclick = e => { const b = e.currentTarget; hide(); (guide ||= createGuide()).open(b, () => show(fromHome)); };
+  q("[data-solo-guide]").onclick = e => { const b = e.currentTarget; hide(); (guide ||= createGuide()).open(b, () => show(fromHome), mode); };
   addEventListener("resize", () => { if (open) { layout(); } });
   return { show, hide, get open() { return open; } };
 }

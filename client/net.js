@@ -50,7 +50,7 @@ function createOnline() {
   net.guide = btn => {
     if (!scene.active) return;
     scene.leave(); inGuide = true;
-    (guide ||= createGuide()).open(btn, () => { inGuide = false; if (lastLobby && !wasPlaying && !ended) scene.enter(lastLobby); });
+    (guide ||= createGuide()).open(btn, () => { inGuide = false; if (lastLobby && !wasPlaying && !ended) scene.enter(lastLobby); }, lastLobby?.mode);
   };
   const leaveGuide = () => { if (inGuide) guide.close(); };
   // 들어갈 수 없을 때. 다시 붙지 않게 멈추고 할 수 있는 일 하나만 보여 준다
