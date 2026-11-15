@@ -6,7 +6,7 @@
 // 5) 시작 멈춤 동안은 시계도 사람도 움직이지 않고, 끝나면 그대로 대기가 이어진다
 // 6) 팀 MVP: 경찰은 많이 잡은 사람, 도둑은 덜 잡힌 사람. 사람이 둘 이상이면 봇은 후보가 아니다
 import "../shared/logic.js";
-import { viewFor } from "../shared/view.js";
+import { viewFor, canSee } from "../shared/view.js";
 
 const DT = 1 / 20;
 let bad = 0, checks = 0;
@@ -129,6 +129,69 @@ function hold(logic, G, a, at, sec) {
   c3.isPlayer = false; r3.isPlayer = false;
   m = logic.pickMvp(G);
   ok(m.police !== c3.id && m.robber !== r3.id, "나간 사람이 MVP 가 됐어요", m);
+}
+
+// 구역 축소(방 옵션, docs/shrink.md)
+// 6) 3분 판이면 출동 뒤 33초 간격으로 네 번, 크기는 1 에서 0.7 까지 같은 폭으로, 경계는 8초 동안 이어서 줄어든다
+// 7) 감옥 문 둘레는 마지막 구역 안에 남는다
+// 8) 줄어든 경계 밖 도둑은 처음 구역 안이어도 5초 뒤 위치가 드러나고, 밖에서는 상대가 안 보인다. 끈 판은 그대로다
+// 9) 서버와 화면이 같은 값으로 newGame 을 부르면 같은 계획을 얻는다(판 중에 구역을 보내지 않는다)
+{
+  const logic = globalThis.createGameLogic(), C = logic.CFG;
+  const G = logic.newGame({ seed: 4242, theme: "town", diff: "normal", police: 1, robbers: 2, shrink: true });
+  const P = G.shrink, gap = (C.DURATION - C.WAIT) / 5;
+  ok(P && P.at.length === 4, "축소가 네 번이 아니에요", P?.at);
+  ok(P.at.every((t, i) => Math.abs(t - (C.WAIT + gap * (i + 1))) < 0.11), "축소 시각이 앱 공식과 달라요", P.at);
+  ok(Math.abs(P.k[4] - C.SHRINK.FINAL) < 1e-9 && P.k.every((k, i) => !i || Math.abs(P.k[i - 1] - k - (1 - C.SHRINK.FINAL) / 4) < 1e-9), "크기가 같은 폭으로 줄지 않아요", P.k);
+  ok(logic.zoneK(G, P.at[0] - 0.01) === 1 && Math.abs(logic.zoneK(G, P.at[0] + P.move / 2) - (1 + P.k[1]) / 2) < 1e-9 && Math.abs(logic.zoneK(G, P.at[0] + P.move) - P.k[1]) < 1e-9, "경계가 이어서 줄지 않아요");
+  let prev = 1, mono = true;
+  for (let t = 0; t <= C.DURATION; t += 0.5) { const k = logic.zoneK(G, t); if (k > prev + 1e-12) mono = false; prev = k; }
+  ok(mono && Math.abs(prev - C.SHRINK.FINAL) < 1e-9, "구역이 다시 커지거나 끝 크기가 틀려요", prev);
+  const J = C.JAIL;
+  let gateIn = true;
+  for (let i = 0; i < 36; i++) { const a = i / 36 * Math.PI * 2; if (!logic.inZoneK(P, P.k[4], J.x + Math.cos(a) * C.GATE_R, J.y + Math.sin(a) * C.GATE_R)) gateIn = false; }
+  ok(gateIn, "감옥 문 둘레가 마지막 구역 밖이에요");
+  const s = logic.shrinkState(G, P.at[1] - 4);
+  ok(s.done === 1 && !s.moving && Math.abs(s.left - 4) < 1e-9 && s.next === P.k[2], "남은 시간과 다음 크기가 틀려요", s);
+  ok(logic.shrinkState(G, P.at[3] + P.move).final, "마지막 뒤에도 더 줄어든대요");
+
+  const same = globalThis.createGameLogic().newGame({ seed: 4242, theme: "town", diff: "normal", police: 1, robbers: 2, shrink: true, intro: C.INTRO });
+  ok(JSON.stringify(same.shrink) === JSON.stringify(P), "같은 값인데 다른 계획이 나왔어요");
+  ok(!globalThis.createGameLogic().newGame({ seed: 4242, theme: "town", diff: "normal" }).shrink, "끈 판에 축소 계획이 있어요");
+
+  // 처음 구역 안, 마지막 구역 밖인 자리
+  const spot = (() => {
+    for (let i = 0; i < logic.ZONE.length; i += 3) { const v = logic.ZONE[i], x = P.cx + (v.x - P.cx) * 0.86, y = P.cy + (v.y - P.cy) * 0.86; if (logic.inZone(x, y) && !logic.solidAt(x, y)) return { x, y }; }
+    throw new Error("시험할 자리를 못 찾았어요");
+  })();
+  for (const a of G.agents) a.isPlayer = true;
+  G.phase = "play"; G.t = P.at[3] + P.move + 1; G.shrinkN = 4; G.nextReveal = 1e9;
+  const [cop] = G.police, [r1, r2] = G.robbers;
+  cop.state = "free"; cop.x = J.x; cop.y = J.y + 80; r2.x = J.x + 260; r2.y = J.y;
+  ok(!logic.inZoneNow(G, spot.x, spot.y) && logic.inZone(spot.x, spot.y), "시험 자리가 줄어든 경계 밖이 아니에요");
+  hold(logic, G, r1, spot, 4.8);
+  ok(!G.pings.some(p => p.out), "줄어든 경계 밖인데 5초 전에 위치가 보였어요");
+  hold(logic, G, r1, spot, 0.4);
+  ok(G.pings.some(p => p.out && p.id === r1.id), "줄어든 경계 밖에 5초 넘게 있었는데 위치가 안 보여요");
+  r1.faceA = Math.atan2(cop.y - r1.y, cop.x - r1.x);
+  ok(!canSee(logic, G, r1, cop), "구역 밖에서 상대가 보여요");
+
+  const off = globalThis.createGameLogic();
+  const G2 = off.newGame({ seed: 4242, theme: "town", diff: "normal", police: 1, robbers: 2 });
+  for (const a of G2.agents) a.isPlayer = true;
+  G2.phase = "play"; G2.t = 160; G2.nextReveal = 1e9;
+  G2.police[0].state = "free"; G2.police[0].x = J.x; G2.police[0].y = J.y + 80;
+  hold(off, G2, G2.robbers[0], spot, 6);
+  ok(!G2.pings.some(p => p.out), "축소를 끈 판에서 처음 구역 안인데 위치가 보였어요");
+}
+{
+  // 끝까지 한 판: 축소 알림이 네 번, 차례대로. 아무도 움직이지 않게 모두 사람으로 둔다
+  const logic = globalThis.createGameLogic();
+  const G = logic.newGame({ seed: 99, theme: "park", diff: "normal", shrink: true });
+  for (const a of G.agents) a.isPlayer = true;
+  const ns = [];
+  while (!G.over) { logic.step(G, DT); for (const e of G.events.splice(0)) if (e.type === "shrink") ns.push(e.n); }
+  ok(ns.join() === "1,2,3,4" && G.over.reason === "timeUp", "축소 알림이 네 번 차례대로 오지 않았어요", [ns, G.over]);
 }
 
 console.log(`규칙 확인 ${checks}번 | 문제 ${bad}`);

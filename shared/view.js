@@ -5,7 +5,7 @@ const round = v => Math.round(v);
 
 export function canSee(logic, G, me, other) {
   if (G.over || other.team === me.team) return true;
-  return me.state !== "waiting" && logic.inZone(me.x, me.y) && logic.sees(me, other);
+  return me.state !== "waiting" && logic.inZoneNow(G, me.x, me.y) && logic.sees(me, other);
 }
 
 function publicAgent(a) {
