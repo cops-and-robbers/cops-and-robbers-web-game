@@ -201,8 +201,10 @@ function createGuide() {
     idx = i; sc = SCENES[i]; t = 0; catchT = 0;
     // 판 길이는 실제와 같게 둔다. 장면은 몇 초라 판이 끝나지 않는다
     Object.assign(CFG, { WAIT: sc.wait ?? 0, DURATION: 180, AUTO_ESCAPE: false, RESCUE_SEC: 1.2 });
-    showGame(sc.team, { role: sc.team, seed: 2611, theme: "town", diff: "normal", police: sc.police, robbers: sc.robbers, reveal: 35, ...(set === "zombie" ? { mode: "zombie", balance: "even" } : {}) }, G2 => {
-      L.loadMap(MAP); G2.map = MAP; G2.theme = "town"; G2.th = THEMES.town;
+    showGame(sc.team, { role: sc.team, seed: 2611, theme: set === "zombie" ? "zombie" : "town", diff: "normal", police: sc.police, robbers: sc.robbers, reveal: 35, ...(set === "zombie" ? { mode: "zombie", balance: "even" } : {}) }, G2 => {
+      // 좀비 모드 장면은 좀비 지도(버려진 마을) 색과 바닥으로 연기한다
+      const th = set === "zombie" ? "zombie" : "town";
+      L.loadMap(MAP); G2.map = MAP; G2.theme = th; G2.th = THEMES[th];
       // 좀비 판은 깨어나는 시각을 G.wait 로 쓴다
       if (set === "zombie") G2.wait = sc.wait ?? 0;
       if (!sc.wait) { G2.phase = "play"; for (const c of G2.police) c.state = "free"; }

@@ -148,6 +148,8 @@ body.lobby-mode .char.shade svg { filter:saturate(.55) contrast(.78) brightness(
 #lob.drawing > :not(.zSpot) { opacity:0; pointer-events:none; transition:opacity .25s; }
 @media (prefers-reduced-motion:reduce) { .zSpot.land canvas, .zSpot.land .zSpotTx b { animation:none; } .zSpotTx small { animation:none; opacity:1; transform:none; } }
 #start[data-game=zombie] .team b { white-space:nowrap; font-size:15px; }
+/* 좀비 모드는 늘 좀비 지도라 지도 고르기 칸을 숨긴다("다른 지도"는 남긴다) */
+#start[data-game=zombie] .maps { display:none; }
 
 /* ── 좀비 모드 대기실: 밤 바닥, 방 코드 칸의 모드 그림, 정류장 표지판, 모드 줄 ── */
 .code.zroom { gap:8px; padding-left:6px; } .code .zIcon { width:36px; height:36px; border-radius:11px; background:#2A2342; object-fit:contain; object-position:center 20%; padding:3px; box-sizing:border-box; }

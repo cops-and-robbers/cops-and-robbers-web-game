@@ -35,7 +35,7 @@ function createLobbyScene(net) {
       tree(700, 1150, 74), tree(1180, 470, 66), tree(2060, 470, 70), tree(2500, 1180, 72), tree(640, 760, 64), tree(2560, 760, 68),
     ],
     bushes: [hedge(860, 700, 58), hedge(2350, 700, 62), hedge(1170, 1160, 72), hedge(2060, 1170, 70), hedge(620, 1000, 50), hedge(2580, 980, 50)],
-    theme: "night", bare: true,
+    theme: "zombie", bare: true,
   };
   const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const stroke2 = (x1, y1, x2, y2, r, j) => { const n = a => (r() - .5) * a; return `M${(x1 + n(6)).toFixed(1)} ${(y1 + n(6)).toFixed(1)}Q${((x1 + x2) / 2 + n(j)).toFixed(1)} ${((y1 + y2) / 2 + n(j)).toFixed(1)} ${(x2 + n(6)).toFixed(1)} ${(y2 + n(6)).toFixed(1)}`; };
@@ -83,8 +83,6 @@ function createLobbyScene(net) {
   function paintLot() {
     const m = $("map").getContext("2d"), r = rng(907), A = { x0: 650, x1: 2550, y0: 600, y1: 1190 };
     m.save();
-    // 밤 공기: 지도 전체를 회녹색으로 눌러 경찰과 도둑의 밤 골목과 다르게 보이게
-    m.globalCompositeOperation = "multiply"; m.fillStyle = "#8C998F"; m.fillRect(0, 0, MW, MH); m.globalCompositeOperation = "source-over";
     // 가장자리가 부서진 아스팔트
     const edge = new Path2D(), jag = () => (r() - .5) * 34;
     edge.moveTo(A.x0, A.y0 + jag());
@@ -351,8 +349,9 @@ function createLobbyScene(net) {
       chars.forEach(c => c.el.remove()); chars = [];
       // 지난 판의 장면(MVP 공개 등)이 남아 있으면 걷는다. 대기실에서는 시작 장면을 띄우지 않는다(game.js drawHud)
       Scenes.reset();
-      const z = m.mode === "zombie", theme = z ? "night" : "town", MAP = z ? ZOMBIE_LOBBY_MAP : LOBBY_MAP;
-      G = newGame({ seed: 11, theme, role: "police", police: 4, robbers: 4 });
+      const z = m.mode === "zombie", theme = z ? "zombie" : "town", MAP = z ? ZOMBIE_LOBBY_MAP : LOBBY_MAP;
+      // 좀비 지도는 좀비 판에서만 고르게 되어 있어(newGame) 대기실은 테마를 직접 입힌다
+      G = newGame({ seed: 11, theme, role: "police", police: 4, robbers: 4 }); G.theme = theme; G.th = THEMES[theme];
       L.loadMap(MAP); G.map = MAP; CFG.WAIT = 1e9; G.phase = "wait"; G.nextReveal = 1e9; role = "police"; ended = false;
       pool = [...G.agents]; G.agents = []; G.events.length = 0; people = new Map(); bots = []; me = null; G.player = pool[0];
       document.querySelectorAll(".bush").forEach(n => n.remove());
