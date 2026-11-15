@@ -9,7 +9,7 @@
 | `join` | `name` 처음 입장, `token` 끊겼다 돌아올 때 |
 | `start` | 방장만 보낼 수 있어요. 3초 뒤 시작해요 |
 | `side` | `side` `cop`, `any`, `rob`. 칸이 바뀔 때만 보내요 |
-| `seats` | 방장만. `cops`, `robs`, `bots`, `open` 공개 방, `shrink` 구역 축소. 합쳐서 8명까지. `open`, `shrink` 를 빼면 그대로 둬요 |
+| `seats` | 방장만. `cops`, `robs`, `bots`, `open` 공개 방, `shrink` 구역 축소, `mode` 놀이 방식(`classic`, `zombie`), `balance` 좀비 모드 판 균형(`surv`, `even`, `zomb`). 합쳐서 8명까지. `open`, `shrink`, `mode`, `balance` 를 빼면 그대로 둬요. 좀비 모드에서 `cops + robs` 는 방 인원이고 칸(`side`)은 생김새(고양이, 쥐)만 골라 인원 제한이 없어요 |
 | `say` | `i` 정해진 말 번호 |
 | `input` | `x`, `y` -1~1 이동, `s` 달리기, `c` 잡기. 초당 20번을 넘으면 버려요 |
 | `ping` | `n` 지연 측정, `rtt` 직전에 잰 왕복 시간(ms, 판 결과에 사람별로 남아요) |
@@ -22,12 +22,12 @@
 | `t` | 내용 |
 | --- | --- |
 | `joined` | `token` 돌아올 때 쓰는 값 |
-| `lobby` | `players` 명단(`id`, `name`, `side`), `you`, `host` 내가 방장인지, `cops`, `robs`, `bots`, `open`, `shrink`, `max` |
+| `lobby` | `players` 명단(`id`, `name`, `side`), `you`, `host` 내가 방장인지, `cops`, `robs`, `bots`, `open`, `shrink`, `mode`, `balance`, `max` |
 | `count` | `ms` 시작까지 남은 시간 |
 | `say` | `id` 말한 사람, `i` 정해진 말 번호 |
-| `start` | `seed` 같은 지도를 만드는 값, `scale` 지도 크기(인원 4명까지 1, 8명이면 1.2), `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값, `intro` 판 시작 멈춤 초(역할 배너가 뜨는 동안 아무도 못 움직이고 시계도 안 가요), `shrink` 구역 축소 판인지. 축소 시각과 크기는 화면이 같은 값으로 `newGame` 을 불러 직접 얻어요(`docs/shrink.md`) |
-| `s` | 갱신. `time`, `phase`, `intro` 남은 시작 멈춤(멈춤 동안만), `me`(도둑은 `out` 구역 밖에 있은 초), `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel` |
-| `e` | 사건 목록. 위치는 싣지 않아요. 구역 밖 공개가 시작되면 `outReveal`(`r` 그 도둑) 한 번. 구역 축소 판은 경계가 줄기 시작할 때 `shrink`(`n` 몇 번째) |
+| `start` | `seed` 같은 지도를 만드는 값, `scale` 지도 크기(인원 4명까지 1, 8명이면 1.2), `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값, `intro` 판 시작 멈춤 초(역할 배너가 뜨는 동안 아무도 못 움직이고 시계도 안 가요), `shrink` 구역 축소 판인지. 축소 시각과 크기는 화면이 같은 값으로 `newGame` 을 불러 직접 얻어요(`docs/shrink.md`). 좀비 판은 `mode: "zombie"`, `balance`, `look` 내 생김새, `wait` 좀비가 깨어나는 초를 더 실어요. `team` 은 좀비가 `police`, 생존자가 `robber` 예요(`docs/zombie.md`) |
+| `s` | 갱신. `time`, `phase`, `intro` 남은 시작 멈춤(멈춤 동안만), `me`(도둑은 `out` 구역 밖에 있은 초), `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel`. 좀비 판은 `van` 내가 아는 정류장(`x`, `y`, `open` 서는 시각, `close` 떠나는 시각), `escaped` 탄 사람 수, 생존자 `me.heart` 가장 가까운 좀비까지 0~3 단계, `me.board` 타는 중인 초. 상대(`others`)는 편과 생김새가 다르면 `look` |
+| `e` | 사건 목록. 위치는 싣지 않아요. 구역 밖 공개가 시작되면 `outReveal`(`r` 그 도둑) 한 번. 구역 축소 판은 경계가 줄기 시작할 때 `shrink`(`n` 몇 번째). 좀비 판은 `bitten`(`r` 물린 사람, `by`), `turned`(`r` 좀비가 됨), `boarded`(`r` 구조차에 탐), `vanRadio`(생존자에게만), `vanOpen`, `vanLeave` |
 | `over` | `winner`, `reason`, `stats`, `mine` 내 기록, `mvp` 팀별 MVP `{ police: {id, name}, robber: {id, name} }`(후보가 없는 팀은 `null`) |
 | `pong` | `n` |
 | `where` | `entry` 들어온 Cloudflare 위치, `room` 방 서버 위치 |
@@ -39,6 +39,7 @@
 
 - 경찰: 잡은 횟수가 많은 순, 같으면 많이 움직인 순, 그래도 같으면 먼저 들어온 순
 - 도둑: 잡힌 횟수가 적은 순, 끝났을 때 감옥 밖, 구해 준 동료 수, 숨어 있던 시간, 많이 움직인 순, 먼저 들어온 순
+- 좀비 판은 `police` 자리에 좀비 MVP(감염시킨 수가 많은 순, 많이 움직인 순), `robber` 자리에 생존자 MVP(먼저 탄 순, 물리지 않은 사람, 오래 버틴 순)가 와요. 생존자로 시작한 사람만 생존자 후보예요
 - 사람이 두 명 이상인 판은 사람만 후보예요. 혼자 하기는 봇도 후보예요. 후보가 없는 팀은 무대를 건너뛰어요
 
 ## 열린 방 목록
@@ -65,3 +66,6 @@
 | 위치 공개 표시(35초마다, 구역 밖 5초 넘으면 1초마다) | 경찰 전체, 도둑은 자기 표시만 |
 | 잡기 시도와 실패 | 그 장면이 보이는 사람 |
 | 체포, 탈옥, 구조, 남은 시간, 승패 | 전체 |
+| 좀비 판의 물림, 감염, 탐 | 전체 |
+| 구조차 무전과 정류장 자리 | 생존자는 무전 때부터, 좀비는 차가 선 뒤부터 |
+| 심장 소리 단계(위치와 방향 없이) | 그 생존자만 |
