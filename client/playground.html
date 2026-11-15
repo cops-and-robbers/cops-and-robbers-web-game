@@ -190,7 +190,7 @@
     const flip = document.createElementNS(NS, "g"); svg.append(flip); flip.append(all);
     updateLimbs(); // 처음부터 제자리에 둔다. 안 그러면 첫 장면에 왼쪽 위 모서리에 점이 찍힌다
     return {
-      svg, def, parts, all, flip,
+      svg, def, parts, all, flip, limbs,
       set(part, tf) { (parts[part] || []).forEach(g => g.setAttribute("transform", tf)); },
       updateLimbs,
       reset() { Object.values(parts).flat().forEach(g => { g.removeAttribute("transform"); g.style.opacity = ""; }); all.removeAttribute("transform"); updateLimbs(); },
@@ -414,24 +414,31 @@
       }
     } };
   };
-  // 앞모습과 뒷모습: 손을 가슴 높이로 들고 좌우로 조금 휘청인다.
-  // 고양이(police)는 팔이 몸 그림에 붙어 있어 따로 움직일 수 없다. 앞모습은 앞으로 뻗은 두 손을, 뒷모습은 몸 옆으로 삐져나온 팔을 덧그린다
-  const zPaw = (x, y, back) => { const g = document.createElementNS(NS, "g"); g.innerHTML = back
-    ? `<ellipse cx="${x}" cy="${y}" rx="13" ry="11" fill="#86AE8F"/><ellipse cx="${x}" cy="${y - 1}" rx="10.5" ry="8.5" fill="#AECBB2"/>`
-    : `<ellipse cx="${x}" cy="${y}" rx="15" ry="13" fill="#86AE8F"/><ellipse cx="${x}" cy="${y - 1}" rx="12.5" ry="10.5" fill="#C3DAC3"/><path d="M${x - 6} ${y - 7}v4M${x} ${y - 8}v4M${x + 6} ${y - 7}v4" stroke="#86AE8F" stroke-width="2.2" stroke-linecap="round"/>`; return g; };
+  // 앞모습과 뒷모습: 앞발(손)을 가슴 높이로 들고 좌우로 조금 휘청인다.
+  // 냥파의 앞발은 몸 윤곽 아래쪽 양옆의 짧은 돌기(y 150~168)다. 얼굴 옆 큰 동그라미는 볼이라 건드리지 않는다.
+  // 돌기는 몸 그림에 붙어 있어 따로 움직일 수 없으니 가리기(mask)로 지우고, 같은 어깨 자리에서 앞으로 뻗어 올린 팔 두 개만 그린다.
+  // 뒷모습은 앞발이 몸 앞으로 가 있으니 돌기만 지운다. 팔은 늘 둘이다
+  let zMaskN = 0;
+  function catZombieArms(rig, back) {
+    const id = `zArmCut${++zMaskN}`, defs = rig.svg.querySelector("defs") || rig.svg.insertBefore(document.createElementNS(NS, "defs"), rig.svg.firstChild);
+    const m = document.createElementNS(NS, "mask"); m.id = id; m.setAttribute("maskUnits", "userSpaceOnUse"); m.setAttribute("x", -40); m.setAttribute("y", -40); m.setAttribute("width", 260); m.setAttribute("height", 280);
+    m.innerHTML = `<rect x="-40" y="-40" width="260" height="280" fill="#fff"/><ellipse cx="25" cy="158" rx="11" ry="14" fill="#000"/><ellipse cx="155" cy="158" rx="11" ry="14" fill="#000"/>`;
+    defs.append(m);
+    (rig.parts.body || []).forEach(g => g.setAttribute("mask", `url(#${id})`));
+    if (back) return null;
+    const arm = (sx, px) => { const g = document.createElementNS(NS, "g"); g.innerHTML = `<path d="M${sx} 156L${px} 134" stroke="#AECBB2" stroke-width="22" stroke-linecap="round"/><path d="M${sx} 156L${px} 134" stroke="#C3DAC3" stroke-width="17" stroke-linecap="round"/><circle cx="${px}" cy="133" r="12" fill="#AECBB2"/><circle cx="${px}" cy="133" r="9.5" fill="#C3DAC3"/><path d="M${px - 4} ${128}v3M${px} ${127}v3M${px + 4} ${128}v3" stroke="#86AE8F" stroke-width="1.6" stroke-linecap="round"/>`; rig.all.append(g); return g; };
+    return [arm(38, 50), arm(142, 130)];
+  }
   MOTIONS.shambleFront = (rig) => {
-    const d = rig.def, rob = d.name.startsWith("robber"), back = d.name.endsWith("back"); let ph = 0; const arm = new Spring(90, 6);
-    if (!rob && !rig.zPaws) {
-      rig.zPaws = back ? [zPaw(17, 128, true), zPaw(163, 128, true)] : [zPaw(50, 130), zPaw(130, 130)];
-      rig.zPaws.forEach(p => (back ? rig.all.insertBefore(p, rig.all.firstChild) : rig.all.append(p)));
-    }
+    const d = rig.def, rob = d.name.startsWith("robber"); let ph = 0; const arm = new Spring(90, 6);
+    if (!rob && !rig.zCat) rig.zCat = { arms: catZombieArms(rig, d.name.endsWith("back")) };
     return { update(dt, ctx = {}) {
       const speed = ctx.speed ?? 0.9, T = 1.15 / (0.55 + 0.45 * speed);
       ph = (ph + dt / T) % 1; const u = limp(ph);
       const sway = 3 * Math.sin(u * TAU), y = 2.5 * Math.abs(Math.sin(u * TAU)), a = arm.step(y * 1.4, dt);
       rig.all.setAttribute("transform", piv(d.cx, d.ground, sway, 1, 1, 0, y));
       if (rob) { rig.set("handL", piv(41, 113, 0, 1.12, 1.12, 8, -12 + a)); rig.set("handR", piv(119, 113, 0, 1.12, 1.12, -8, -12 + a * 0.7)); }
-      else { rig.zPaws[0].setAttribute("transform", `translate(0,${-a})`); rig.zPaws[1].setAttribute("transform", `translate(0,${-a * 0.7})`); }
+      else if (rig.zCat.arms) { rig.zCat.arms[0].setAttribute("transform", `translate(0,${-a})`); rig.zCat.arms[1].setAttribute("transform", `translate(0,${-a * 0.7})`); }
       const L = Math.max(0, Math.sin(u * TAU)), R = Math.max(0, -Math.sin(u * TAU));
       const fl = rob ? [[61, 140], [99, 140]] : [[52, 196], [126, 196]];
       rig.set("footL", piv(fl[0][0], fl[0][1], 0, 1, 1, 0, -4 * L));

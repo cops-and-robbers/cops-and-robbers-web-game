@@ -22,7 +22,14 @@ const ZB = (() => {
     const def = window.CharRig.DEFS[name], saved = def?.limbs?.map(l => l.color), paint = def?.recolor ? { ...def.recolor } : null;
     if (saved) def.limbs.forEach(l => l.color = recolor(l.color));
     if (paint) for (const k in def.recolor) def.recolor[k] = recolor(def.recolor[k]);
-    try { return mount(svg(name), name); } finally { if (saved) def.limbs.forEach((l, i) => l.color = saved[i]); if (paint) Object.assign(def.recolor, paint); }
+    let rig;
+    try { rig = mount(svg(name), name); } finally { if (saved) def.limbs.forEach((l, i) => l.color = saved[i]); if (paint) Object.assign(def.recolor, paint); }
+    // 쥐 좀비의 뒷모습은 앞으로 뻗은 손이 등 뒤에서 어색하게 삐져나와 보여서 손과 팔을 숨긴다(앞으로 뻗어 가려졌다고 본다)
+    if (name === "robber-back") {
+      for (const g of [...(rig.parts.handL || []), ...(rig.parts.handR || [])]) g.setAttribute("display", "none");
+      for (const L of rig.limbs || []) if (/^hand/.test(L.to[0])) L.el.setAttribute("display", "none");
+    }
+    return rig;
   }
   const zombie = a => isZ() && a.team === "police";
   const lookOf = a => a.look || a.team;
