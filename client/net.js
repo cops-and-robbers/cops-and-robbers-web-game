@@ -154,7 +154,7 @@ function createOnline() {
       CFG.AUTO_ESCAPE = m.autoEscape;
       CFG.CATCH_R = m.catchRange;
       // 맵 크기는 인원에 따라 서버가 정한다. 예전 서버는 보내지 않아 1로 본다
-      showGame(m.team, { seed: m.seed, scale: m.scale ?? 1, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers, reveal: m.reveal, intro: m.intro ?? 0 }, G2 => {
+      showGame(m.team, { seed: m.seed, scale: m.scale ?? 1, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers, reveal: m.reveal, intro: m.intro ?? 0, shrink: !!m.shrink }, G2 => {
         G2.player = G2.agents[m.you];
         G2.player.isPlayer = true;
         // 못 본 상대의 이름은 받지 않으니 진영으로 부른다

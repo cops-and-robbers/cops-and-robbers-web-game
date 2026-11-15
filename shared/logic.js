@@ -17,6 +17,10 @@ function createGameLogic() {
     // 구역 밖: 도둑이 이만큼 넘게 밖에 있으면 1초마다 위치를 경찰에게 보인다. 안으로 1초 돌아와야 다시 센다(경계에서 들락날락해도 초가 풀리지 않게)
     OUT_GRACE: 5, OUT_BACK: 1, OUT_PING_EVERY: 1, OUT_PING_SHOW: 1.6,
     POLICE: 2, ROBBERS: 4,
+    // 구역 축소(방 옵션). 앱 4.0.1 과 같이 출동 뒤 (판 길이 - 경찰 대기) / 5 마다 네 번 줄어든다(shrink_schedule.dart).
+    // 마지막 크기는 앱의 40% 가 아니라 70%: 시야가 구역에 비해 넓어 40% 면 봇 125판에서 경찰이 다 이겼다(70% 면 54%). docs/shrink.md
+    // 앱은 한 번에 줄지만 화면이 곧 몸인 온라인은 경계가 MOVE 초 동안 걸어오듯 줄어든다. 감옥 문 둘레는 늘 구역 안에 남긴다
+    SHRINK: { STAGES: 4, FINAL: 0.7, MOVE: 8, WARN: 10, JAIL_ROOM: 160 },
   };
 
   // 테마는 색만이 아니라 판의 성격을 바꾼다. 건물과 덤불의 양, 시야, 골목 폭
@@ -55,6 +59,8 @@ function createGameLogic() {
     return c;
   }
   const inZone = (x, y) => inPoly(ZONE, x, y);
+  // 줄어든 구역은 처음 구역을 감옥 가운데로 k 배 한 모양이다. 점을 거꾸로 늘려 처음 구역에 대 본다
+  const inZoneK = (P, k, x, y) => k >= 1 || !P ? inZone(x, y) : inZone(P.cx + (x - P.cx) / k, P.cy + (y - P.cy) / k);
 
   function segHits(rects, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1;
@@ -313,6 +319,7 @@ function createGameLogic() {
     // intro: 시작 멈춤이 남은 초. 정하지 않으면 0 이라 게임 방법 장면, 검사 판은 그대로 돈다
     const G = { t: 0, intro: opts.intro ?? 0, rnd, over: null, phase: "wait", agents: [], police: [], robbers: [], intel: new Map(), pings: [], revealEvery: opts.reveal ?? side.reveal, rescueT: 0, events: [], playerRole: opts.role || null, stats: { catches: 0, rescues: 0, reveals: 0, outReveals: 0 }, map, theme, th, diff: opts.diff || "normal", vision: CFG.VISION * th.vision };
     G.nextReveal = CFG.WAIT + G.revealEvery;
+    if (opts.shrink) G.shrink = shrinkPlan();
     const mk = (team, name, x, y, isPlayer) => {
       const enemy = opts.role && team !== opts.role;
       const a = { id: G.agents.length, team, name, x, y, vision: G.vision * (enemy ? diff.vision : 1), thinkEvery: enemy ? diff.think : 0.25, sprintAt: enemy ? diff.sprintAt : 1, vx: 0, vy: 0, ix: 0, iy: 0, faceA: team === "police" ? Math.PI / 2 : rnd() * 6.28, sprint: false, stam: 1, tired: false, state: team === "police" ? "waiting" : "free", action: null, catchCd: 0, caughtN: 0, lock: 0, breakT: 0, inBush: false, isPlayer: !!isPlayer && !opts.botPlayer, path: [], goal: null, thinkT: rnd() * 0.3, repathT: 0, ai: { mode: "go", seenT: -99, hideUntil: 0, q: [], lastX: x, lastY: y, stuckT: 0 }, s: { catches: 0, caught: 0, rescued: 0, escapes: 0, spotted: 0, hideT: 0, dist: 0 } };
@@ -332,6 +339,39 @@ function createGameLogic() {
   }
 
   const emit = (G, type, data) => G.events.push({ type, ...data });
+
+  // ───────── 구역 축소 ─────────
+  // 시각과 크기는 판이 시작할 때 다 정해진다. 화면도 같은 값으로 newGame 을 불러 같은 계획을 얻어서, 판 중에 구역을 따로 보내지 않는다
+  function shrinkPlan() {
+    const S = CFG.SHRINK, J = CFG.JAIL, gap = (CFG.DURATION - CFG.WAIT) / (S.STAGES + 1);
+    let near = 1e9;
+    for (let i = 0, j = ZONE.length - 1; i < ZONE.length; j = i++) {
+      const a = ZONE[j], b = ZONE[i], dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((J.x - a.x) * dx + (J.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+      near = Math.min(near, Math.hypot(a.x + dx * t - J.x, a.y + dy * t - J.y));
+    }
+    const end = Math.min(1, Math.max(S.FINAL, (CFG.GATE_R + S.JAIL_ROOM) / near));
+    const at = [], k = [1];
+    for (let i = 1; i <= S.STAGES; i++) { at.push(Math.round((CFG.WAIT + gap * i) * 10) / 10); k.push(1 - (1 - end) * i / S.STAGES); }
+    return { at, k, move: S.MOVE, warn: S.WARN, cx: J.x, cy: J.y };
+  }
+  // t 때의 크기. 줄어드는 동안은 이어지게 옮긴다
+  function zoneK(G, t = G.t) {
+    const P = G.shrink; if (!P) return 1;
+    let k = 1;
+    for (let i = 0; i < P.at.length && t >= P.at[i]; i++) k = P.k[i] + (P.k[i + 1] - P.k[i]) * Math.min(1, (t - P.at[i]) / P.move);
+    return k;
+  }
+  // 화면에 보일 것: 몇 번 줄었는지, 다음 크기, 다음 축소까지 남은 초, 줄어드는 중인지
+  function shrinkState(G, t = G.t) {
+    const P = G.shrink; if (!P) return null;
+    let done = 0; while (done < P.at.length && t >= P.at[done] + P.move) done++;
+    const moving = done < P.at.length && t >= P.at[done];
+    return { k: zoneK(G, t), done, stages: P.at.length, next: done < P.at.length ? P.k[done + 1] : null, at: done < P.at.length ? P.at[done] : null, left: done < P.at.length ? Math.max(0, P.at[done] - t) : null, moving, final: done >= P.at.length };
+  }
+  const inZoneNow = (G, x, y) => inZoneK(G.shrink, zoneK(G), x, y);
+  // 봇이 숨을 자리: 곧 줄어들면 다음 구역 안을 고른다
+  const safeK = G => { const s = shrinkState(G); return !s ? 1 : s.moving || (s.left !== null && s.left < 22) ? s.next : s.k; };
+  const inSafe = (G, x, y) => inZoneK(G.shrink, safeK(G), x, y);
 
   // 누가 누구를 보는가: 거리, 건물, 덤불. 덤불 안은 바로 옆이거나 달리면 들킨다
   // 바라보는 쪽은 멀리, 등 뒤와 옆은 바로 곁만 보인다. 경찰과 도둑이 같은 규칙이다
@@ -468,7 +508,7 @@ function createGameLogic() {
   // 구역 밖에 오래 있는 도둑은 위치가 드러난다. 숨을 곳이 구역 밖으로 넓어지지 않게 하는 규칙이다(앱의 구역 이탈 알림과 같은 결)
   function updateOut(G, r, dt) {
     if (G.phase !== "play" || r.state !== "free") { r.outT = 0; r.inT = 0; r.outSeen = false; return; }
-    const out = !inZone(r.x, r.y);
+    const out = !inZoneNow(G, r.x, r.y);
     if (out) { r.outT = (r.outT || 0) + dt; r.inT = 0; }
     else if (r.outT > 0) { r.inT = (r.inT || 0) + dt; if (r.inT >= CFG.OUT_BACK) { r.outT = 0; r.inT = 0; r.outSeen = false; } }
     if (!out || r.outT < CFG.OUT_GRACE || G.t - (r.outPingT ?? -99) < CFG.OUT_PING_EVERY) return;
@@ -583,7 +623,7 @@ function createGameLogic() {
     }
     if (reached(a, 70) || !a.path.length) {
       const here = { x: a.x, y: a.y };
-      const pool = SPOTS.filter(s => { const d = dist(s, here); return d > 300 && d < 1100; });
+      const pool = SPOTS.filter(s => { const d = dist(s, here); return d > 300 && d < 1100 && (!G.shrink || inZoneNow(G, s.x, s.y)); });
       const s = pool[Math.floor(G.rnd() * pool.length)] || SPOTS[0];
       setGoal(G, a, s.x, s.y);
     }
@@ -595,6 +635,7 @@ function createGameLogic() {
     let best = null, bs = -1e9;
     for (const s of SPOTS) {
       const mine = dist(a, s);
+      if (G.shrink && !inSafe(G, s.x, s.y)) continue;
       const waiting = G.phase === "wait";
       if (mine < 120 || mine > (waiting ? 2600 : 1500)) continue;
       let sc = (s.bush ? 200 : 0) - mine * (waiting ? 0 : 0.25) + G.rnd() * 120;
@@ -636,6 +677,12 @@ function createGameLogic() {
       return;
     }
     a.sprint = false;
+    // 구역이 줄면 다음 구역 안으로 옮긴다
+    if (G.shrink && a.ai.mode !== "rescue" && a.goal && !inSafe(G, a.goal.x, a.goal.y)) {
+      const s = pickHide(G, a, threats); if (s) { setGoal(G, a, s.x, s.y); a.ai.mode = "go"; }
+      a.sprint = !inZoneNow(G, a.x, a.y);
+      return;
+    }
     // 공개되면 들킨 자리를 떠난다
     if (a.ai.revealedT && a.ai.revealedT > (a.ai.movedAfter || -1)) {
       a.ai.movedAfter = G.t;
@@ -691,6 +738,10 @@ function createGameLogic() {
       emit(G, "dispatch", {});
     }
     if (G.phase === "play" && G.t >= G.nextReveal) { G.nextReveal += G.revealEvery; reveal(G); }
+    if (G.shrink && G.phase === "play") {
+      const P = G.shrink, i = G.shrinkN || 0;
+      if (i < P.at.length && G.t >= P.at[i]) { G.shrinkN = i + 1; emit(G, "shrink", { n: i + 1, of: P.at.length }); }
+    }
     G.pings = G.pings.filter(p => G.t - p.t < (p.out ? CFG.OUT_PING_SHOW : CFG.REVEAL_SHOW));
     G.agents.forEach((a, i) => {
       if (a.catchCd > 0) a.catchCd -= dt;
@@ -723,7 +774,7 @@ function createGameLogic() {
     }
   }
 
-  return { loadMap, inCone, CFG, THEMES, DIFF, newGame, step, pickMvp, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
+  return { loadMap, inCone, zoneK, shrinkState, inZoneNow, inZoneK, CFG, THEMES, DIFF, newGame, step, pickMvp, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
     get BUILDINGS() { return BUILDINGS; }, get BUSHES() { return BUSHES; }, get SPOTS() { return SPOTS; }, get ZONE() { return ZONE; }, get ROADS() { return ROADS; }, get PARKS() { return PARKS; } };
 }
 
