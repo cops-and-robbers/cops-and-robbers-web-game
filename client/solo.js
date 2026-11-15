@@ -14,6 +14,8 @@ function createSolo() {
   let team = ["police", "robber"].includes(store.get("team")) ? store.get("team") : null;
   let diff = ["easy", "normal", "hard"].includes(store.get("diff")) ? store.get("diff") : "normal";
   let theme = ["random", ...THEME_KEYS].includes(store.get("theme")) ? store.get("theme") : "random";
+  // 구역 축소는 처음엔 꺼 둔다. 켠 사람만 다음에도 켜진 채로 연다
+  let shrink = store.get("shrink") === "1";
   let seed = newSeed(), shown = null, t = 0, spin = 0, spinT = 0, open = false, fromHome = false, wentFull = false;
   // 폰에서는 나가기를 고르는 칸 밖, 지도 위에 띄운다. 설정을 얼마나 내렸든 바로 나갈 수 있다
   const exitBtn = document.createElement("button");
@@ -96,6 +98,7 @@ function createSolo() {
     qa("[data-diff]").forEach(b => { const on = b.dataset.diff === diff; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
     qa("[data-theme-pick]").forEach(b => { const on = b.dataset.themePick === theme; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
     const go = $("soloGo");
+    q("[data-shrink-pick]").setAttribute("aria-checked", shrink);
     go.disabled = !team;
     go.dataset.team = team || "";
     go.textContent = team ? TX.soloPage.go[team] : TX.soloPage.pickTeam;
@@ -104,6 +107,7 @@ function createSolo() {
     render();
   }
   qa("[data-role-pick]").forEach(b => b.onclick = () => { team = b.dataset.rolePick; store.set("team", team); sync(); });
+  q("[data-shrink-pick]").onclick = () => { shrink = !shrink; store.set("shrink", shrink ? "1" : "0"); sync(); };
   qa("[data-diff]").forEach(b => b.onclick = () => { diff = b.dataset.diff; store.set("diff", diff); sync(); });
   qa("[data-theme-pick]").forEach(b => b.onclick = () => { theme = b.dataset.themePick; store.set("theme", theme); seed = newSeed(); sync(); });
   q(".reroll").onclick = () => { seed = newSeed(); sync(); };
@@ -134,7 +138,7 @@ function createSolo() {
     if (!team) return;
     const go = theme === "random" ? undefined : seed;
     hide(); sheet.className = "sheet";
-    pickDiff = diff; pickTheme = theme;
+    pickDiff = diff; pickTheme = theme; pickShrink = shrink;
     start(team, go); syncRotate(); tryLandscape();
   };
   const leave = () => {
