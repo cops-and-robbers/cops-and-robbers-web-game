@@ -964,11 +964,17 @@ let audio = null, muted = false;
 // 모든 소리는 한 줄기(bus)로 모아 낸다. 소리 끄기와 크기를 한곳에서 다룬다
 let bus = null;
 function ensureBus() { if (audio && !bus) { bus = audio.createGain(); bus.connect(audio.destination); } }
-const SOUND_SRC = { spotted: "data:audio/mpeg;base64,/*B64:sound/spotted.mp3*/", heart: "data:audio/mpeg;base64,/*B64:sound/heart.mp3*/", found: "data:audio/mpeg;base64,/*B64:sound/found.mp3*/", catch: "data:audio/mpeg;base64,/*B64:sound/catch.mp3*/", caught: "data:audio/mpeg;base64,/*B64:sound/caught.mp3*/", miss: "data:audio/mpeg;base64,/*B64:sound/miss.mp3*/", reveal: "data:audio/mpeg;base64,/*B64:sound/reveal.mp3*/", free: "data:audio/mpeg;base64,/*B64:sound/free.mp3*/", go: "data:audio/mpeg;base64,/*B64:sound/go.mp3*/", alert: "data:audio/mpeg;base64,/*B64:sound/alert.mp3*/", tick: "data:audio/mpeg;base64,/*B64:sound/tick.mp3*/", win: "data:audio/mpeg;base64,/*B64:sound/win.mp3*/", lose: "data:audio/mpeg;base64,/*B64:sound/lose.mp3*/" };
+const SOUND_SRC = { spotted: "data:audio/mpeg;base64,/*B64:sound/spotted.mp3*/", heart: "data:audio/mpeg;base64,/*B64:sound/heart.mp3*/", found: "data:audio/mpeg;base64,/*B64:sound/found.mp3*/", catch: "data:audio/mpeg;base64,/*B64:sound/catch.mp3*/", caught: "data:audio/mpeg;base64,/*B64:sound/caught.mp3*/", miss: "data:audio/mpeg;base64,/*B64:sound/miss.mp3*/", reveal: "data:audio/mpeg;base64,/*B64:sound/reveal.mp3*/", free: "data:audio/mpeg;base64,/*B64:sound/free.mp3*/", go: "data:audio/mpeg;base64,/*B64:sound/go.mp3*/", alert: "data:audio/mpeg;base64,/*B64:sound/alert.mp3*/", tick: "data:audio/mpeg;base64,/*B64:sound/tick.mp3*/", win: "data:audio/mpeg;base64,/*B64:sound/win.mp3*/", lose: "data:audio/mpeg;base64,/*B64:sound/lose.mp3*/",
+  // 좀비 모드 소리: tools/zsound.py 로 직접 만든 소리(docs/sound.md "좀비 모드 소리")
+  zHeart: "data:audio/mpeg;base64,/*B64:sound/z-heart.mp3*/", zSpotted: "data:audio/mpeg;base64,/*B64:sound/z-spotted.mp3*/", zFound: "data:audio/mpeg;base64,/*B64:sound/z-found.mp3*/", zBite: "data:audio/mpeg;base64,/*B64:sound/z-bite.mp3*/", zBitten: "data:audio/mpeg;base64,/*B64:sound/z-bitten.mp3*/", zMiss: "data:audio/mpeg;base64,/*B64:sound/z-miss.mp3*/", zReveal: "data:audio/mpeg;base64,/*B64:sound/z-reveal.mp3*/", zRadio: "data:audio/mpeg;base64,/*B64:sound/z-radio.mp3*/", zVan: "data:audio/mpeg;base64,/*B64:sound/z-van.mp3*/", zEscape: "data:audio/mpeg;base64,/*B64:sound/z-escape.mp3*/", zGo: "data:audio/mpeg;base64,/*B64:sound/z-go.mp3*/", zAlert: "data:audio/mpeg;base64,/*B64:sound/z-alert.mp3*/", zTick: "data:audio/mpeg;base64,/*B64:sound/z-tick.mp3*/", zWinS: "data:audio/mpeg;base64,/*B64:sound/z-win-s.mp3*/", zWinZ: "data:audio/mpeg;base64,/*B64:sound/z-win-z.mp3*/", zLose: "data:audio/mpeg;base64,/*B64:sound/z-lose.mp3*/", zSweep: "data:audio/mpeg;base64,/*B64:sound/z-sweep.mp3*/", zDark: "data:audio/mpeg;base64,/*B64:sound/z-dark.mp3*/", zSpot: "data:audio/mpeg;base64,/*B64:sound/z-spot.mp3*/", zAmb: "data:audio/mpeg;base64,/*B64:sound/z-amb.mp3*/" };
 // 순간마다 크기(0~1)와 같은 소리 사이 최소 간격(초). 파일마다 귀에 들리는 크기(LUFS)를 재서 맞췄다. 잡기와 들킴이 기준(1), 사이렌은 같은 최고점이어도 8dB 크게 들려 낮췄다
-const SOUND_MIX = { spotted: [1, 4], heart: [0.68, 0.2], found: [0.45, 3], catch: [0.9, 0.3], caught: [1, 1], miss: [0.78, 0.4], reveal: [0.74, 2], free: [0.65, 1], go: [0.36, 2], alert: [0.36, 4], tick: [0.93, 0.5], win: [0.78, 2], lose: [0.48, 2] };
+const SOUND_MIX = { spotted: [1, 4], heart: [0.68, 0.2], found: [0.45, 3], catch: [0.9, 0.3], caught: [1, 1], miss: [0.78, 0.4], reveal: [0.74, 2], free: [0.65, 1], go: [0.36, 2], alert: [0.36, 4], tick: [0.93, 0.5], win: [0.78, 2], lose: [0.48, 2],
+  zHeart: [0.38, 0.2], zSpotted: [1, 4], zFound: [0.37, 3], zBite: [1, 0.3], zBitten: [0.93, 1], zMiss: [1, 0.4], zReveal: [0.64, 2], zRadio: [0.47, 2], zVan: [0.55, 3], zEscape: [1, 1],
+  zGo: [0.61, 2], zAlert: [0.58, 4], zTick: [0.72, 0.5], zWinS: [0.68, 2], zWinZ: [0.79, 2], zLose: [0.76, 2], zSweep: [1, 0.05], zDark: [1, 2], zSpot: [0.82, 2], zAmb: [0.25, 0] };
 // 자주 반복되는 소리만 높이를 조금씩 흔든다. 멜로디가 있는 소리는 흔들면 음이 틀어져 들린다
-const JITTER = new Set(["heart", "miss", "tick"]);
+const JITTER = new Set(["heart", "miss", "tick", "zHeart", "zMiss", "zTick", "zSweep", "zBite", "zFound"]);
+// 좀비 판은 같은 순간에 좀비 모드 소리를 낸다. 이기면 내 편(좀비, 생존자)에 맞는 소리
+const Z_SOUND = { spotted: "zSpotted", heart: "zHeart", found: "zFound", catch: "zBite", caught: "zBitten", miss: "zMiss", reveal: "zReveal", free: "zEscape", go: "zGo", alert: "zAlert", tick: "zTick", lose: "zLose" };
 const sounds = {}, lastPlayed = {};
 async function loadSounds() {
   if (!audio || sounds.go) return;
@@ -977,6 +983,7 @@ async function loadSounds() {
   }
 }
 function play(name, rate = 1) {
+  if (G?.mode === "zombie") name = name === "win" ? (G.player?.team === "police" ? "zWinZ" : "zWinS") : Z_SOUND[name] || name;
   if (!audio || muted || !sounds[name]) return;
   ensureBus();
   const [vol, gap] = SOUND_MIX[name] || [0.6, 0.2], now = audio.currentTime;
@@ -988,6 +995,21 @@ function play(name, rate = 1) {
   g.gain.value = vol * (1 + (Math.random() - 0.5) * 0.2);
   s.connect(g); g.connect(bus); s.start();
 }
+// 좀비 판과 좀비 대기실에만 낮은 밤 공기(바람과 울림)를 계속 깐다. 끄면 천천히 사라진다
+let amb = null;
+function ambTick() {
+  if (!audio) return;
+  const z = (document.body.classList.contains("lobby-mode") && document.body.dataset.lobbyMode === "zombie") || (G?.mode === "zombie" && !ended);
+  const want = z && !muted && !!sounds.zAmb && document.visibilityState !== "hidden";
+  const now = audio.currentTime;
+  if (want && !amb) {
+    ensureBus(); const s = audio.createBufferSource(), g = audio.createGain();
+    s.buffer = sounds.zAmb; s.loop = true; g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(SOUND_MIX.zAmb[0], now + 2.5);
+    s.connect(g); g.connect(bus); s.start(); amb = { s, g };
+  } else if (!want && amb) {
+    const { s, g } = amb; g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(0, now + 0.8); s.stop(now + 0.85); amb = null;
+  }
+}
 function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); loadSounds(); } catch { audio = null; } }
 $("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").setAttribute("aria-label", tt(muted ? "soundOn" : "soundOff")); });
 addEventListener("pointerdown", unlockAudio); addEventListener("keydown", unlockAudio);
@@ -996,7 +1018,7 @@ const pick = (attr, set) => document.querySelectorAll(`[${attr}]`).forEach(b => 
 // 시작 화면 뒤에도 지도를 깔아 둔다
 G = newGame({ seed: 11, theme: "town" }); bakeMap(); bakeBushes(); bakeMini(); camX = (CFG.W - W / zoom) / 2; camY = (CFG.H - H / zoom) / 2; world.style.transform = `scale(${zoom}) translate(${-camX}px, ${-camY}px)`; G = null;
 let last = null;
-const tick = () => { const now = performance.now(); const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now; frame(dt); };
+const tick = () => { const now = performance.now(); const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now; frame(dt); ambTick(); };
 requestAnimationFrame(function loop() { tick(); requestAnimationFrame(loop); });
 // 노션 임베드처럼 그리기 신호가 멈추는 곳에서도 게임이 돌게, 신호가 늦으면 타이머가 대신 돌린다
 setInterval(() => { if (performance.now() - (last || 0) > 40) tick(); }, 16);
