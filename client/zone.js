@@ -2,7 +2,7 @@
 // 배그의 자기장 표시를 따른다: 다음 구역은 흰 선으로 미리, 지금 경계는 빨간 점선이 걸어 들어오듯, 미니맵에 두 선,
 // 미니맵 아래 남은 시간 칸, 10초 전 알림, 들어갈 쪽 화살표, 구역 밖이면 화면 가장자리 붉은 빛. 설계는 docs/shrink.md
 // game.js 뒤에 이어 붙어 같은 판(G), 카메라(toScreen, zoom), 알림(toast, play)을 쓴다
-let zoneSoonFor = -1, zoneTickN = -1, zoneDoneN = 0, zoneKey = "";
+let zoneSoonFor = -1, zoneTickN = -1, zoneDoneN = 0, zoneKey = "", zoneShown = true;
 
 // 처음 구역을 감옥 가운데로 k 배 줄인 모양을 map(x, y) 좌표로 그린다
 function zonePath(x, k, map) {
@@ -38,7 +38,10 @@ function zoneInfo() {
 // 지도 위: 안개 위에 그려서 어두운 곳에서도 선이 보인다(두 진영 모두 같은 걸 본다)
 function drawZone() {
   const z = zoneInfo(), p = G.player, x = fctx;
-  if (!z || ended) return;
+  // 판이 끝나면 칸과 가장자리 빛을 걷는다. 끝날 때 밖에 있었으면 결과 화면과 대기실까지 남기 때문
+  if (ended) { zoneOff(); return; }
+  if (!z) { $("zone").hidden = true; return; }
+  zoneShown = true;
   const danger = zoneDanger(p, z);
   x.save();
   // 지금 구역 밖은 옅은 붉은 막. 내가 밖이면 이미 안개로 어두워서 막은 빼고 가장자리 빛만 둔다
@@ -125,7 +128,12 @@ function drawZoneEdge(p, danger) {
   const out = danger === "out" || (!G.shrink && G.phase !== "wait" && !L.inZoneNow(G, p.x, p.y) && ["free", "breaking"].includes(p.state));
   const k = out ? (p.team === "robber" ? 0.55 + 0.45 * Math.min(1, (p.outT || 0) / CFG.OUT_GRACE) : 0.7) : 0;
   $("edge").style.opacity = k.toFixed(2);
+  if (k > 0) zoneShown = true;
   if (danger === "warn") { const t = tt("zoneGoIn"); $("lock").className = "show warn"; if ($("lock").textContent !== t) $("lock").textContent = t; }
   else $("lock").classList.remove("warn");
+}
+function zoneOff() {
+  if (!zoneShown) return;
+  zoneShown = false; $("edge").style.opacity = "0"; $("zone").hidden = true; $("lock").classList.remove("warn");
 }
 function resetZone() { zoneSoonFor = -1; zoneTickN = -1; zoneDoneN = 0; zoneKey = ""; $("edge").style.opacity = "0"; $("zone").hidden = true; }
