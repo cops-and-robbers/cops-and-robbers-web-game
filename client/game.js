@@ -820,10 +820,10 @@ function showEnd() {
 }
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random", pickShrink = QS.get("shrink") === "1";
-// 놀이 방식은 모드 카드(client/modes.js)와 혼자 하기에서 고른다. 주소(?mode=zombie&balance=even)로도 열 수 있다
-let pickMode = QS.get("mode") === "zombie" ? "zombie" : "classic", pickBalance = QS.get("balance") || "even";
+// 놀이 방식은 모드 카드(client/modes.js)와 혼자 하기에서 고른다. 주소(?mode=zombie)로도 열 수 있다. 좀비 판 균형은 늘 반반
+let pickMode = QS.get("mode") === "zombie" ? "zombie" : "classic";
 function start(r, seed) {
-  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: pickBalance, ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) });
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: "even", ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";

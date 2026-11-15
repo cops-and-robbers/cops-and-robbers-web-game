@@ -285,7 +285,7 @@ function createLobbyScene(net) {
     if (!active) return;
     const st = startState(), total = S.cops + S.robs, n = people.size, alone = n === 1 && !S.bots, hostName = [...people.values()].find(p => p.hostMark)?.name || "";
     const line = !moved ? (zm() ? ZL().hint : COPY.hint) : (S.host ? "" : COPY.wait(""));
-    let h = `<div class="row1"><div class="lp code${zm() ? " zroom" : ""}">${zm() ? `<img class="zIcon" src="${ZB.url("police-front")}" alt="">` : ""}<div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}${S.shrink ? `<em class="zoneTag">${COPY.shrink}</em>` : ""}${zm() ? `<em class="zTag">${tt("modes").name.zombie} · ${tt("zb").solo.bal[S.balance || "even"]}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
+    let h = `<div class="row1"><div class="lp code${zm() ? " zroom" : ""}">${zm() ? `<img class="zIcon" src="${ZB.url("police-front")}" alt="">` : ""}<div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}${S.shrink ? `<em class="zoneTag">${COPY.shrink}</em>` : ""}${zm() ? `<em class="zTag">${tt("modes").name.zombie}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
       <button class="bt ${S.host && alone ? "main" : ""}" data-act="invite">${copied ? COPY.copied : COPY.invite}</button>
       <button class="bt ic" data-act="say" aria-label="${tt("sayOpen")}" aria-expanded="${sayOpen}">${ICON.say}</button>
       ${zm() && me ? `<button class="bt look" data-act="look" aria-label="${ZL().look}"><img src="${svgUrl(me.flip === "rob" ? "robber-front" : "police-front")}" alt="">${ZL().look}</button>` : ""}
@@ -293,11 +293,9 @@ function createLobbyScene(net) {
       <div class="grow">${line ? `<div class="line" data-line></div>` : ""}</div>
       ${S.host ? `<button class="bt" data-act="seats" aria-expanded="${seatsOpen}">${COPY.seats}</button>` : ""}
       <button class="bt quiet" data-act="quit">${COPY.quit}</button></div>`;
-    const M = tt("modes"), seg = (pre, list, cur, name) => `<div class="seg" role="radiogroup">${list.map(k => `<button data-act="${pre}-${k}" role="radio" aria-checked="${k === cur}">${name(k)}</button>`).join("")}</div>`;
     const totStep = d => { const off = d > 0 ? total >= MAX_TOTAL : total - 1 < Math.max(2, people.size); return `<button class="step" data-act="tot-${d}" aria-disabled="${off}" aria-label="${tt(d > 0 ? "addOne" : "removeOne", ZL().people)}"><i>${d > 0 ? "+" : "−"}</i></button>`; };
     if (seatsOpen && S.host) h += `<div class="lp sheetR">
-      ${zm() ? `<div class="srow"><span class="nm">${ZL().people}</span>${totStep(-1)}<span class="num">${total}</span>${totStep(1)}</div>
-      <div class="srow tall col"><span class="nm">${ZL().balance}<small>${ZL().firstOne}</small></span>${seg("bal", ["surv", "even", "zomb"], S.balance || "even", k => tt("zb").solo.bal[k])}</div>` : `<div class="srow cop"><span class="nm">${COPY.copN}</span>${stepBtn("cop", -1)}<span class="num">${S.cops}</span>${stepBtn("cop", 1)}</div>
+      ${zm() ? `<div class="srow"><span class="nm">${ZL().people}</span>${totStep(-1)}<span class="num">${total}</span>${totStep(1)}</div>` : `<div class="srow cop"><span class="nm">${COPY.copN}</span>${stepBtn("cop", -1)}<span class="num">${S.cops}</span>${stepBtn("cop", 1)}</div>
       <div class="srow rob"><span class="nm">${COPY.robN}</span>${stepBtn("rob", -1)}<span class="num">${S.robs}</span>${stepBtn("rob", 1)}</div>`}
       <div class="srow"><button class="switch" role="switch" data-act="bots" aria-checked="${S.bots}"><span>${COPY.bots}</span><i></i></button></div>
       <div class="srow tall"><button class="switch" role="switch" data-act="shrink" aria-checked="${!!S.shrink}"><span>${COPY.shrink}<small>${COPY.shrinkSub}</small></span><i></i></button></div>
@@ -324,13 +322,9 @@ function createLobbyScene(net) {
     if (seat) { if (b.getAttribute("aria-disabled") === "true") return; const d = Number(seat[2]); net.send({ t: "seats", cops: S.cops + (seat[1] === "cop" ? d : 0), robs: S.robs + (seat[1] === "rob" ? d : 0), bots: S.bots }); return; }
     if (a.startsWith("kick-")) { net.kick(a.slice(5)); return; }
     if (a === "bots") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: !S.bots }); return; }
-    // 놀이 방식과 판 균형. 좀비 모드의 인원은 한 칸(cops 1 + robs 나머지)으로 보낸다
-    // 놀이 방식은 방 설정 안에서 고르지 않고 모드 카드를 띄워 고른다(client/modes.js)
+    // 놀이 방식은 방을 만들 때만 정한다. 좀비 모드의 인원은 한 칸(cops 1 + robs 나머지)으로 보낸다
     if (a === "look") { const side = me.flip === "rob" ? "cop" : "rob"; me.side = side; me.a.team = side === "rob" ? "robber" : "police"; morph(me, side); renderTag(me); net.send({ t: "side", side }); renderHud(); return; }
-    if (a === "mode-cards") { seatsOpen = false; renderHud(); Modes.open("lobby", mode => { if (mode !== (zm() ? "zombie" : "classic")) net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, mode }); }, zm() ? "zombie" : "classic"); return; }
-    const md = /^mode-(classic|zombie)$/.exec(a), bl = /^bal-(surv|even|zomb)$/.exec(a), tot = /^tot-(-?1)$/.exec(a);
-    if (md) { if (md[1] !== (zm() ? "zombie" : "classic")) net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, mode: md[1] }); return; }
-    if (bl) { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, balance: bl[1] }); return; }
+    const tot = /^tot-(-?1)$/.exec(a);
     if (tot) { if (b.getAttribute("aria-disabled") === "true") return; const n = S.cops + S.robs + Number(tot[1]); net.send({ t: "seats", cops: 1, robs: n - 1, bots: S.bots }); return; }
     if (a === "open") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, open: !S.open }); return; }
     if (a === "shrink") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, shrink: !S.shrink }); return; }
