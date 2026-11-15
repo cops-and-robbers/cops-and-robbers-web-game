@@ -823,8 +823,12 @@ function showEnd() {
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random", pickShrink = QS.get("shrink") === "1";
 // 놀이 방식은 모드 카드(client/modes.js)와 혼자 하기에서 고른다. 주소(?mode=zombie)로도 열 수 있다. 좀비 판 균형은 늘 반반
 let pickMode = QS.get("mode") === "zombie" ? "zombie" : "classic";
+// 좀비 모드에서 고른 모습(고양이 cop, 쥐 rob). 대기실 "모습 바꾸기"가 남기고, 다음 방과 혼자 하기가 이어 쓴다
+const savedLook = () => { try { const v = localStorage.getItem("zlook"); return v === "cop" || v === "rob" ? v : null; } catch { return null; } };
 function start(r, seed) {
-  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: "even", ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) });
+  const zLook = pickMode === "zombie" ? savedLook() : null;
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: "even", ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) },
+    G2 => { if (zLook && G2.player) G2.player.look = zLook === "rob" ? "robber" : "police"; });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";

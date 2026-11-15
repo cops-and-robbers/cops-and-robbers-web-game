@@ -224,6 +224,8 @@ function createLobbyScene(net) {
   let lob = null, fullEl = null, counts = {}, bumpT = 0, countN = 0, revealed = null, seatsOpen = false, sayOpen = false, moved = false, copied = false, codeDone = false, flash = false;
   const sideAt = x => x < ZX[1] ? "cop" : x > ZX[2] ? "rob" : "any";
   // 좀비 모드 공터에서 사람이 서는 자리: 가운데 둘레로 흩어 선다
+  // 모습 바꾸기: 내 칸(편이 아니라 생김새)을 바꿔 서버에 알린다. 서버는 시작할 때 이 칸으로 생김새를 정한다
+  function pickLook(side) { me.side = side; me.a.team = side === "rob" ? "robber" : "police"; morph(me, side); renderTag(me); net.send({ t: "side", side }); renderHud(); }
   // 뽑기 도중의 시점과 정리(방을 나가면 바로 걷는다)
   let spotCam = null, spotEnd = null;
   // 대기실의 한 사람을 좀비 모습으로 바꿔 붙인다. 판이 시작되면 게임이 다시 그린다
@@ -239,7 +241,8 @@ function createLobbyScene(net) {
   const sayList = () => (zm() ? ZL().say : COPY.say);
   const here = side => [...people.values()].filter(p => p.side === side).length;
   const spotIn = (side, i = 0) => { const z = { cop: [ZX[0], ZX[1]], any: [ZX[1], ZX[2]], rob: [ZX[2], ZX[3]] }[side], cw = (z[1] - z[0] - 60) / 3, col = i % 3, row = Math.floor(i / 3); return { x: z[0] + 30 + cw * (col + .5), y: 775 + (row % 2) * 130 + (col % 2) * 14 }; };
-  const rig = (a, kind) => { const t = a.team, pl = G.player; a.team = kind; G.player = null; const c = makeChar(a); a.team = t; G.player = pl; chars.push(c); return c; };
+  // 그림은 편이 아니라 생김새(look)를 따른다. 빌려 온 캐릭터에 남은 생김새를 두면 고양이 칸에 선 사람도 쥐로 그려지니, 만드는 동안 kind 로 맞춘다
+  const rig = (a, kind) => { const t = a.team, lk = a.look, pl = G.player; a.team = kind; a.look = kind; G.player = null; const c = makeChar(a); a.team = t; a.look = lk; G.player = pl; chars.push(c); return c; };
   // 가운데 사람의 회색 모습. 이름으로 정해서 모두의 화면에서 같고, 칸에 들어가기 전에는 바뀌지 않는다
   const lookOf = name => [...String(name)].reduce((h, c) => h * 31 + c.codePointAt(0) | 0, 7) & 1 ? "rob" : "cop";
   function makePerson(name, side, isBot) {
@@ -255,7 +258,8 @@ function createLobbyScene(net) {
   }
   function renderTag(p) {
     const mine = p === me;
-    p.tag.className = `wtag ${mine ? "me " + (p.side === "any" ? "" : p.side) : ""} ${p.isBot ? "bot" : ""}`;
+    // 좀비 모드의 칸은 편이 아니라 생김새라 이름표를 경찰 파랑, 도둑 초록으로 칠하지 않는다
+    p.tag.className = `wtag ${mine ? "me " + (p.side === "any" || zm() ? "" : p.side) : ""} ${p.isBot ? "bot" : ""}`;
     p.tag.textContent = p.isBot ? COPY.bot : nameOf(p.name);
     const add = t => { const e = document.createElement("em"); e.textContent = t; p.tag.append(e); };
     if (p.hostMark) add(COPY.host);
@@ -323,7 +327,7 @@ function createLobbyScene(net) {
     if (a.startsWith("kick-")) { net.kick(a.slice(5)); return; }
     if (a === "bots") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: !S.bots }); return; }
     // 놀이 방식은 방을 만들 때만 정한다. 좀비 모드의 인원은 한 칸(cops 1 + robs 나머지)으로 보낸다
-    if (a === "look") { const side = me.flip === "rob" ? "cop" : "rob"; me.side = side; me.a.team = side === "rob" ? "robber" : "police"; morph(me, side); renderTag(me); net.send({ t: "side", side }); renderHud(); return; }
+    if (a === "look") { const side = me.flip === "rob" ? "cop" : "rob"; try { localStorage.setItem("zlook", side); } catch { /* 이번 방에서만 */ } pickLook(side); return; }
     const tot = /^tot-(-?1)$/.exec(a);
     if (tot) { if (b.getAttribute("aria-disabled") === "true") return; const n = S.cops + S.robs + Number(tot[1]); net.send({ t: "seats", cops: 1, robs: n - 1, bots: S.bots }); return; }
     if (a === "open") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, open: !S.open }); return; }
@@ -387,6 +391,8 @@ function createLobbyScene(net) {
           p = makePerson(info.name, info.side, false); people.set(info.id, p);
           const sp = zm() ? lotSpot(people.size - 1) : spotIn(info.side, here(info.side) - 1); p.a.x = sp.x; p.a.y = sp.y;
           if (info.id === m.you) { me = p; G.player = p.a; }
+          // 지난번에 고른 모습이 있으면 들어오자마자 그 모습으로 선다(좀비 모드)
+          if (p === me && zm() && info.side === "any" && savedLook() && savedLook() !== p.flip) later(() => me === p && pickLook(savedLook()), 0);
           if (p.a !== G.player) p.a.isPlayer = true;
         }
         p.hostMark = i === 0;
