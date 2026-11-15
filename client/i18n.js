@@ -82,6 +82,14 @@ const I18N = {
     dispatchCop: ["시간이 됐어요", "출동!"], dispatchRob: ["경찰이 출동했어요", "조심!"],
     // 앱 4.0.1 게임 시작·MVP 장면 (앱 l10n 과 같은 말, 온라인 규칙에 맞춘 안내)
     // 좀비 모드(client/zombie.js, scenes.js)
+    // 모드 카드(client/modes.js)
+    modes: {
+      title: "어떤 판을 할까요?", titleChange: "모드 바꾸기", lobbySub: "방 설정", close: "닫기", change: "바꾸기", goChange: "이 모드로 바꾸기", meta: "3분 · 2~8명", first: "처음이에요", firstSub: "한 판 하면 배지가 열려요",
+      name: { classic: "경찰과 도둑", zombie: "좀비 모드" }, desc: { classic: "잡거나, 끝까지 버티거나", zombie: "물리면 좀비, 구조차를 타면 탈출" },
+      go: { classic: "경찰과 도둑으로 하기", zombie: "좀비 모드로 하기" }, goRoom: "이 모드로 방 만들기",
+      rec: (g, w) => `${g}판 · ${w}승`, badges: n => `배지 ${n}/3`,
+      badge: { win: "첫 승리", catch3: "한 판에 3명 잡기", holdout: "도둑으로 끝까지", escape: "첫 탈출", bite4: "한 판에 4명 감염", clean: "물리지 않고 끝내기" },
+    },
     zb: {
       bite: "물기", timerWait: "좀비가 깨어나기까지",
       revealZ: "생존자 위치 공개", revealS: "내 위치 공개", revealedZ: "생존자 위치가 보여요", revealedS: "내 위치가 좀비에게 보였어요",
@@ -100,6 +108,11 @@ const I18N = {
       missionLabel: "좀비 팀 미션", waitLine: "생존자들이 흩어지는 중이에요!", mission: "아무도 구조차를 타지 못하게 막아요",
       guideZ: n => ["물기 버튼으로 생존자를 감염시켜요", `${n}초마다 생존자 위치가 잠깐 보여요`, "구조차는 끝나기 50초 전에 서요", "같은 편 좀비는 늘 보여요"],
       woke: "깨어났어요!", wakeSoon: "좀비가 깨어나요. 지금 멀리 떨어져요", bitten: "물렸어요!", bittenSub: "2초 뒤 좀비로 일어나요",
+      solo: { role: "내 역할", first: "좀비", surv: "생존자", random: "무작위", balance: "판 균형", bal: { surv: "생존자 쪽", even: "반반", zomb: "좀비 쪽" },
+        pick: "역할을 골라 주세요", go: { police: "좀비로 시작하기", robber: "생존자로 시작하기", random: "무작위로 시작하기" } },
+      lobby: { cat: "고양이로", mouse: "쥐로", any: "아무나", stop: "구조차 정류장", stopTip: "끝나기 50초 전 구조차가 서요. 생존자는 먼저 알아요", modeLabel: "놀이 방식", people: "인원", balance: "판 균형", firstOne: "좀비 한 명으로 시작해요", hint: "칸에 들어가 모습을 골라요. 편은 시작할 때 정해져요",
+        draw: "시작하면 좀비를 뽑아요", drawLead: "오늘 밤 좀비는", changed: { classic: "방장이 경찰과 도둑으로 바꿨어요", zombie: "방장이 좀비 모드로 바꿨어요" },
+        say: ["누가 좀비일까?", "구조차에서 만나요!", "나 물지 마!", "같이 도망가요!", "준비됐어요!"] },
     },
     sc: {
       roleLabel: "내 역할", sentence: r => `이번 판은 ${r}이에요`,
@@ -192,6 +205,13 @@ const I18N = {
     mateOpened: "A teammate opened the door. Run out", doorOpened: "The door is open. Run out", rescuedN: n => `You freed ${n} ${n === 1 ? "teammate" : "teammates"}`,
     robberOpened: "A robber opened the jail door", freed: "You broke free. Hide again",
     dispatchCop: ["It's time", "Go!"], dispatchRob: ["The cops are coming", "Watch out!"],
+    modes: {
+      title: "What do you want to play?", titleChange: "Change mode", lobbySub: "Room settings", close: "Close", change: "Change", goChange: "Switch to this mode", meta: "3 min · 2-8 players", first: "New to you", firstSub: "Play once to unlock badges",
+      name: { classic: "Cops and Robbers", zombie: "Zombie Mode" }, desc: { classic: "Catch them, or hold out to the end", zombie: "Get bitten and you turn. Catch the van to escape" },
+      go: { classic: "Play Cops and Robbers", zombie: "Play Zombie Mode" }, goRoom: "Make a room in this mode",
+      rec: (g, w) => `${g} played · ${w} won`, badges: n => `Badges ${n}/3`,
+      badge: { win: "First win", catch3: "3 catches in one game", holdout: "Hold out as a robber", escape: "First escape", bite4: "4 bites in one game", clean: "Finish without a bite" },
+    },
     zb: {
       bite: "Bite", timerWait: "Zombies wake in",
       revealZ: "Survivor reveal", revealS: "Your reveal", revealedZ: "Survivors revealed", revealedS: "The zombies saw where you are",
@@ -210,6 +230,11 @@ const I18N = {
       missionLabel: "Zombie team mission", waitLine: "The survivors are scattering!", mission: "Don't let anyone board the van",
       guideZ: n => ["Tap Bite to infect a survivor", `Survivors are revealed every ${n}s`, "The van arrives 50s before the end", "You can always see other zombies"],
       woke: "Awake!", wakeSoon: "The zombie is waking. Get far away", bitten: "Bitten!", bittenSub: "You turn in 2 seconds",
+      solo: { role: "Your role", first: "Zombie", surv: "Survivor", random: "Random", balance: "Balance", bal: { surv: "Survivor side", even: "Even", zomb: "Zombie side" },
+        pick: "Pick a role", go: { police: "Start as the zombie", robber: "Start as a survivor", random: "Start with a random role" } },
+      lobby: { cat: "As a cat", mouse: "As a mouse", any: "Either", stop: "Rescue van stop", stopTip: "The van arrives 50s before the end. Survivors hear first", modeLabel: "Game mode", people: "Players", balance: "Balance", firstOne: "One zombie starts the game", hint: "Step into a zone to pick your look. Teams are set at the start",
+        draw: "The zombie is drawn at the start", drawLead: "Tonight's zombie is", changed: { classic: "The host switched to Cops and Robbers", zombie: "The host switched to Zombie Mode" },
+        say: ["Who's the zombie?", "See you at the van!", "Don't bite me!", "Let's run together!", "I'm ready!"] },
     },
     sc: {
       roleLabel: "Your role", sentence: r => `You're a ${r} this round`,
@@ -297,6 +322,13 @@ const I18N = {
     mateOpened: "仲間が扉を開けたよ。外へ走ろう", doorOpened: "扉が開いたよ。外へ走ろう", rescuedN: n => `仲間を${n}人助けました`,
     robberOpened: "泥棒が牢屋の扉を開けました", freed: "脱獄成功。また隠れよう",
     dispatchCop: ["時間です", "出動!"], dispatchRob: ["警察が出動しました", "気をつけて!"],
+    modes: {
+      title: "どのゲームで遊ぶ？", titleChange: "モードを変える", lobbySub: "部屋の設定", close: "閉じる", change: "変える", goChange: "このモードに変える", meta: "3分 · 2〜8人", first: "はじめて", firstSub: "1回遊ぶとバッジが開きます",
+      name: { classic: "ケイドロ", zombie: "ゾンビモード" }, desc: { classic: "捕まえるか、最後まで逃げ切るか", zombie: "かまれたらゾンビ、救助車に乗れば脱出" },
+      go: { classic: "ケイドロで遊ぶ", zombie: "ゾンビモードで遊ぶ" }, goRoom: "このモードで部屋を作る",
+      rec: (g, w) => `${g}回 · ${w}勝`, badges: n => `バッジ ${n}/3`,
+      badge: { win: "初勝利", catch3: "1回で3人捕まえる", holdout: "泥棒で逃げ切る", escape: "初脱出", bite4: "1回で4人感染", clean: "かまれずに終わる" },
+    },
     zb: {
       bite: "かむ", timerWait: "ゾンビが起きるまで",
       revealZ: "生存者の位置公開", revealS: "自分の位置公開", revealedZ: "生存者の位置が見えました", revealedS: "ゾンビに位置を見られました",
@@ -315,6 +347,11 @@ const I18N = {
       missionLabel: "ゾンビチームのミッション", waitLine: "生存者が散らばっています！", mission: "誰も救助車に乗せないようにしましょう",
       guideZ: n => ["かむボタンで生存者を感染させます", `${n}秒ごとに生存者の位置が見えます`, "救助車は終わる50秒前に着きます", "仲間のゾンビはいつも見えます"],
       woke: "起きた!", wakeSoon: "ゾンビが起きます。今のうちに離れて", bitten: "かまれた!", bittenSub: "2秒後にゾンビになります",
+      solo: { role: "自分の役", first: "ゾンビ", surv: "生存者", random: "ランダム", balance: "バランス", bal: { surv: "生存者寄り", even: "五分五分", zomb: "ゾンビ寄り" },
+        pick: "役を選んでください", go: { police: "ゾンビで始める", robber: "生存者で始める", random: "ランダムで始める" } },
+      lobby: { cat: "ネコで", mouse: "ネズミで", any: "どちらでも", stop: "救助車の停留所", stopTip: "終わる50秒前に救助車が着きます。生存者が先に知ります", modeLabel: "遊び方", people: "人数", balance: "バランス", firstOne: "ゾンビ1人から始まります", hint: "エリアに入って見た目を選びます。チームは開始時に決まります",
+        draw: "始まるとゾンビを選びます", drawLead: "今夜のゾンビは", changed: { classic: "ホストがケイドロに変えました", zombie: "ホストがゾンビモードに変えました" },
+        say: ["ゾンビは誰？", "救助車で会おう！", "かまないで！", "一緒に逃げよう！", "準備できた！"] },
     },
     sc: {
       roleLabel: "あなたの役割", sentence: r => `このラウンドは${r}です`,
