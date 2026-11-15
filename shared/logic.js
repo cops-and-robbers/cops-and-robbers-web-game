@@ -4,6 +4,8 @@ function createGameLogic() {
   const CFG = {
     W: 3600, H: 2700,
     DURATION: 180, WAIT: 15, REVEAL_EVERY: 25, REVEAL_SHOW: 4,
+    // 판이 시작되면 역할 배너를 보는 동안 모두 멈춘다. 시계도 가지 않아 도둑의 숨을 시간을 빼앗지 않는다
+    INTRO: 2.6,
     RADIUS: 24,
     RUN: 230,
     SPRINT: { police: 322, robber: 316 },
@@ -308,11 +310,12 @@ function createGameLogic() {
     const theme = opts.theme && THEMES[opts.theme] ? opts.theme : names[Math.floor(rnd() * names.length)];
     const th = THEMES[theme];
     const map = makeMap(seed ^ 0x51ED27, { scale: opts.scale ?? side.scale, cover: opts.cover ?? side.cover, theme });
-    const G = { t: 0, rnd, over: null, phase: "wait", agents: [], police: [], robbers: [], intel: new Map(), pings: [], revealEvery: opts.reveal ?? side.reveal, rescueT: 0, events: [], playerRole: opts.role || null, stats: { catches: 0, rescues: 0, reveals: 0, outReveals: 0 }, map, theme, th, diff: opts.diff || "normal", vision: CFG.VISION * th.vision };
+    // intro: 시작 멈춤이 남은 초. 정하지 않으면 0 이라 게임 방법 장면, 검사 판은 그대로 돈다
+    const G = { t: 0, intro: opts.intro ?? 0, rnd, over: null, phase: "wait", agents: [], police: [], robbers: [], intel: new Map(), pings: [], revealEvery: opts.reveal ?? side.reveal, rescueT: 0, events: [], playerRole: opts.role || null, stats: { catches: 0, rescues: 0, reveals: 0, outReveals: 0 }, map, theme, th, diff: opts.diff || "normal", vision: CFG.VISION * th.vision };
     G.nextReveal = CFG.WAIT + G.revealEvery;
     const mk = (team, name, x, y, isPlayer) => {
       const enemy = opts.role && team !== opts.role;
-      const a = { id: G.agents.length, team, name, x, y, vision: G.vision * (enemy ? diff.vision : 1), thinkEvery: enemy ? diff.think : 0.25, sprintAt: enemy ? diff.sprintAt : 1, vx: 0, vy: 0, ix: 0, iy: 0, faceA: team === "police" ? Math.PI / 2 : rnd() * 6.28, sprint: false, stam: 1, tired: false, state: team === "police" ? "waiting" : "free", action: null, catchCd: 0, caughtN: 0, lock: 0, breakT: 0, inBush: false, isPlayer: !!isPlayer && !opts.botPlayer, path: [], goal: null, thinkT: rnd() * 0.3, repathT: 0, ai: { mode: "go", seenT: -99, hideUntil: 0, q: [], lastX: x, lastY: y, stuckT: 0 }, s: { catches: 0, caught: 0, rescued: 0, escapes: 0, spotted: 0, hideT: 0 } };
+      const a = { id: G.agents.length, team, name, x, y, vision: G.vision * (enemy ? diff.vision : 1), thinkEvery: enemy ? diff.think : 0.25, sprintAt: enemy ? diff.sprintAt : 1, vx: 0, vy: 0, ix: 0, iy: 0, faceA: team === "police" ? Math.PI / 2 : rnd() * 6.28, sprint: false, stam: 1, tired: false, state: team === "police" ? "waiting" : "free", action: null, catchCd: 0, caughtN: 0, lock: 0, breakT: 0, inBush: false, isPlayer: !!isPlayer && !opts.botPlayer, path: [], goal: null, thinkT: rnd() * 0.3, repathT: 0, ai: { mode: "go", seenT: -99, hideUntil: 0, q: [], lastX: x, lastY: y, stuckT: 0 }, s: { catches: 0, caught: 0, rescued: 0, escapes: 0, spotted: 0, hideT: 0, dist: 0 } };
       G.agents.push(a); (team === "police" ? G.police : G.robbers).push(a); return a;
     };
     // 경찰은 감옥 앞에서 대기, 도둑은 네 귀퉁이 쪽 먼 자리에서 시작한다
@@ -369,6 +372,7 @@ function createGameLogic() {
     const margin = 40;
     let nx = a.x + a.vx * dt, ny = a.y + a.vy * dt;
     nx = Math.max(margin, Math.min(CFG.W - margin, nx)); ny = Math.max(margin, Math.min(CFG.H - margin, ny));
+    const fromX = a.x, fromY = a.y;
     // 모서리에 걸리면 살짝 비켜서 미끄러진다. 끝에 한 끗 걸려 멈추는 게 가장 답답하다
     const slip = (blockedX) => {
       for (const d of [6, 12, 18, 24]) for (const s of [1, -1]) {
@@ -382,6 +386,8 @@ function createGameLogic() {
     if (!solidAt(a.x, ny)) a.y = ny;
     else { const s = Math.abs(a.vy) > Math.abs(a.vx) * 1.5 ? slip(false) : null; if (s) { a.x += Math.sign(s[0]) * Math.min(Math.abs(s[0]), Math.abs(a.vy) * dt); } else a.vy = 0; }
     a.inBush = !!bushAt(a.x, a.y);
+    // 판에서 움직인 거리 - MVP 가 같을 때 더 뛴 사람을 고른다
+    a.s.dist += Math.hypot(a.x - fromX, a.y - fromY);
     // 고개는 움직이는 쪽으로 돌린다. 봇은 멈춰 있으면 주변을 살핀다
     const mv = Math.hypot(a.ix, a.iy);
     if (a.action && a.action.name === "catch") a.faceA = Math.atan2(a.action.dy, a.action.dx);
@@ -654,9 +660,31 @@ function createGameLogic() {
     if (!a.goal) { const s = pickHide(G, a, threats); if (s) { setGoal(G, a, s.x, s.y); a.ai.mode = "go"; } }
   }
 
+  // ───────── MVP ─────────
+  // 팀마다 한 명. 앱(TeamMvpSelector)과 같은 생각으로 경찰은 많이 잡은 사람, 도둑은 덜 잡힌 사람이다.
+  // 경찰: 잡은 횟수 → 움직인 거리 → 번호(먼저 정해진 자리)
+  // 도둑: 잡힌 횟수 적은 순 → 끝났을 때 감옥 밖 → 구출한 사람 수 → 숨은 시간 → 움직인 거리 → 번호
+  // 사람이 둘 이상인 판은 사람만 후보다(봇이 MVP 를 가져가지 않게). 혼자 하기처럼 사람이 하나면 봇도 후보다.
+  // 판 중에 나간 사람(isPlayer 가 꺼진 사람)은 후보가 아니다
+  function pickMvp(G) {
+    const humans = G.agents.filter(a => a.isPlayer).length;
+    const pool = list => list.filter(a => humans > 1 ? a.isPlayer : true);
+    const free = a => (a.state === "free" ? 1 : 0);
+    const best = (list, cmp) => pool(list).sort(cmp)[0] || null;
+    const cop = best(G.police, (a, b) => b.s.catches - a.s.catches || b.s.dist - a.s.dist || a.id - b.id);
+    const rob = best(G.robbers, (a, b) => a.s.caught - b.s.caught || free(b) - free(a) || b.s.rescued - a.s.rescued || b.s.hideT - a.s.hideT || b.s.dist - a.s.dist || a.id - b.id);
+    return { police: cop ? cop.id : null, robber: rob ? rob.id : null };
+  }
+  function finish(G, winner, reason) {
+    G.over = { winner, reason, at: G.t, mvp: pickMvp(G) };
+    emit(G, "over", {});
+  }
+
   // ───────── 한 걸음 ─────────
   function step(G, dt) {
     if (G.over) return;
+    // 시작 멈춤 - 아무도 움직이지 않고 시계도 가지 않는다
+    if (G.intro > 0) { G.intro = Math.max(0, G.intro - dt); return; }
     G.t += dt;
     if (G.phase === "wait" && G.t >= CFG.WAIT) {
       G.phase = "play"; for (const p of G.police) p.state = "free";
@@ -690,12 +718,12 @@ function createGameLogic() {
     }
     updateRescue(G, dt);
     if (G.phase === "play") {
-      if (!G.robbers.some(r => r.state === "free")) { G.over = { winner: "police", reason: "allArrested", at: G.t }; emit(G, "over", {}); }
-      else if (G.t >= CFG.DURATION) { G.over = { winner: "robber", reason: "timeUp", at: G.t }; emit(G, "over", {}); }
+      if (!G.robbers.some(r => r.state === "free")) finish(G, "police", "allArrested");
+      else if (G.t >= CFG.DURATION) finish(G, "robber", "timeUp");
     }
   }
 
-  return { loadMap, inCone, CFG, THEMES, DIFF, newGame, step, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
+  return { loadMap, inCone, CFG, THEMES, DIFF, newGame, step, pickMvp, sees, startCatch, catchable, dist, bushAt, solidAt, inRect, inZone, lineOfSight, jailSlot, genMap, makeMap,
     get BUILDINGS() { return BUILDINGS; }, get BUSHES() { return BUSHES; }, get SPOTS() { return SPOTS; }, get ZONE() { return ZONE; }, get ROADS() { return ROADS; }, get PARKS() { return PARKS; } };
 }
 

@@ -154,7 +154,7 @@ function createOnline() {
       CFG.AUTO_ESCAPE = m.autoEscape;
       CFG.CATCH_R = m.catchRange;
       // 맵 크기는 인원에 따라 서버가 정한다. 예전 서버는 보내지 않아 1로 본다
-      showGame(m.team, { seed: m.seed, scale: m.scale ?? 1, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers, reveal: m.reveal }, G2 => {
+      showGame(m.team, { seed: m.seed, scale: m.scale ?? 1, theme: m.theme, diff: "normal", police: m.police, robbers: m.robbers, reveal: m.reveal, intro: m.intro ?? 0 }, G2 => {
         G2.player = G2.agents[m.you];
         G2.player.isPlayer = true;
         // 못 본 상대의 이름은 받지 않으니 진영으로 부른다
@@ -163,8 +163,8 @@ function createOnline() {
       gameReady = true;
       syncRotate();
     };
-    // 대기실에서 왔으면 내 편을 잠깐 보여 주고 넘어간다
-    if (scene.active) { scene.reveal(m.team); setTimeout(go, 900); } else go();
+    // 내 편은 판 시작 멈춤 동안 역할 배너(client/scenes.js)가 크게 보여 준다. 멈춤이 짧아지지 않게 바로 넘어간다
+    go();
   }
 
   function onSnap(s) {
@@ -172,6 +172,7 @@ function createOnline() {
     const now = performance.now();
     net.snap++;
     G.t = s.time;
+    G.intro = s.intro ?? 0;
     G.phase = s.phase;
     G.rescueT = s.rescue;
     G.nextReveal = s.nextReveal;
@@ -231,7 +232,7 @@ function createOnline() {
     wasPlaying = false;
     net.seed = null;
     handleEvents();
-    G.over = { winner: m.winner, reason: m.reason };
+    G.over = { winner: m.winner, reason: m.reason, mvp: m.mvp };
     if (m.stats) G.stats = m.stats;
     if (m.mine) G.player.s = m.mine;
     showEnd();

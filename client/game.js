@@ -688,7 +688,6 @@ function handleEvents() {
     if (e.type === "rescued" && p.team === "police") toast(tt("robberOpened"), "bad");
     if (e.type === "freed" && e.r === p) toast(tt("freed"), "good");
     if (e.type === "dispatch") { play("go"); haptic(role === "police" ? [0, 90, 90, 90] : 600); }
-    if (e.type === "dispatch") banner(...tt(role === "police" ? "dispatchCop" : "dispatchRob"));
     if (e.type === "reveal") {
       if (role === "police" || p.state === "free") { play("reveal"); haptic(250); }
       if (role === "police") toast(tt("revealedCop"), "good");
@@ -741,7 +740,9 @@ function drawHud(dt) {
     line = tt(role === "police" ? "nextRevealCop" : "nextRevealRob", n);
   }
   $("status").textContent = line;
-  const waitBig = role === "police" && G.phase === "wait";
+  // 경찰 대기 숫자는 대기 장면(client/scenes.js)이 맡는다
+  const waitBig = false;
+  Scenes.sync(G, role, TX.theme[G.theme] ?? G.th.name);
   $("bigCount").className = waitBig ? "show" : ""; if (waitBig) $("bigCount").textContent = Math.ceil(left);
   $("stamFill").style.width = (p.stam * 100) + "%"; $("stamFill").className = p.tired ? "tired" : "";
   const out = !inZone(p.x, p.y);
@@ -772,12 +773,17 @@ function showEnd() {
     ? [[tt("stCatches"), tt("times", s.catches)], [tt("stTeamCatches"), tt("times", G.stats.catches)], [tt("stEscaped"), tt("people", G.stats.rescues)]]
     : [[tt("stCaught"), tt("times", s.caught)], [tt("stRescued"), tt("people", s.rescued)], [tt("stHidden"), tt("secs", Math.round(s.hideT))]]
   ).map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("");
-  setTimeout(() => $("end").className = "sheet show " + role, 500);
+  // 팀 MVP - 결과 카드 아래 줄. 내가 MVP 면 왕관을 단다
+  const mvpOf = team => { const v = G.over.mvp?.[team]; if (v === null || v === undefined) return null; const id = typeof v === "object" ? v.id : v; return { id, name: id === p.id ? tt("sc").me : nameOf(typeof v === "object" ? v.name : G.agents[id]?.name ?? "") }; };
+  const mvps = ["police", "robber"].map(mvpOf);
+  $("endMvp").innerHTML = mvps.some(Boolean) ? mvps.map((m, i) => m ? `<span class="${i ? "rob" : "cop"}${m.id === p.id ? " me" : ""}"><i>${tt("sc")[i ? "mvpRob" : "mvpCop"]}</i>${m.id === p.id ? "👑 " : ""}${m.name.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))}</span>` : "").join("") : "";
+  // 진 팀 → 이긴 팀 MVP 를 무대에 올린 뒤 결과 카드를 띄운다. MVP 가 없으면(예전 서버) 바로 카드
+  setTimeout(() => Scenes.mvpReveal(G, G.over, p, () => $("end").className = "sheet show " + role), 500);
 }
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random";
 function start(r, seed) {
-  showGame(r, { role: r, seed, diff: pickDiff, theme: pickTheme === "random" ? null : pickTheme, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined });
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";
@@ -791,8 +797,8 @@ function showGame(r, opts, setup) {
   document.body.dataset.role = r;
   $("start").className = "sheet"; $("end").className = "sheet"; $("hud").className = "show"; $("toast").className = ""; $("banner").className = "";
   $("btnCatch").style.display = r === "police" ? "" : "none";
-  $("mission").textContent = `${TX.theme[G.theme] ?? G.th.name} · ` + tt(r === "police" ? "missionCop" : "missionRob");
-  $("mission").className = "show"; missionT = 3.2;
+  // 지도 이름과 미션은 판 시작 역할 배너(client/scenes.js)가 보여 준다
+  Scenes.reset();
 }
 
 // 휴대폰은 가로가 기본이다. 되는 브라우저는 바꿔 주고, 안 되면 안내하는 동안 게임을 멈춘다.

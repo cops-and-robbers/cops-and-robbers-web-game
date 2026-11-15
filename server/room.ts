@@ -406,7 +406,7 @@ export class Room extends DurableObject<Env> {
 
     const police = seats.bots ? seats.cops : cops.length, robbers = seats.bots ? seats.robs : robs.length;
     const scale = mapScale(police + robbers);
-    const G = logic.newGame({ seed, theme, diff: "normal", police, robbers, reveal: REVEAL_SEC, scale });
+    const G = logic.newGame({ seed, theme, diff: "normal", police, robbers, reveal: REVEAL_SEC, scale, intro: logic.CFG.INTRO });
     this.seed = seed;
     this.scale = scale;
     this.logic = logic;
@@ -445,6 +445,8 @@ export class Room extends DurableObject<Env> {
       team: agent.team,
       wait: this.logic.CFG.WAIT,
       duration: this.logic.CFG.DURATION,
+      // 처음 들어온 사람만 시작 멈춤을 받는다. 판 중에 돌아온 사람은 남은 만큼(스냅샷의 intro)만 본다
+      intro: G.intro,
       police: G.police.length,
       robbers: G.robbers.length,
       rescue: this.logic.CFG.RESCUE_SEC,
@@ -530,13 +532,16 @@ export class Room extends DurableObject<Env> {
     this.timer = null;
     const G = this.game;
     const stats = G?.stats;
+    // 팀 MVP - 판정은 규칙(logic.pickMvp)이 한다. 판 끝이라 이름을 모두에게 보내도 숨은 위치는 새지 않는다
+    const mvpOf = (id: number | null | undefined) => (G && id !== null && id !== undefined ? { id, name: G.agents[id].name } : null);
+    const mvp = G?.over?.mvp ? { police: mvpOf(G.over.mvp.police), robber: mvpOf(G.over.mvp.robber) } : undefined;
     if (G && this.logic) this.saveResult(G, winner, reason);
     if (G) this.reportLive(false);
     this.game = null;
     this.logic = null;
     this.lost.clear();
     for (const { ws, me } of this.members()) {
-      this.send(ws, { t: "over", winner, reason, stats, mine: me.agentId !== undefined ? G?.agents[me.agentId].s : undefined });
+      this.send(ws, { t: "over", winner, reason, stats, mvp, mine: me.agentId !== undefined ? G?.agents[me.agentId].s : undefined });
       const { agentId: _played, ...rest } = me;
       ws.serializeAttachment(rest satisfies Attachment);
     }

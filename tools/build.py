@@ -8,10 +8,11 @@ svgs = re.search(r"const SVGS = \{.*?\};\n", pg, re.S).group(0)
 shell = (ROOT / "client/shell.html").read_text(encoding="utf-8")
 logic = (ROOT / "shared/logic.js").read_text(encoding="utf-8")
 game = (ROOT / "client/game.js").read_text(encoding="utf-8")
+scenes = (ROOT / "client/scenes.js").read_text(encoding="utf-8")
 net = (ROOT / "client/tutorial.js").read_text(encoding="utf-8") + (ROOT / "client/guide.js").read_text(encoding="utf-8") + (ROOT / "client/solo.js").read_text(encoding="utf-8") + (ROOT / "client/lobby.js").read_text(encoding="utf-8") + (ROOT / "client/net.js").read_text(encoding="utf-8")
-css = (ROOT / "client/lobby.css").read_text(encoding="utf-8")
+css = (ROOT / "client/lobby.css").read_text(encoding="utf-8") + (ROOT / "client/scenes.css").read_text(encoding="utf-8")
 i18n = (ROOT / "client/i18n.js").read_text(encoding="utf-8")
-out = shell.replace("</head>", "<style>" + css + "</style>\n</head>", 1).replace("/*ENGINE*/", engine).replace("/*SVGS*/", svgs).replace("/*LOGIC*/", logic).replace("/*GAME*/", game).replace("/*NET*/", net).replace("/*I18N*/", i18n)
+out = shell.replace("</head>", "<style>" + css + "</style>\n</head>", 1).replace("/*ENGINE*/", engine).replace("/*SVGS*/", svgs).replace("/*LOGIC*/", logic).replace("/*SCENES*/", scenes).replace("/*GAME*/", game).replace("/*NET*/", net).replace("/*I18N*/", i18n)
 # 앱과 같은 그림(로고, 캐릭터, 배경, 경찰차)은 client/brand 에 두고 파일 하나에 묶어 넣는다.
 # 작은 그림은 base64 로, 큰 배경은 압축이 잘 되게 SVG 그대로 넣는다
 import base64

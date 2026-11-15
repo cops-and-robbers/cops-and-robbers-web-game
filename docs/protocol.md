@@ -25,13 +25,21 @@
 | `lobby` | `players` 명단(`id`, `name`, `side`), `you`, `host` 내가 방장인지, `cops`, `robs`, `bots`, `open`, `max` |
 | `count` | `ms` 시작까지 남은 시간 |
 | `say` | `id` 말한 사람, `i` 정해진 말 번호 |
-| `start` | `seed` 같은 지도를 만드는 값, `scale` 지도 크기(인원 4명까지 1, 8명이면 1.2), `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값 |
-| `s` | 갱신. `time`, `phase`, `me`(도둑은 `out` 구역 밖에 있은 초), `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel` |
+| `start` | `seed` 같은 지도를 만드는 값, `scale` 지도 크기(인원 4명까지 1, 8명이면 1.2), `theme`, `you` 내 캐릭터 번호, `team`, `wait`, `duration`, `police`, `robbers` 판의 인원, `rescue`, `autoEscape`, `catchRange`, `reveal` 이 판의 규칙 값, `intro` 판 시작 멈춤 초(역할 배너가 뜨는 동안 아무도 못 움직이고 시계도 안 가요) |
+| `s` | 갱신. `time`, `phase`, `intro` 남은 시작 멈춤(멈춤 동안만), `me`(도둑은 `out` 구역 밖에 있은 초), `others`, `pings`, `rescue`, `nextReveal`, `freeRobbers`, 경찰은 `intel` |
 | `e` | 사건 목록. 위치는 싣지 않아요. 구역 밖 공개가 시작되면 `outReveal`(`r` 그 도둑) 한 번 |
-| `over` | `winner`, `reason`, `stats`, `mine` 내 기록 |
+| `over` | `winner`, `reason`, `stats`, `mine` 내 기록, `mvp` 팀별 MVP `{ police: {id, name}, robber: {id, name} }`(후보가 없는 팀은 `null`) |
 | `pong` | `n` |
 | `where` | `entry` 들어온 Cloudflare 위치, `room` 방 서버 위치 |
 | `error` | `code`: `notHost`, `playing`, `full`, `sideFull`(`side` 내 칸), `cantStart` |
+
+## MVP 정하는 법
+
+판이 끝나면 서버가 팀마다 한 명을 골라 `over` 에 실어요(`shared/logic.js` `pickMvp`). 화면은 따로 계산하지 않아요.
+
+- 경찰: 잡은 횟수가 많은 순, 같으면 많이 움직인 순, 그래도 같으면 먼저 들어온 순
+- 도둑: 잡힌 횟수가 적은 순, 끝났을 때 감옥 밖, 구해 준 동료 수, 숨어 있던 시간, 많이 움직인 순, 먼저 들어온 순
+- 사람이 두 명 이상인 판은 사람만 후보예요. 혼자 하기는 봇도 후보예요. 후보가 없는 팀은 무대를 건너뛰어요
 
 ## 열린 방 목록
 
