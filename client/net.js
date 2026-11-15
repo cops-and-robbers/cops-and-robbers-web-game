@@ -23,6 +23,7 @@ function createOnline() {
   const tokenKey = `room:${NET_ROOM}:token`;
   const net = { free: 0, rtt: 0, seed: null, snap: 0, room: NET_ROOM };
   let ws = null, joined = false, wasPlaying = false, retries = 0, name = "", opened = false, stopped = false;
+  let modeSent = false;
   let lastSent = 0, lastInput = "", pingT = 0, lastLobby = null, gameReady = false, inGuide = false;
   const send = data => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); };
   net.send = send;
@@ -105,6 +106,8 @@ function createOnline() {
         return;
       case "lobby":
         lastLobby = m;
+        // 좀비 모드로 만든 방: 방장이 처음 한 번 모드를 보낸다
+        if (m.host && NET.get("mode") === "zombie" && !modeSent && m.mode !== "zombie") { modeSent = true; send({ t: "seats", cops: m.cops, robs: m.robs, bots: m.bots, mode: "zombie", balance: m.balance || "even" }); history.replaceState(history.state, "", location.href.replace(/&mode=zombie/, "")); }
         $("lobby").classList.remove("brand");
         if (wasPlaying || ended) return;
         lobby(false);
@@ -159,6 +162,7 @@ function createOnline() {
         G2.player.isPlayer = true;
         // 좀비 판: 내 생김새는 시작 신호로, 남의 생김새는 보일 때 갱신으로 받는다
         if (m.mode === "zombie" && m.look) G2.player.look = m.look;
+        if (m.mode === "zombie") G2.zOrigin = m.team;
         // 못 본 상대의 이름은 받지 않으니 진영으로 부른다
         for (const a of G2.agents) if (a !== G2.player) a.name = tt(a.team === "police" ? "cop" : "rob");
       });
@@ -166,6 +170,8 @@ function createOnline() {
       syncRotate();
     };
     // 내 편은 판 시작 멈춤 동안 역할 배너(client/scenes.js)가 크게 보여 준다. 멈춤이 짧아지지 않게 바로 넘어간다
+    // 좀비 판은 대기실에서 첫 좀비 뽑기를 먼저 보여 준다(서버가 그만큼 시작 멈춤을 늘려 둔다)
+    if (m.mode === "zombie" && m.firsts && scene.active) return scene.spotlight(m.firsts, go);
     go();
   }
 
@@ -311,15 +317,17 @@ function createOnline() {
 // 첫 화면. 열쇠만 있고 방이 없으면 방을 만들거나 코드로 들어간다
 const ROOM_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 function goHome() { location.hash = `key=${encodeURIComponent(NET_KEY)}`; location.reload(); }
-function goRoom(code, create) { location.hash = `room=${code}&key=${encodeURIComponent(NET_KEY)}${create ? "&new=1" : ""}`; location.reload(); }
+// 방을 만들 때 고른 모드를 주소에 실어 둔다. 대기실에 들어가면 방장이 그 모드로 방 설정을 한 번 보낸다
+function goRoom(code, create, mode) { location.hash = `room=${code}&key=${encodeURIComponent(NET_KEY)}${create ? "&new=1" : ""}${create && mode === "zombie" ? "&mode=zombie" : ""}`; location.reload(); }
 function showHome() {
   $("start").className = "sheet"; openHome();
-  $("homeCreate").onclick = () => goRoom(Array.from(crypto.getRandomValues(new Uint8Array(5)), b => ROOM_CHARS[b % ROOM_CHARS.length]).join(""), true);
+  // 방 만들기와 혼자 해 보기는 먼저 모드 카드를 연다(client/modes.js)
+  $("homeCreate").onclick = () => { stopRooms(); $("home").className = "sheet brand"; Modes.open("room", mode => goRoom(Array.from(crypto.getRandomValues(new Uint8Array(5)), b => ROOM_CHARS[b % ROOM_CHARS.length]).join(""), true, mode)); };
   $("homeJoinOpen").onclick = () => { $("homeJoinOpen").hidden = true; $("homeJoin").hidden = false; $("homeLive").hidden = true; $("homeCode").focus(); };
   const join = () => { const code = $("homeCode").value.trim().toUpperCase(); if (!/^[A-Z0-9]{4,8}$/.test(code)) { $("homeCodeMsg").textContent = tt("codeRule"); return; } goRoom(code, false); };
   $("homeJoinGo").onclick = join;
   $("homeCode").onkeydown = e => { if (e.key === "Enter") join(); };
-  $("homeSolo").onclick = () => { stopRooms(); $("home").className = "sheet brand"; openSolo(true, true); };
+  $("homeSolo").onclick = () => { stopRooms(); $("home").className = "sheet brand"; Modes.open("solo", mode => openSolo(true, true, mode)); };
   $("homeAll").onclick = showRooms;
 }
 
