@@ -86,10 +86,13 @@ function bakeMap() {
   }
   // 감옥 마당: 울타리를 세우면 통과할 때 어색해서 바닥에 그린다
   const J = CFG.JAIL;
+  // 좀비 판에는 감옥이 없어 광장 바닥만 둔다
   x.fillStyle = T.plaza; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.fill();
   x.strokeStyle = T.curb; x.lineWidth = 8; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.stroke();
-  x.fillStyle = T.jail; x.beginPath(); x.arc(J.x, J.y, J.r, 0, 7); x.fill();
-  x.strokeStyle = G.theme === "night" ? "#C9CFDC" : "#FFFFFF"; x.lineWidth = 9; x.beginPath(); x.arc(J.x, J.y, J.r - 5, 0, 7); x.stroke();
+  if (!ZB.isZ()) {
+    x.fillStyle = T.jail; x.beginPath(); x.arc(J.x, J.y, J.r, 0, 7); x.fill();
+    x.strokeStyle = G.theme === "night" ? "#C9CFDC" : "#FFFFFF"; x.lineWidth = 9; x.beginPath(); x.arc(J.x, J.y, J.r - 5, 0, 7); x.stroke();
+  }
   x.restore();
   // 구역 경계: 바깥쪽을 어둡게 눌러 구역이 떠 보이게
   x.save(); x.beginPath(); x.rect(0, 0, CFG.W, CFG.H); L.ZONE.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)); x.closePath(); x.clip("evenodd");
@@ -264,14 +267,15 @@ function addTail(rig) {
   rig.all.append(path);
 }
 function makeChar(a) {
-  const kind = a.team;
+  // 좀비 모드는 생김새(고양이, 쥐)가 편과 따로다. 좀비 편이면 좀비 그림으로 붙인다(client/zombie.js)
+  const kind = a.look || a.team, zombie = ZB.zombie(a);
   const el = document.createElement("div"); el.className = "char"; world.append(el);
   const sh = document.createElement("div"); sh.className = "shadow"; el.append(sh);
   const base = kind === "police" ? 0.95 : 1.12; // 두 캐릭터 몸집이 비슷해 보이게
   const views = {};
   const names = kind === "police" ? ["police-front", "police-side", "police-back"] : ["robber-front", "robber-side", "robber-back", "robber-jailed"];
   for (const n of names) {
-    const rig = mount(SVGS[n], n); const d = rig.def; addTail(rig);
+    const rig = zombie ? ZB.mountZ(n) : mount(SVGS[n], n); const d = rig.def; addTail(rig);
     const scale = base * (n === "robber-jailed" ? 1.45 : 1);
     rig.svg.setAttribute("viewBox", `0 0 ${d.w} ${d.h}`);
     rig.svg.style.width = d.w * scale + "px"; rig.svg.style.height = d.h * scale + "px";
@@ -285,9 +289,10 @@ function makeChar(a) {
   if (G.player && (online || a.team === G.player.team)) {
     tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? tt("me") : nameOf(a.name); tag.style.top = (headTop - 66) + "px"; el.append(tag);
   }
-  const c = { a, kind, el, views, tag, face: 1, faceS: new Spring(420, 34), pop: new Spring(300, 14), view: null, prev: null, tr: 1, trMode: "fade", mot: {}, mkey: {}, phase: 0, facing: "front", want: null, wantT: 0, stillT: 0, action: null, hopY: 0, input: { x: 0, y: 0 }, hide: 0, wasVisible: false };
+  const c = { a, kind, zombie, el, views, tag, face: 1, faceS: new Spring(420, 34), pop: new Spring(300, 14), view: null, prev: null, tr: 1, trMode: "fade", mot: {}, mkey: {}, phase: 0, facing: "front", want: null, wantT: 0, stillT: 0, action: null, hopY: 0, input: { x: 0, y: 0 }, hide: 0, wasVisible: false };
   c.faceS.x = 1;
   goView(c, `${kind}-front`, true); ensureMotion(c, `${kind}-front`, "idleFront");
+  if (tag && zombie) tag.classList.add("zz");
   return c;
 }
 function ensureMotion(c, view, motionName, opts) {
@@ -319,7 +324,7 @@ function locomotion(c, dt) {
     c.stillT += dt;
     if (c.stillT > 0.08) c.facing = c.facing === "back" ? "back" : "front";
     const v = `${k}-${c.facing === "back" ? "back" : (c.stillT > 0.08 ? "front" : c.facing)}`;
-    ensureMotion(c, v, c.facing === "side" ? "runSide" : "idleFront", c.facing === "side" && c.hide ? hideOpts : {});
+    ensureMotion(c, v, c.facing === "side" ? (c.zombie ? "shambleSide" : "runSide") : "idleFront", c.facing === "side" && c.hide && !c.zombie ? hideOpts : {});
     goView(c, v); return;
   }
   c.stillT = 0;
@@ -327,11 +332,15 @@ function locomotion(c, dt) {
   const want = desiredFacing(c, mx, my);
   if (want !== c.facing) { if (c.want !== want) { c.want = want; c.wantT = 0; } c.wantT += dt; if (c.wantT > 0.06) { c.facing = want; c.want = null; } } else c.want = null;
   const v = `${k}-${c.facing}`;
-  if (c.facing === "side") ensureMotion(c, v, "runSide", c.hide ? hideOpts : {});
+  // 좀비는 팔을 뻗고 발을 끄는 걸음(playground.html shambleSide, shambleFront)
+  if (c.facing === "side") ensureMotion(c, v, c.zombie ? "shambleSide" : "runSide", c.hide && !c.zombie ? hideOpts : {});
+  else if (c.zombie && c.facing === "front") ensureMotion(c, v, "shambleFront", {});
   else ensureMotion(c, v, "runFront", {});
   goView(c, v);
 }
 function startAction(c, name, dx) {
+  // 좀비 물기: 옆모습으로 돌아 앞으로 덮친다
+  if (name === "catch" && c.zombie) { c.face = dx < 0 ? -1 : 1; c.facing = "side"; const v = `${c.kind}-side`; goView(c, v, c.view === v); ensureMotion(c, v, "shambleSide"); c.action = { name: "bite", until: 0.5, dx: dx < 0 ? -1 : 1, t: 0 }; return; }
   if (name === "catch") { c.face = dx < 0 ? -1 : 1; c.facing = "side"; goView(c, "police-side", c.view === "police-side"); c.mkey["police-side"] = null; ensureMotion(c, "police-side", "catchSide"); c.action = { name, until: 0.6 }; }
   if (name === "jail") { c.facing = "side"; goView(c, "robber-side", true); ensureMotion(c, "robber-side", "runSide"); c.action = { name: "caught", until: 0.32 }; c.pop.x = -0.15; }
   if (name === "escape") {
@@ -343,12 +352,14 @@ function startAction(c, name, dx) {
 }
 function drawChar(c, dt) {
   const a = c.a;
-  c.input = (a.state === "jailed" || a.state === "caught" || a.state === "waiting" || a.action) ? { x: 0, y: 0 } : { x: a.ix, y: a.iy };
+  c.input = (a.state === "jailed" || a.state === "caught" || a.state === "waiting" || a.state === "turning" || a.state === "escaped" || a.action) ? { x: 0, y: 0 } : { x: a.ix, y: a.iy };
+  c.lungeX = 0;
   c.hide = a.inBush ? 5 : 0;
   if (c.action) {
     c.action.t += dt;
     if (c.action.name === "caught") { const k = c.action.t / 0.32; c.views["robber-side"].all.setAttribute("transform", piv(93, 141, 6 * Math.sin(k * 30), 1, 1, 4 * Math.sin(k * 40) * (1 - k), -18 * Math.sin(Math.PI * Math.min(1, k)))); }
     if (c.action.name === "escape") { const k = c.action.t / 0.5; c.hopY = -40 * Math.sin(Math.PI * Math.min(1, k)); }
+    if (c.action.name === "bite") { const k = Math.min(1, c.action.t / 0.5); c.lungeX = c.action.dx * 44 * Math.sin(Math.PI * k); c.hopY = -10 * Math.sin(Math.PI * k); }
     if (c.action.until !== Infinity && c.action.t >= c.action.until) {
       const n = c.action.name; c.action = null; c.hopY = 0;
       if (n === "caught") { goView(c, "robber-jailed"); c.trMode = "swap"; c.mkey["robber-jailed"] = null; ensureMotion(c, "robber-jailed", "jailed"); c.action = { name: "jailed", until: Infinity, t: 0 }; c.pop.x = -0.1; }
@@ -379,7 +390,13 @@ function drawChar(c, dt) {
     rig.flip.setAttribute("transform", piv(d.cx, d.ground, 0, flipX * sx * (1 - pop * 0.5), 1 + pop));
   }
   c.el.style.opacity = a.inBush ? 0.6 : 1;
-  c.el.style.transform = `translate(${a.x}px, ${a.y + (c.hopY || 0) * CS}px) scale(${CS})`;
+  // 물린 사람: 2초 동안 좌우로 비틀거리며 색이 빠진다. 끝나면 좀비 그림으로 다시 만든다(client/zombie.js syncChars)
+  if (a.state === "turning") {
+    const k = Math.min(1, (performance.now() - (c.turnAt ||= performance.now())) / 2000);
+    c.lungeX = Math.sin(performance.now() / 70) * 6 * (1 - k * 0.5);
+    c.el.style.filter = `saturate(${1 - k * 0.7}) hue-rotate(${k * 70}deg) brightness(${1 - k * 0.1})`;
+  } else if (c.el.style.filter) c.el.style.filter = "";
+  c.el.style.transform = `translate(${a.x + (c.lungeX || 0) * CS}px, ${a.y + (c.hopY || 0) * CS}px) scale(${CS})`;
   // 내 캐릭터는 덤불에 들어가도 비쳐 보여야 어디 있는지 안다
   c.el.style.zIndex = Math.round(a.y) + (a.isPlayer && a.inBush ? 400 : 0);
 }
@@ -502,13 +519,14 @@ function bakeMini() {
   x.fillStyle = T.roofs[0][1]; for (const b of L.BUILDINGS) if (!b.kind) x.fillRect(b.x * s, b.y * s, b.w * s, b.h * s);
   x.fillStyle = T.bushes[1]; for (const b of L.BUILDINGS) if (b.kind === "tree") { x.beginPath(); x.arc(b.x * s, b.y * s, 3.6, 0, 7); x.fill(); }
   for (const b of L.BUSHES) { x.beginPath(); x.arc(b.x * s, b.y * s, 3.2, 0, 7); x.fill(); }
-  x.strokeStyle = "#7D828E"; x.lineWidth = 2; x.beginPath(); x.arc(CFG.JAIL.x * s, CFG.JAIL.y * s, CFG.JAIL.r * s, 0, 7); x.stroke();
+  if (!ZB.isZ()) { x.strokeStyle = "#7D828E"; x.lineWidth = 2; x.beginPath(); x.arc(CFG.JAIL.x * s, CFG.JAIL.y * s, CFG.JAIL.r * s, 0, 7); x.stroke(); }
   miniBase = c;
 }
 function drawMini() {
   const s = mini.width / CFG.W, p = G.player, x = mctx;
   x.drawImage(miniBase, 0, 0);
   drawZoneMini(x, s);
+  ZB.drawMini(x, s);
   const dot = (a, col, r) => { x.fillStyle = col; x.beginPath(); x.arc(a.x * s, a.y * s, r, 0, 7); x.fill(); };
   const teamCol = p.team === "police" ? "#2A9BEF" : "#5A6070";
   if (p.team === "police") for (const [, k] of G.intel) if (G.t - k.t < 6) dot(k, "rgba(226,87,76,.55)", 4);
@@ -574,7 +592,7 @@ function tensionSound(dt) {
     spottedAt.set(a.id, now);
   }
   // 도둑: 경찰이 보이는 동안 심장. 가까울수록 빠르다
-  if (p.team === "robber" && near !== Infinity) {
+  if (p.team === "robber" && near !== Infinity && !ZB.isZ()) {
     beatT -= dt;
     if (beatT <= 0) { beatT = 0.42 + (1 - close) * 0.5; play("heart", 0.95 + close * 0.15); }
   } else beatT = 0;
@@ -669,6 +687,7 @@ const fmt = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:
 function handleEvents() {
   const p = G.player;
   for (const e of G.events.splice(0)) {
+    if (ZB.isZ() && ZB.onEvent(e)) continue;
     if (e.type === "catchStart") startAction(chars[e.a.id], "catch", e.a.action?.dx ?? Math.cos(e.a.faceA));
     if (e.type === "jailed") { burst(e.r.x, e.r.y - 40, "#FFFFFF", 12); if (e.r === p) shake = 5; }
     if (e.type === "catchMiss" && e.a === p) { toast(tt("missed"), "bad"); play("miss"); }
@@ -712,28 +731,39 @@ function lockText(p) {
 }
 
 function drawHud(dt) {
-  const p = G.player, left = G.phase === "wait" ? CFG.WAIT - G.t : CFG.DURATION - G.t;
+  const p = G.player, Z = ZB.isZ() ? tt("zb") : null, left = G.phase === "wait" ? (G.wait ?? CFG.WAIT) - G.t : CFG.DURATION - G.t;
   $("timer").textContent = fmt(left);
-  $("timerLabel").textContent = tt(G.phase === "wait" ? "timerWait" : "timerLeft");
+  $("timerLabel").textContent = G.phase === "wait" && Z ? Z.timerWait : tt(G.phase === "wait" ? "timerWait" : "timerLeft");
   $("clock").classList.toggle("wait", G.phase === "wait");
   // 사람끼리 할 때는 다른 도둑의 상태를 받지 않아서 남은 수로 그린다
-  const pips = G.robbers.map((r, i) => (online ? i < online.free : r.state === "free"));
-  const pipKey = pips.map(Number).join("");
-  if (pipKey !== lastPip) { lastPip = pipKey; $("pips").innerHTML = pips.map(free => `<i class="${free ? "free" : "out"}" style="background-image:url('${ROBBER_ICON}')"></i>`).join(""); }
+  if (Z) { const z = ZB.pips(); if (z.key !== lastPip) { lastPip = z.key; $("pips").innerHTML = z.html; } }
+  else {
+    const pips = G.robbers.map((r, i) => (online ? i < online.free : r.state === "free"));
+    const pipKey = pips.map(Number).join("");
+    if (pipKey !== lastPip) { lastPip = pipKey; $("pips").innerHTML = pips.map(free => `<i class="${free ? "free" : "out"}" style="background-image:url('${ROBBER_ICON}')"></i>`).join(""); }
+  }
   // 자유롭게 움직일 때는 위치 공개까지 남은 시간을 게이지로, 그 밖의 상태는 문장으로 보여 준다
-  const showReveal = G.phase === "play" && !["jailed", "inJail", "breaking"].includes(p.state);
+  const showReveal = G.phase === "play" && !["jailed", "inJail", "breaking", "turning", "escaped"].includes(p.state);
   $("reveal").hidden = !showReveal; $("status").hidden = showReveal;
-  if (showReveal) {
+  // 좀비 판의 생존자는 구조차를 알게 되면 같은 칸이 "구조차 오기까지 / 떠나기까지"로 바뀐다
+  const van = Z && showReveal ? ZB.vanCard() : null;
+  if (van) {
+    if (van.n !== lastRevealN) { lastRevealN = van.n; $("revealN").textContent = van.here ? "" : van.n; }
+    $("revealLabel").textContent = van.label;
+    $("revealFill").style.width = van.here ? "100%" : Math.min(100, van.n / Math.max(1, van.of) * 100) + "%";
+    $("reveal").className = "van" + (van.here ? " here" : "");
+  } else if (showReveal) {
     const rest = Math.max(0, G.nextReveal - G.t), n = Math.ceil(rest), soon = n <= 5;
     if (n !== lastRevealN) { lastRevealN = n; const el = $("revealN"); el.textContent = n; if (soon) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } }
-    $("revealLabel").textContent = tt(role === "police" ? "revealCop" : "revealRob");
+    $("revealLabel").textContent = Z ? (role === "police" ? Z.revealZ : Z.revealS) : tt(role === "police" ? "revealCop" : "revealRob");
     $("revealFill").style.width = Math.min(100, rest / G.revealEvery * 100) + "%";
     $("reveal").className = soon ? (role === "robber" ? "hot" : "soon") : "";
   }
   $("hint").classList.toggle("dim", G.phase === "play" && G.t - CFG.WAIT > 12);
   $("stam").classList.toggle("tired", !!p.tired);
-  let line = "";
-  if (G.phase === "wait") line = tt(role === "police" ? "waitCop" : "waitRob");
+  let line = Z ? ZB.statusLine(p) || "" : "";
+  if (line) { /* 좀비 판 문장 */ }
+  else if (G.phase === "wait") line = tt(role === "police" ? "waitCop" : "waitRob");
   else if (p.state === "jailed" && !CFG.AUTO_ESCAPE) line = tt("jailedManual");
   else if (p.state === "jailed") line = tt("jailedAuto", Math.ceil(p.lock));
   else if (p.state === "inJail") line = tt("inJail");
@@ -769,25 +799,27 @@ function showEnd() {
   // 결과 창에서 제일 먼저 봐야 하는 건 이겼는지 졌는지다. 색으로 한 번 더 알린다
   $("endTitle").textContent = tt(won ? "won" : "lost");
   $("endTitle").className = won ? "won" : "lost";
-  $("endReason").textContent = tt(G.over.reason === "allArrested" ? "allArrested" : "timeUp");
-  $("endHero").src = won ? WIN_ICON[p.team] : p.team === "police" ? POLICE_ICON : ROBBER_ICON;
+  const zEnd = ZB.isZ() ? ZB.endText() : null;
+  $("endReason").textContent = zEnd ? zEnd.reason : tt(G.over.reason === "allArrested" ? "allArrested" : "timeUp");
+  $("endHero").src = zEnd ? zEnd.hero : won ? WIN_ICON[p.team] : p.team === "police" ? POLICE_ICON : ROBBER_ICON;
   $("endHero").className = won ? "won" : "lost";
   const s = p.s;
-  $("endStats").innerHTML = (p.team === "police"
+  $("endStats").innerHTML = (zEnd ? zEnd.stats : p.team === "police"
     ? [[tt("stCatches"), tt("times", s.catches)], [tt("stTeamCatches"), tt("times", G.stats.catches)], [tt("stEscaped"), tt("people", G.stats.rescues)]]
     : [[tt("stCaught"), tt("times", s.caught)], [tt("stRescued"), tt("people", s.rescued)], [tt("stHidden"), tt("secs", Math.round(s.hideT))]]
   ).map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("");
   // 팀 MVP - 결과 카드 아래 줄. 내가 MVP 면 왕관을 단다
   const mvpOf = team => { const v = G.over.mvp?.[team]; if (v === null || v === undefined) return null; const id = typeof v === "object" ? v.id : v; return { id, name: id === p.id ? tt("sc").me : nameOf(typeof v === "object" ? v.name : G.agents[id]?.name ?? "") }; };
   const mvps = ["police", "robber"].map(mvpOf);
-  $("endMvp").innerHTML = mvps.some(Boolean) ? mvps.map((m, i) => m ? `<span class="${i ? "rob" : "cop"}${m.id === p.id ? " me" : ""}"><i>${tt("sc")[i ? "mvpRob" : "mvpCop"]}</i>${m.id === p.id ? "👑 " : ""}${m.name.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))}</span>` : "").join("") : "";
+  $("endMvp").innerHTML = mvps.some(Boolean) ? mvps.map((m, i) => m ? `<span class="${i ? "rob" : "cop"}${m.id === p.id ? " me" : ""}"><i>${ZB.isZ() ? tt("zb")[i ? "mvpS" : "mvpZ"] : tt("sc")[i ? "mvpRob" : "mvpCop"]}</i>${m.id === p.id ? "👑 " : ""}${m.name.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))}</span>` : "").join("") : "";
   // 진 팀 → 이긴 팀 MVP 를 무대에 올린 뒤 결과 카드를 띄운다. MVP 가 없으면(예전 서버) 바로 카드
   setTimeout(() => Scenes.mvpReveal(G, G.over, p, () => $("end").className = "sheet show " + role), 500);
 }
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random", pickShrink = QS.get("shrink") === "1";
 function start(r, seed) {
-  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined });
+  // 좀비 모드는 아직 고르는 화면이 없어 주소로만 연다: game.html?mode=zombie&balance=even
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: QS.get("mode") === "zombie" ? "zombie" : undefined, balance: QS.get("balance") || undefined, ...(QS.get("mode") === "zombie" ? { police: 1, robbers: 5 } : {}) });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";
@@ -802,6 +834,9 @@ function showGame(r, opts, setup) {
   document.body.dataset.role = r;
   $("start").className = "sheet"; $("end").className = "sheet"; $("hud").className = "show"; $("toast").className = ""; $("banner").className = "";
   $("btnCatch").style.display = r === "police" ? "" : "none";
+  $("btnCatch").textContent = ZB.isZ() ? tt("zb").bite : tt("catch");
+  const catchKey = document.querySelector('#hint em[data-t="catch"]'); if (catchKey) catchKey.textContent = ZB.isZ() ? tt("zb").bite : tt("catch");
+  document.body.dataset.mode = ZB.isZ() ? "zombie" : "classic";
   // 지도 이름과 미션은 판 시작 역할 배너(client/scenes.js)가 보여 준다
   Scenes.reset();
 }
@@ -855,9 +890,10 @@ function frame(dt) {
   const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
   world.style.transform = `translate(${sx}px, ${sy}px) scale(${zoom}) translate(${-camX}px, ${-camY}px)`;
   wobbleBushes(dt);
+  if (ZB.isZ()) ZB.syncChars();
   for (const c of chars) {
     const a = c.a;
-    const can = online ? a.team === p.team || seen(a) : ended || a.team === p.team || (p.state !== "waiting" && L.inZoneNow(G, p.x, p.y) && sees(p, a));
+    const can = a.state !== "escaped" && (online ? a.team === p.team || seen(a) : ended || a.team === p.team || (p.state !== "waiting" && L.inZoneNow(G, p.x, p.y) && sees(p, a)));
     c.el.style.display = can ? "" : "none";
     c.wasVisible = can;
     if (can) dustFor(c, a, dt);
@@ -868,7 +904,9 @@ function frame(dt) {
   drawJailAlert();
   drawCatchAid();
   tensionSound(dt);
+  ZB.heart(dt);
   drawFog();
+  ZB.drawVan(fctx);
   drawZone();
   drawMini();
 }
