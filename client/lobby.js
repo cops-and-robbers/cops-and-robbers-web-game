@@ -201,6 +201,8 @@ function createLobbyScene(net) {
       active = true; revealed = null; countN = 0; moved = false;
       document.body.classList.add("lobby-mode");
       chars.forEach(c => c.el.remove()); chars = [];
+      // 지난 판의 장면(MVP 공개 등)이 남아 있으면 걷는다. 대기실에서는 시작 장면을 띄우지 않는다(game.js drawHud)
+      Scenes.reset();
       G = newGame({ seed: 11, theme: "town", role: "police", police: 4, robbers: 4 });
       L.loadMap(LOBBY_MAP); G.map = LOBBY_MAP; CFG.WAIT = 1e9; G.phase = "wait"; G.nextReveal = 1e9; role = "police"; ended = false;
       pool = [...G.agents]; G.agents = []; G.events.length = 0; people = new Map(); bots = []; me = null; G.player = pool[0];
