@@ -23,7 +23,6 @@ function createOnline() {
   const tokenKey = `room:${NET_ROOM}:token`;
   const net = { free: 0, rtt: 0, seed: null, snap: 0, room: NET_ROOM };
   let ws = null, joined = false, wasPlaying = false, retries = 0, name = "", opened = false, stopped = false;
-  let modeSent = false;
   let lastSent = 0, lastInput = "", pingT = 0, lastLobby = null, gameReady = false, inGuide = false;
   const send = data => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); };
   net.send = send;
@@ -77,7 +76,8 @@ function createOnline() {
     ws.onopen = () => {
       retries = 0;
       opened = true;
-      send({ t: "join", name, token: store.get(tokenKey) || undefined, create: NET_NEW || undefined });
+      // 놀이 방식은 방을 만들 때만 정한다(대기실에서는 바꾸지 않는다)
+      send({ t: "join", name, token: store.get(tokenKey) || undefined, create: NET_NEW || undefined, ...(NET_NEW && NET.get("mode") === "zombie" ? { mode: "zombie" } : {}) });
     };
     ws.onmessage = e => onMessage(JSON.parse(e.data));
     ws.onclose = () => {
@@ -102,12 +102,10 @@ function createOnline() {
         joined = true;
         store.set(tokenKey, m.token);
         // 방을 만든 뒤에는 주소에서 표시를 지워 다시 열어도 만든 사람으로 치지 않는다
-        if (NET_NEW) history.replaceState(history.state, "", location.href.replace(/&new=1/, ""));
+        if (NET_NEW) history.replaceState(history.state, "", location.href.replace(/&new=1/, "").replace(/&mode=zombie/, ""));
         return;
       case "lobby":
         lastLobby = m;
-        // 좀비 모드로 만든 방: 방장이 처음 한 번 모드를 보낸다
-        if (m.host && NET.get("mode") === "zombie" && !modeSent && m.mode !== "zombie") { modeSent = true; send({ t: "seats", cops: m.cops, robs: m.robs, bots: m.bots, mode: "zombie", balance: m.balance || "even" }); history.replaceState(history.state, "", location.href.replace(/&mode=zombie/, "")); }
         $("lobby").classList.remove("brand");
         if (wasPlaying || ended) return;
         lobby(false);

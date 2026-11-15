@@ -276,7 +276,8 @@ export class Room extends DurableObject<Env> {
     if (!Number.isInteger(cops) || !Number.isInteger(robs) || cops < 1 || robs < 1) return;
     if (cops + robs > MAX_PLAYERS || cops + robs < members.length) return;
     const before = this.seats();
-    const mode = MODES.includes(msg.mode) ? msg.mode : before.mode;
+    // 놀이 방식은 방을 만들 때(join 의 mode)만 정한다. 대기실에서 바꾸면 들어온 사람이 기대한 판과 달라진다
+    const mode = before.mode;
     const balance = BALANCES.includes(msg.balance) ? msg.balance : before.balance;
     const seats: Seats = { cops, robs, bots: !!msg.bots, open: typeof msg.open === "boolean" ? msg.open : before.open, shrink: typeof msg.shrink === "boolean" ? msg.shrink : before.shrink, mode, balance };
     const left: Record<Side, number> = mode === "zombie" ? { cop: Infinity, rob: Infinity, any: Infinity } : { cop: cops, rob: robs, any: Infinity };
@@ -351,7 +352,8 @@ export class Room extends DurableObject<Env> {
       ws.close(4004, "noRoom");
       return;
     }
-    const seats = this.seats();
+    const creating = !this.members().length && !!msg.create;
+    const seats = creating ? { ...DEFAULT_SEATS, mode: MODES.includes(msg.mode) ? msg.mode : "classic" } as Seats : this.seats();
     if (this.counting || this.members().length >= seats.cops + seats.robs) {
       this.send(ws, { t: "error", code: this.counting ? "playing" : "full" });
       ws.close(4002, "full");

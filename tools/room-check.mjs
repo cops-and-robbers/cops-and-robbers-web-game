@@ -413,10 +413,13 @@ async function checkControl(env) {
 async function checkZombie(env) {
   const zcode = `Z${Date.now().toString(36).slice(-6).toUpperCase()}`;
   const zs = [0, 1, 2].map(() => connect(env.base, env.key, zcode));
-  for (const [i, c] of zs.entries()) { await c.open; c.sendJson({ t: "join", name: `좀비${i + 1}`, create: i === 0 }); await waitFor(() => c.lobby, 3000, "좀비 방 입장"); }
-  zs[0].sendJson({ t: "seats", cops: 1, robs: 2, bots: false, mode: "zombie", balance: "even" });
-  await waitFor(() => zs.every(c => c.lobby?.mode === "zombie"), 3000, "좀비 모드 고르기");
-  check(zs.every(c => c.lobby.mode === "zombie" && c.lobby.balance === "even"), "방장이 좀비 모드를 고르면 모두 알아요");
+  // 놀이 방식은 방을 만들 때만 정한다
+  for (const [i, c] of zs.entries()) { await c.open; c.sendJson({ t: "join", name: `좀비${i + 1}`, create: i === 0, ...(i === 0 ? { mode: "zombie" } : {}) }); await waitFor(() => c.lobby, 3000, "좀비 방 입장"); }
+  await waitFor(() => zs.every(c => c.lobby?.mode === "zombie"), 3000, "좀비 모드 방");
+  check(zs.every(c => c.lobby.mode === "zombie" && c.lobby.balance === "even"), "좀비 모드로 만든 방은 모두 좀비 모드로 알아요");
+  zs[0].sendJson({ t: "seats", cops: 1, robs: 2, bots: false, mode: "classic" });
+  await waitFor(() => zs.every(c => c.lobby?.robs === 2), 3000, "인원 바꾸기");
+  check(zs.every(c => c.lobby.mode === "zombie" && c.lobby.robs === 2), "대기실에서는 놀이 방식을 바꿀 수 없고 인원만 바뀌어요");
   zs[1].sendJson({ t: "side", side: "cop" }); zs[2].sendJson({ t: "side", side: "cop" });
   await waitFor(() => zs[0].lobby.players.filter(p => p.side === "cop").length === 2, 3000, "고양이 칸 두 명");
   check(zs[0].lobby.players.filter(p => p.side === "cop").length === 2, "좀비 모드의 칸은 인원 제한 없이 생김새만 골라요");
