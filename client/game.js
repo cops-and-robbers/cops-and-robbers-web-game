@@ -80,17 +80,17 @@ function bakeMap() {
   // 좀비 대기실 공터(bare)는 꽃 없이 비워 둔다
   for (let k = 0; k < (G.map.bare ? 0 : 420); k++) {
     const px = hash(k * 3.1 + seed) * CFG.W, py = hash(k * 7.7 + seed * 1.3) * CFG.H;
-    if (onRoad(px, py) || Math.hypot(px - CFG.JAIL.x, py - CFG.JAIL.y) < CFG.GATE_R + 30 || L.solidAt(px, py)) continue;
+    if (onRoad(px, py) || (!ZB.isZ() && Math.hypot(px - CFG.JAIL.x, py - CFG.JAIL.y) < CFG.GATE_R + 30) || L.solidAt(px, py)) continue;
     const inPark = L.PARKS.some(p => Math.hypot((px - p.x) / p.rx, (py - p.y) / p.ry) < 1);
     if (k % 3 === 0 || inPark) drawArt(x, "flower", px, py + 10, 18 + hash(k) * 8, artCol);
     else { x.strokeStyle = T.speck; x.lineWidth = 4; x.beginPath(); x.moveTo(px - 9, py + 4); x.quadraticCurveTo(px - 6, py - 6, px - 3, py + 4); x.moveTo(px + 1, py + 4); x.quadraticCurveTo(px + 4, py - 8, px + 7, py + 4); x.stroke(); }
   }
   // 감옥 마당: 울타리를 세우면 통과할 때 어색해서 바닥에 그린다
   const J = CFG.JAIL;
-  // 좀비 판에는 감옥이 없어 광장 바닥만 둔다
-  x.fillStyle = T.plaza; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.fill();
-  x.strokeStyle = T.curb; x.lineWidth = 8; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.stroke();
+  // 좀비 판에는 감옥이 없다. 광장과 글자를 남기면 좀비가 감옥에서 시작하는 것처럼 보여 헷갈려서 바닥 그대로 둔다
   if (!ZB.isZ()) {
+    x.fillStyle = T.plaza; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.fill();
+    x.strokeStyle = T.curb; x.lineWidth = 8; x.beginPath(); x.arc(J.x, J.y, CFG.GATE_R, 0, 7); x.stroke();
     x.fillStyle = T.jail; x.beginPath(); x.arc(J.x, J.y, J.r, 0, 7); x.fill();
     x.strokeStyle = G.theme === "night" ? "#C9CFDC" : "#FFFFFF"; x.lineWidth = 9; x.beginPath(); x.arc(J.x, J.y, J.r - 5, 0, 7); x.stroke();
   }
@@ -108,6 +108,7 @@ function bakeMap() {
     x.restore();
   }
   // 감옥 글자
+  if (ZB.isZ()) return;
   x.font = `800 30px ${getComputedStyle(document.documentElement).getPropertyValue("--font")}`; x.textAlign = "center";
   const w = x.measureText(tt("jail")).width + 78, sy = J.y - J.r - 62;
   x.fillStyle = "rgba(29,35,43,.18)"; rr(x, J.x - w / 2 + 4, sy + 6, w, 50, 16); x.fill();
