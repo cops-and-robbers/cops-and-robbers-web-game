@@ -336,7 +336,7 @@ function locomotion(c, dt) {
   const v = `${k}-${c.facing}`;
   // 좀비는 팔을 뻗고 발을 끄는 걸음(playground.html shambleSide, shambleFront)
   if (c.facing === "side") ensureMotion(c, v, c.zombie ? "shambleSide" : "runSide", c.hide && !c.zombie ? hideOpts : {});
-  else if (c.zombie && c.facing === "front") ensureMotion(c, v, "shambleFront", {});
+  else if (c.zombie) ensureMotion(c, v, "shambleFront", {});
   else ensureMotion(c, v, "runFront", {});
   goView(c, v);
 }

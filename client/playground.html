@@ -414,16 +414,24 @@
       }
     } };
   };
-  // 앞모습: 손을 가슴 높이로 들고 좌우로 조금 휘청인다
+  // 앞모습과 뒷모습: 손을 가슴 높이로 들고 좌우로 조금 휘청인다.
+  // 고양이(police)는 팔이 몸 그림에 붙어 있어 따로 움직일 수 없다. 앞모습은 앞으로 뻗은 두 손을, 뒷모습은 몸 옆으로 삐져나온 팔을 덧그린다
+  const zPaw = (x, y, back) => { const g = document.createElementNS(NS, "g"); g.innerHTML = back
+    ? `<ellipse cx="${x}" cy="${y}" rx="13" ry="11" fill="#86AE8F"/><ellipse cx="${x}" cy="${y - 1}" rx="10.5" ry="8.5" fill="#AECBB2"/>`
+    : `<ellipse cx="${x}" cy="${y}" rx="15" ry="13" fill="#86AE8F"/><ellipse cx="${x}" cy="${y - 1}" rx="12.5" ry="10.5" fill="#C3DAC3"/><path d="M${x - 6} ${y - 7}v4M${x} ${y - 8}v4M${x + 6} ${y - 7}v4" stroke="#86AE8F" stroke-width="2.2" stroke-linecap="round"/>`; return g; };
   MOTIONS.shambleFront = (rig) => {
-    const d = rig.def, rob = d.name.startsWith("robber"); let ph = 0; const arm = new Spring(90, 6);
+    const d = rig.def, rob = d.name.startsWith("robber"), back = d.name.endsWith("back"); let ph = 0; const arm = new Spring(90, 6);
+    if (!rob && !rig.zPaws) {
+      rig.zPaws = back ? [zPaw(17, 128, true), zPaw(163, 128, true)] : [zPaw(50, 130), zPaw(130, 130)];
+      rig.zPaws.forEach(p => (back ? rig.all.insertBefore(p, rig.all.firstChild) : rig.all.append(p)));
+    }
     return { update(dt, ctx = {}) {
       const speed = ctx.speed ?? 0.9, T = 1.15 / (0.55 + 0.45 * speed);
       ph = (ph + dt / T) % 1; const u = limp(ph);
       const sway = 3 * Math.sin(u * TAU), y = 2.5 * Math.abs(Math.sin(u * TAU)), a = arm.step(y * 1.4, dt);
       rig.all.setAttribute("transform", piv(d.cx, d.ground, sway, 1, 1, 0, y));
       if (rob) { rig.set("handL", piv(41, 113, 0, 1.12, 1.12, 8, -12 + a)); rig.set("handR", piv(119, 113, 0, 1.12, 1.12, -8, -12 + a * 0.7)); }
-      else { rig.set("armL", piv(42, 170, 0, 1.1, 1.1, 12, -16 + a)); rig.set("armR", piv(138, 170, 0, 1.1, 1.1, -12, -16 + a * 0.7)); }
+      else { rig.zPaws[0].setAttribute("transform", `translate(0,${-a})`); rig.zPaws[1].setAttribute("transform", `translate(0,${-a * 0.7})`); }
       const L = Math.max(0, Math.sin(u * TAU)), R = Math.max(0, -Math.sin(u * TAU));
       const fl = rob ? [[61, 140], [99, 140]] : [[52, 196], [126, 196]];
       rig.set("footL", piv(fl[0][0], fl[0][1], 0, 1, 1, 0, -4 * L));

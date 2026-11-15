@@ -17,10 +17,12 @@ const ZB = (() => {
   }
   const url = name => "data:image/svg+xml," + encodeURIComponent(svg(name));
   // 엔진은 팔다리 막대를 그림 정보(DEFS)의 색으로 그린다. 좀비로 붙일 때만 잠깐 바꿔 끼운다
+  // 뒷모습은 정면 그림에서 얼굴을 지운 자리를 몸 색으로 덧칠한다(DEFS.recolor). 그 색도 같이 바꿔야 옆구리에 경찰 파랑이 남지 않는다
   function mountZ(name) {
-    const def = window.CharRig.DEFS[name], saved = def?.limbs?.map(l => l.color);
+    const def = window.CharRig.DEFS[name], saved = def?.limbs?.map(l => l.color), paint = def?.recolor ? { ...def.recolor } : null;
     if (saved) def.limbs.forEach(l => l.color = recolor(l.color));
-    try { return mount(svg(name), name); } finally { if (saved) def.limbs.forEach((l, i) => l.color = saved[i]); }
+    if (paint) for (const k in def.recolor) def.recolor[k] = recolor(def.recolor[k]);
+    try { return mount(svg(name), name); } finally { if (saved) def.limbs.forEach((l, i) => l.color = saved[i]); if (paint) Object.assign(def.recolor, paint); }
   }
   const zombie = a => isZ() && a.team === "police";
   const lookOf = a => a.look || a.team;
