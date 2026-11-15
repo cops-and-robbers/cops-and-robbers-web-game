@@ -149,11 +149,21 @@ body.lobby-mode .char.shade svg { filter:saturate(.55) contrast(.78) brightness(
 /* ── 좀비 모드 대기실: 밤 바닥, 방 코드 칸의 모드 그림, 정류장 표지판, 모드 줄 ── */
 .code.zroom { gap:8px; padding-left:6px; } .code .zIcon { width:36px; height:36px; border-radius:11px; background:#2A2342; object-fit:contain; object-position:center 20%; padding:3px; box-sizing:border-box; }
 body[data-lobby-mode=zombie] .wcount { color:#E6E0D3; }
-.wstop { position:absolute; left:0; top:0; width:140px; height:190px; pointer-events:none; }
-.wstop b { position:absolute; left:0; top:0; width:140px; padding:12px 8px; box-sizing:border-box; border-radius:14px; background:#FFC83D; box-shadow:0 0 0 4px #fff, 0 6px 0 rgba(0,0,0,.25); color:#3A2A00; font:900 26px/1.15 var(--font); text-align:center; }
-.wstop i { position:absolute; left:64px; top:70px; width:12px; height:120px; border-radius:6px; background:#8A93A8; z-index:-1; }
+.wstop { position:absolute; left:0; top:0; width:180px; height:190px; pointer-events:none; }
+.wstop b { position:absolute; left:0; top:0; width:180px; white-space:nowrap; padding:12px 8px; box-sizing:border-box; border-radius:14px; background:#FFC83D; box-shadow:0 0 0 4px #fff, 0 6px 0 rgba(0,0,0,.25); color:#3A2A00; font:900 26px/1.15 var(--font); text-align:center; }
+.wstop i { position:absolute; left:84px; top:70px; width:12px; height:120px; border-radius:6px; background:#8A93A8; z-index:-1; }
 .wsay.tip { font-size:24px; background:#FFC83D; color:#3A2A00; } .wsay.tip::after { background:#FFC83D; }
 .srow.modeRow { gap:10px; } .srow.modeRow .nm small { display:block; font-size:11px; font-weight:700; color:var(--sub); }
 .mIcon { width:40px; height:40px; border-radius:11px; display:grid; place-items:end center; overflow:hidden; flex:none; } .mIcon.classic { background:#E3F1FD; } .mIcon.zomb { background:#2A2342; }
 .mIcon img { height:34px; }
 #lob .bt.mini { height:36px; padding:0 12px; font-size:13px; color:#0088FF; box-shadow:none; background:#EEF4FF; }
+
+/* 좀비 공터의 밤 기운: 가장자리 보라빛 그늘과 낮게 흐르는 안개. 누르기를 막지 않는다 */
+.zMood { position:absolute; inset:0; z-index:1; pointer-events:none; box-shadow:inset 0 0 160px 40px rgba(18,10,34,.75); }
+.zMood i { position:absolute; left:-20%; right:-20%; height:22%; border-radius:50%; background:radial-gradient(ellipse at center, rgba(185,166,232,.16), transparent 70%); animation:zFog 18s linear infinite; }
+.zMood i:first-child { bottom:12%; } .zMood i:last-child { bottom:32%; animation-duration:26s; animation-direction:reverse; opacity:.7; }
+@keyframes zFog { from { transform:translateX(-8%); } to { transform:translateX(8%); } }
+#lob .bt.look { display:inline-flex; align-items:center; gap:6px; padding:0 12px 0 8px; }
+#lob .bt.look img { height:30px; width:auto; }
+@media (max-width:759px) { #lob .bt.look { font-size:0; gap:0; padding:0 7px; } }
+@media (prefers-reduced-motion:reduce) { .zMood i { animation:none; } }
