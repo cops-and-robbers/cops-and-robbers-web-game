@@ -77,7 +77,8 @@ function bakeMap() {
   }
   // 잔디 마당과 빈터에 흰 꽃과 짧은 풀 자국을 뿌린다. 길과 감옥 마당은 피한다
   const artCol = artColors(T), onRoad = (px, py) => L.ROADS.some(r => px > r.x - 20 && px < r.x + r.w + 20 && py > r.y - 20 && py < r.y + r.h + 20);
-  for (let k = 0; k < 420; k++) {
+  // 좀비 대기실 공터(bare)는 꽃 없이 비워 둔다
+  for (let k = 0; k < (G.map.bare ? 0 : 420); k++) {
     const px = hash(k * 3.1 + seed) * CFG.W, py = hash(k * 7.7 + seed * 1.3) * CFG.H;
     if (onRoad(px, py) || Math.hypot(px - CFG.JAIL.x, py - CFG.JAIL.y) < CFG.GATE_R + 30 || L.solidAt(px, py)) continue;
     const inPark = L.PARKS.some(p => Math.hypot((px - p.x) / p.rx, (py - p.y) / p.ry) < 1);

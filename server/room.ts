@@ -21,7 +21,7 @@ const SAY_LINES = 5;
 const DEFAULT_SEATS: Seats = { cops: 2, robs: 4, bots: false, open: false, shrink: false, mode: "classic", balance: "even" };
 const MODES = ["classic", "zombie"] as const;
 const BALANCES = ["surv", "even", "zomb"] as const;
-const ZOMBIE_DRAW_SEC = 2.4;
+const ZOMBIE_DRAW_SEC = 5;
 // 공개 방은 이 간격으로 목록에 살아 있다고 알린다. 목록은 5분 동안 소식이 없는 방을 지운다
 const LIST_BEAT_MS = 2 * 60_000;
 const TICK_MS = 50;
