@@ -799,6 +799,8 @@ function showEnd() {
   // 결과 창에서 제일 먼저 봐야 하는 건 이겼는지 졌는지다. 색으로 한 번 더 알린다
   $("endTitle").textContent = tt(won ? "won" : "lost");
   $("endTitle").className = won ? "won" : "lost";
+  // 모드 카드의 기록과 배지(client/modes.js). 이 폰에만 남긴다
+  if (!driver) Modes.record(G, p, won);
   const zEnd = ZB.isZ() ? ZB.endText() : null;
   $("endReason").textContent = zEnd ? zEnd.reason : tt(G.over.reason === "allArrested" ? "allArrested" : "timeUp");
   $("endHero").src = zEnd ? zEnd.hero : won ? WIN_ICON[p.team] : p.team === "police" ? POLICE_ICON : ROBBER_ICON;
@@ -817,9 +819,10 @@ function showEnd() {
 }
 // ───────── 흐름 ─────────
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random", pickShrink = QS.get("shrink") === "1";
+// 놀이 방식은 모드 카드(client/modes.js)와 혼자 하기에서 고른다. 주소(?mode=zombie&balance=even)로도 열 수 있다
+let pickMode = QS.get("mode") === "zombie" ? "zombie" : "classic", pickBalance = QS.get("balance") || "even";
 function start(r, seed) {
-  // 좀비 모드는 아직 고르는 화면이 없어 주소로만 연다: game.html?mode=zombie&balance=even
-  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: QS.get("mode") === "zombie" ? "zombie" : undefined, balance: QS.get("balance") || undefined, ...(QS.get("mode") === "zombie" ? { police: 1, robbers: 5 } : {}) });
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: pickBalance, ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";
