@@ -8,7 +8,8 @@ svgs = re.search(r"const SVGS = \{.*?\};\n", pg, re.S).group(0)
 shell = (ROOT / "client/shell.html").read_text(encoding="utf-8")
 logic = (ROOT / "shared/logic.js").read_text(encoding="utf-8")
 # 구역 축소 화면(zone.js)은 game.js 의 판과 카메라를 같이 써서 뒤에 이어 붙인다
-game = (ROOT / "client/game.js").read_text(encoding="utf-8") + "\n" + (ROOT / "client/zone.js").read_text(encoding="utf-8")
+# 좀비 화면(zombie.js)은 첫 화면 미리보기에서도 불리니 game.js 앞에 둔다. 안의 함수는 판이 돌 때만 game.js 의 값을 쓴다
+game = (ROOT / "client/zombie.js").read_text(encoding="utf-8") + "\n" + (ROOT / "client/game.js").read_text(encoding="utf-8") + "\n" + (ROOT / "client/zone.js").read_text(encoding="utf-8")
 scenes = (ROOT / "client/scenes.js").read_text(encoding="utf-8")
 net = (ROOT / "client/tutorial.js").read_text(encoding="utf-8") + (ROOT / "client/guide.js").read_text(encoding="utf-8") + (ROOT / "client/solo.js").read_text(encoding="utf-8") + (ROOT / "client/lobby.js").read_text(encoding="utf-8") + (ROOT / "client/net.js").read_text(encoding="utf-8")
 css = (ROOT / "client/lobby.css").read_text(encoding="utf-8") + (ROOT / "client/scenes.css").read_text(encoding="utf-8")

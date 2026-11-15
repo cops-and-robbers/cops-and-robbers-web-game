@@ -88,13 +88,14 @@ const Scenes = (() => {
   // ───────── ① 역할 배너 ─────────
   // 앱은 0.9초 들어오고 2.35초 머물고 0.7초 나간다. 온라인은 시작 멈춤(2.6초) 안에 끝나게 줄였다
   const ROLE = { in: 700, hold: 1250, out: 600 };
-  function roleBanner(team, theme, introMs) {
+  function roleBanner(team, theme, introMs, z) {
     // 서버 판은 시작 신호를 받은 뒤 조금 늦게 화면이 열려 멈춤이 덜 남아 있다. 남은 멈춤 안에 끝나게 머무는 시간을 줄인다
     const hold = Math.max(300, Math.min(ROLE.hold, (introMs || 2600) - ROLE.in - ROLE.out));
-    const s = S(), police = team === "police";
-    const band = police ? "#FFFFFF" : COLOR.night, edge = police ? "#DCE6F2" : "#2B3440";
-    const tint = COLOR[team], onBand = police ? COLOR.ink : "#FFFFFF";
-    const title = police ? s.titleCop : s.titleRob, acc = police ? s.accentCop : s.accentRob;
+    const s = S(), police = team === "police", Z = z && tt("zb");
+    // 좀비 판: 좀비는 어두운 보라 띠, 생존자는 흰 띠. 아래 줄 없이 두 줄로 끝낸다
+    const band = Z ? (police ? "#2B2438" : "#FFFFFF") : police ? "#FFFFFF" : COLOR.night, edge = Z ? (police ? "#3A3050" : "#EFE8D6") : police ? "#DCE6F2" : "#2B3440";
+    const tint = Z ? (police ? "#B49BFF" : "#C98A00") : COLOR[team], onBand = Z ? (police ? "#FFFFFF" : COLOR.ink) : police ? COLOR.ink : "#FFFFFF";
+    const title = Z ? (police ? Z.titleZ : Z.titleS) : police ? s.titleCop : s.titleRob, acc = Z ? (police ? Z.accZ : Z.accS) : police ? s.accentCop : s.accentRob;
     const role = police ? tt("cop") : tt("rob");
     const box = h("div", "scRole"); box.setAttribute("aria-hidden", "true");
     const dim = h("div", "scDim");
@@ -102,9 +103,11 @@ const Scenes = (() => {
     const rows = [edge, band].map(c => { const g = h("div", "scStripes"); for (let i = 0; i < 7; i++) { const st = h("i"); st.style.background = c; g.appendChild(st); } bandBox.appendChild(g); return g; });
     rows[0].style.transform = "translateY(7px)";
     const lines = SPEED.map(() => { const w = h("div", "scSpeed"); const bar = h("i"); bar.style.background = band; w.appendChild(bar); box.appendChild(w); return { w, bar }; });
-    const ch = h("img", "scRoleArt"); ch.src = ART.role[team]; ch.alt = "";
-    const tx = h("div", "scRoleTx", `<small>${esc(theme ? `${theme} · ${s.roleLabel}` : s.roleLabel)}</small><p>${accent(title[0], acc, tint)}<br>${accent(title[1], acc, tint)}</p><em>${accent(s.sentence(role), role, tint)}</em>`);
-    tx.style.color = onBand; tx.querySelector("small").style.color = police ? "#5F6E80" : "#A9B4C2";
+    const ch = h("img", "scRoleArt"); ch.src = Z ? ZB.url(`${z.look}-front`) : ART.role[team]; ch.alt = "";
+    if (Z && !police) ch.src = svgUrl(`${z.look}-front`);
+    const small = Z ? (police ? Z.smallZ : Z.smallS) : theme ? `${theme} · ${s.roleLabel}` : s.roleLabel;
+    const tx = h("div", "scRoleTx", `<small>${esc(small)}</small><p>${accent(title[0], acc, tint)}<br>${accent(title[1], acc, tint)}</p>${Z ? "" : `<em>${accent(s.sentence(role), role, tint)}</em>`}`);
+    tx.style.color = onBand; tx.querySelector("small").style.color = Z ? (police ? "#C9B6FF" : "#76899E") : police ? "#5F6E80" : "#A9B4C2";
     box.append(dim, bandBox, ch, tx);
     layer().appendChild(box);
     const total = ROLE.in + hold + ROLE.out, quiet = reduce();
@@ -153,15 +156,21 @@ const Scenes = (() => {
 
   // ───────── ② 경찰 대기 장면 ─────────
   let wait = null;
-  function waitScene(revealEvery) {
-    const s = S();
-    const box = h("div", "scWait");
-    box.innerHTML = `<div class="scWaitBg" style="background-image:url(${ART.day})"></div>
+  function waitScene(revealEvery, z) {
+    const s = S(), Z = z && tt("zb");
+    const box = h("div", Z ? "scWait zomb" : "scWait");
+    // 좀비 판: 낮 하늘 대신 달밤과 지붕 그림자, 경찰차 대신 휘청이며 지나가는 좀비
+    box.innerHTML = Z
+      ? `<div class="scWaitBg scNight"><i class="scMoon"></i><i class="scRoofs"></i><i class="scMist"></i></div>
+      <div class="scCar scWalker"><img src="${ZB.url(`${z.look === "police" ? "robber" : "police"}-front`)}" alt=""></div>
+      <div class="scWaitL"><div class="scTeam"><img src="${ZB.url(`${z.look}-front`)}" alt="">${esc(Z.teamZ)}</div><small>${esc(Z.timerWait)}</small><b class="scCount">00:12</b><p>${esc(Z.waitLine)}</p></div>
+      <div class="scWaitR"><div class="scCard"><img src="${ART.flag}" alt=""><div><small>${esc(Z.missionLabel)}</small><p>${esc(Z.mission)}</p></div></div><div class="scCard scGuide"><img src="${ART.bulb}" alt=""><div><small></small><p></p></div></div></div>`
+      : `<div class="scWaitBg" style="background-image:url(${ART.day})"></div>
       <div class="scCar"><img src="${ART.car}" alt=""></div>
       <div class="scWaitL"><div class="scTeam"><img src="${svgUrl("police-front")}" alt="">${esc(s.teamCop)}</div><small>${esc(s.waitLabel)}</small><b class="scCount">00:15</b><p>${esc(s.waitCop)}</p></div>
       <div class="scWaitR"><div class="scCard"><img src="${ART.flag}" alt=""><div><small>${esc(s.missionLabel)}</small><p>${esc(s.mission)}</p></div></div><div class="scCard scGuide"><img src="${ART.bulb}" alt=""><div><small></small><p></p></div></div></div>`;
     layer().appendChild(box);
-    const guide = s.guideCop(revealEvery), gs = box.querySelector(".scGuide small"), gp = box.querySelector(".scGuide p"), count = box.querySelector(".scCount");
+    const guide = Z ? Z.guideZ(revealEvery) : s.guideCop(revealEvery), gs = box.querySelector(".scGuide small"), gp = box.querySelector(".scGuide p"), count = box.querySelector(".scCount");
     let shown = -1;
     const t0 = performance.now();
     // 역할 띠 자리에서 화면 전체로 펼친다 (band_transition.dart)
@@ -192,13 +201,14 @@ const Scenes = (() => {
   // ───────── ③ 출동 카운팅 (dispatch_countdown.dart) ─────────
   // 출동 6초 전에 덮고 5~1, "출동!" 1.2초 뒤 1초 동안 사이렌 자리에서 열린다
   let dispatch = null;
-  function dispatchCountdown(team, releaseAt) {
-    const s = S(), full = team === "police", quiet = reduce();
-    const box = h("div", full ? "scDispatch" : "scDispatch mini");
+  const MOON = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 185 229"><defs><mask id="m"><rect width="185" height="229" fill="#fff"/><circle cx="118" cy="92" r="62" fill="#000"/></mask></defs><circle cx="88" cy="118" r="72" fill="#FFF1C2" mask="url(#m)"/><circle cx="54" cy="128" r="8" fill="#EBDDA8"/><circle cx="70" cy="166" r="5" fill="#EBDDA8"/></svg>');
+  function dispatchCountdown(team, releaseAt, z) {
+    const s = S(), full = team === "police", quiet = reduce(), icon = z ? MOON : ART.siren;
+    const box = h("div", (full ? "scDispatch" : "scDispatch mini") + (z ? " zomb" : ""));
     box.setAttribute("aria-live", "assertive");
     box.innerHTML = full
-      ? `<div class="scBeam"></div><div class="scSirenWrap"><span class="scGlow" style="-webkit-mask-image:url(${ART.siren});mask-image:url(${ART.siren})"></span><img class="scSiren" src="${ART.siren}" alt=""><b class="scNum"></b></div>`
-      : `<div class="scEdge"></div><div class="scPill"><img src="${ART.siren}" alt=""><b class="scNum"></b></div>`;
+      ? `<div class="scBeam"></div><div class="scSirenWrap"><span class="scGlow" style="-webkit-mask-image:url(${icon});mask-image:url(${icon})"></span><img class="scSiren" src="${icon}" alt=""><b class="scNum"></b></div>`
+      : `<div class="scEdge"></div><div class="scPill"><img src="${icon}" alt=""><b class="scNum"></b></div>${z ? `<div class="scWakeHint">${esc(tt("zb").wakeSoon)}</div>` : ""}`;
     layer().appendChild(box);
     const num = box.querySelector(".scNum"), beam = box.querySelector(".scBeam"), glow = box.querySelector(".scGlow"), edge = box.querySelector(".scEdge"), wrap = box.querySelector(".scSirenWrap");
     let last = null, angle = 0, prev = performance.now();
@@ -210,7 +220,7 @@ const Scenes = (() => {
       const intensity = go ? 1 : Math.min(1, Math.max(0, (4000 - remaining) / 4000)) ** 1.6;
       const since = go ? -remaining / 1000 : (Math.ceil(remaining / 1000) * 1000 - remaining) / 1000;
       const iris = go ? Math.min(1, Math.max(0, (-remaining - 1200) / 1000)) : 0;
-      const label = go ? s.go : cover < 1 && full ? "" : String(seconds);
+      const label = go ? (z ? tt("zb").woke : s.go) : cover < 1 && full ? "" : String(seconds);
       if (label !== last) {
         last = label; num.textContent = label;
         if (label && !go) play("tick", seconds <= 2 ? 1.12 : 1);
@@ -222,7 +232,7 @@ const Scenes = (() => {
         const W = box.clientWidth, H = box.clientHeight, r = wrap.getBoundingClientRect(), b = box.getBoundingClientRect();
         const px = r.left - b.left + r.width / 2, py = r.top - b.top + r.height * 0.42;
         if (!quiet && intensity > 0) {
-          const red = `rgba(226,87,76,${0.18 + 0.82 * intensity})`, blue = `rgba(42,155,239,${0.18 + 0.82 * intensity})`;
+          const red = z ? `rgba(154,120,224,${0.18 + 0.82 * intensity})` : `rgba(226,87,76,${0.18 + 0.82 * intensity})`, blue = z ? `rgba(143,224,122,${0.14 + 0.6 * intensity})` : `rgba(42,155,239,${0.18 + 0.82 * intensity})`;
           beam.style.background = `conic-gradient(from ${angle}deg at ${px}px ${py}px, transparent 0deg, ${red} 13deg, transparent 26deg, transparent 180deg, ${blue} 193deg, transparent 206deg, transparent 360deg)`;
           beam.style.webkitMaskImage = beam.style.maskImage = `radial-gradient(circle at ${px}px ${py}px, #000 6%, rgba(0,0,0,.85) 30%, transparent 70%)`;
         }
@@ -243,7 +253,7 @@ const Scenes = (() => {
         box.style.opacity = String(Math.max(0, fade));
         const red = 0.15 + 0.5 * intensity * (0.5 + 0.5 * Math.sin((angle * Math.PI) / 180));
         const blue = 0.15 + 0.5 * intensity * (0.5 - 0.5 * Math.sin((angle * Math.PI) / 180));
-        edge.style.boxShadow = quiet ? "" : `inset 34px 0 60px -30px rgba(226,87,76,${red}), inset -34px 0 60px -30px rgba(42,155,239,${blue})`;
+        edge.style.boxShadow = quiet ? "" : z ? `inset 0 0 70px -20px rgba(154,120,224,${Math.min(0.9, red + blue)})` : `inset 34px 0 60px -30px rgba(226,87,76,${red}), inset -34px 0 60px -30px rgba(42,155,239,${blue})`;
         box.classList.toggle("go", go);
       }
       if (remaining < -2200) { box.remove(); dispatch = null; return false; }
@@ -265,17 +275,18 @@ const Scenes = (() => {
   function sync(G, team, themeName) {
     if (!G || G.over) return;
     if (state.game !== G) { reset(); state.game = G; }
-    if (!state.banner && G.intro > 0) { state.banner = true; state.stopBanner = roleBanner(team, themeName, G.intro * 1000); }
+    const z = G.mode === "zombie" ? { look: G.player?.look || team } : null;
+    if (!state.banner && G.intro > 0) { state.banner = true; state.stopBanner = roleBanner(team, themeName, G.intro * 1000, z); }
     if (G.intro > 0) return;
-    const left = CFG.WAIT - G.t, now = performance.now(), release = now + left * 1000;
+    const left = (G.wait ?? CFG.WAIT) - G.t, now = performance.now(), release = now + left * 1000;
     if (G.phase === "wait") {
       if (!state.releaseAt || Math.abs(state.releaseAt - release) > 250) state.releaseAt = release;
       if (team === "police") {
-        if (!wait && left > 6.2) wait = waitScene(Math.round(G.revealEvery));
+        if (!wait && left > 6.2) wait = waitScene(Math.round(G.revealEvery), z);
         wait?.update(left);
         if (wait && left <= 5) { wait.remove(); wait = null; }
       }
-      if (!dispatch && left <= 6) dispatch = dispatchCountdown(team, state.releaseAt);
+      if (!dispatch && left <= 6) dispatch = dispatchCountdown(team, state.releaseAt, z);
     } else if (wait) { wait.remove(); wait = null; }
   }
 
@@ -304,7 +315,8 @@ const Scenes = (() => {
     endStop = () => { timers.forEach(clearTimeout); stageStop?.(); box.remove(); endStop = null; };
     skip.onclick = e => { e.stopPropagation(); finish(); };
     // 「게임 종료!」 카드가 흔들리다 「MVP는 누굴까?!」로 바뀐다
-    const card = h("div", "scOverCard", `<b>${esc(s.over)}</b><p>${esc(tt(over.reason === "allArrested" ? "allArrested" : "timeUp"))}</p>`);
+    const reason = G.mode === "zombie" ? tt("zb").reasons[over.reason] || "" : tt(over.reason === "allArrested" ? "allArrested" : "timeUp");
+    const card = h("div", "scOverCard", `<b>${esc(s.over)}</b><p>${esc(reason)}</p>`);
     box.appendChild(card);
     later(1300, () => { card.classList.add("shake"); later(250, () => { card.innerHTML = `<b class="tease">${esc(s.tease)}</b>`; }); });
     later(2600, () => { card.remove(); next(); });
@@ -312,16 +324,20 @@ const Scenes = (() => {
       stageStop?.(); box.querySelector(".scStage")?.remove();
       if (step >= reveals.length) { finish(); return; }
       const r = reveals[step++]; ready = false; bar.classList.remove("show");
-      stageStop = stage(box, r, quiet, s);
+      stageStop = stage(box, r, quiet, s, G);
       later(quiet ? 200 : 3100, () => { ready = true; bar.classList.toggle("light", r.team === "police"); bar.classList.add("show"); });
     }
     box.onclick = () => { if (ready) next(); };
   }
   // 무대 하나: 어두운 무대를 조명이 훑다 가운데 멈추면 빛 원과 글이 켜지고 캐릭터가 튀어나오며 색종이가 터진다
-  function stage(box, r, quiet, s) {
-    const police = r.team === "police";
-    const n = h("div", "scStage " + (police ? "light" : "dark"));
-    n.innerHTML = `<div class="scLit"><img class="scGlowRing" src="${ART.glow[r.team]}" alt=""><div class="scMvpTx"><small>${esc(s.result)}</small><span class="scPillTeam">${esc(police ? s.mvpCop : s.mvpRob)}</span><b><img src="${svgUrl(police ? "police-front" : "robber-front")}" alt="">${esc(r.name)}</b><p>${esc(police ? s.subCop : s.subRob)}</p></div></div><img class="scMvpArt" src="${ART.mvp[r.team]}" alt=""><div class="scConfetti"></div><div class="scSpot"></div>`;
+  function stage(box, r, quiet, s, G) {
+    const police = r.team === "police", Z = G?.mode === "zombie" && tt("zb");
+    // 좀비 판: 좀비 MVP 는 보라 무대에 좀비 모습, 생존자 MVP 는 노란 무대에 원래 모습. 생김새는 그 사람 것을 따른다
+    const look = G?.agents[r.id]?.look || r.team;
+    const icon = Z ? (police ? ZB.url(`${look}-front`) : svgUrl(`${look}-front`)) : svgUrl(police ? "police-front" : "robber-front");
+    const artSrc = Z ? (police ? ZB.url(`${look}-front`) : ART.mvp[look]) : ART.mvp[r.team];
+    const n = h("div", "scStage " + (Z ? (police ? "dark zomb" : "light surv") : police ? "light" : "dark"));
+    n.innerHTML = `<div class="scLit"><img class="scGlowRing" src="${ART.glow[Z ? look : r.team]}" alt=""><div class="scMvpTx"><small>${esc(s.result)}</small><span class="scPillTeam">${esc(Z ? (police ? Z.mvpZ : Z.mvpS) : police ? s.mvpCop : s.mvpRob)}</span><b><img src="${icon}" alt="">${esc(r.name)}</b><p>${esc(Z ? (police ? Z.subZ : Z.subS) : police ? s.subCop : s.subRob)}</p></div></div><img class="scMvpArt" src="${artSrc}" alt=""><div class="scConfetti"></div><div class="scSpot"></div>`;
     box.insertBefore(n, box.firstChild);
     const lit = n.querySelector(".scLit"), art = n.querySelector(".scMvpArt"), spot = n.querySelector(".scSpot"), conf = n.querySelector(".scConfetti");
     const POP = 2050;
@@ -344,12 +360,22 @@ const Scenes = (() => {
         const grow = 1 - (1 - Math.min(1, p / 0.22)) ** 3, wob = -0.38 * Math.exp(-4.2 * p) * Math.cos(15 * p), hop = Math.min(1, p / 0.45);
         art.style.transform = `translateY(${-38 * Math.sin(Math.PI * hop) * (1 - hop)}px) scale(${grow * (1 - wob * 0.75)},${grow * (1 + wob)})`;
       }
-      if (sinceLit >= 0 && !burst && !quiet) { burst = true; confetti(conf); play("win"); }
+      if (sinceLit >= 0 && !burst && !quiet) { burst = true; confetti(conf, Z && police); play("win"); }
       if (ms > POP + 4200) return false;
     });
   }
-  function confetti(box) {
+  // 좀비 무대는 색종이 대신 반딧불이 떠오른다
+  function confetti(box, fireflies) {
     const W = box.clientWidth, H = box.clientHeight;
+    if (fireflies) {
+      for (let i = 0; i < 22; i++) {
+        const f = h("i", "scFly"); f.style.cssText = `left:${10 + Math.random() * 80}%;top:${45 + Math.random() * 45}%`;
+        box.appendChild(f);
+        const a = f.animate([{ transform: "translate(0,0)", opacity: 0 }, { opacity: 1, offset: 0.2 }, { transform: `translate(${(Math.random() - 0.5) * 120}px,${-80 - Math.random() * 160}px)`, opacity: 0 }], { duration: 2600 + Math.random() * 1600, delay: Math.random() * 600, easing: "ease-out", fill: "both" });
+        a.onfinish = () => f.remove();
+      }
+      return;
+    }
     for (let i = 0; i < 28; i++) {
       const left = i % 2 === 0, img = h("img"); img.src = ART.confetti[i % 6]; img.alt = "";
       const x0 = left ? -10 : W + 10, vx = (left ? 1 : -1) * (180 + Math.random() * 320), vy = -(260 + Math.random() * 360), spin = (Math.random() - 0.5) * 720, delay = Math.random() * 180;
@@ -364,5 +390,19 @@ const Scenes = (() => {
     }
   }
 
-  return { sync, reset, mvpReveal };
+  // ───────── 좀비 판: 물린 순간 ─────────
+  // 물린 사람만 2초 동안: 보라빛으로 어두워지고, 내 좀비 모습 둘레로 원이 차오른다
+  function bitten(look) {
+    const Z = tt("zb"), box = h("div", "scBitten", `<div class="scBiteRing"><img src="${ZB.url(`${look}-front`)}" alt=""></div><div class="scBiteTx"><b>${esc(Z.bitten)}</b><span>${esc(Z.bittenSub)}</span></div>`);
+    box.setAttribute("aria-live", "assertive");
+    layer().appendChild(box);
+    const ring = box.querySelector(".scBiteRing"), quiet = reduce();
+    run(ms => {
+      ring.style.setProperty("--k", String(Math.min(1, ms / 2000)));
+      box.style.opacity = String(quiet ? 1 : Math.min(1, ms / 180) * (ms > 2000 ? Math.max(0, 1 - (ms - 2000) / 300) : 1));
+      if (ms > 2300) { box.remove(); return false; }
+    });
+  }
+
+  return { sync, reset, mvpReveal, bitten };
 })();
