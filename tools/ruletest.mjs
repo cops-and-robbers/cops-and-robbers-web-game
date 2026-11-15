@@ -5,6 +5,7 @@
 // 4) 인원이 많은 판의 넓은 지도도 이어져 있고 수풀이 넓이만큼 늘어난다
 // 5) 시작 멈춤 동안은 시계도 사람도 움직이지 않고, 끝나면 그대로 대기가 이어진다
 // 6) 팀 MVP: 경찰은 많이 잡은 사람, 도둑은 덜 잡힌 사람. 사람이 둘 이상이면 봇은 후보가 아니다
+// 7) 좀비 모드: 물리면 비틀거리다 좀비 편, 구조차는 생존자만 먼저 알고 버티면 탄다, 한 명이라도 타야 생존자 승리, 혼자 남으면 정류장이 일찍 열린다
 import "../shared/logic.js";
 import { viewFor, canSee } from "../shared/view.js";
 
@@ -192,6 +193,76 @@ function hold(logic, G, a, at, sec) {
   const ns = [];
   while (!G.over) { logic.step(G, DT); for (const e of G.events.splice(0)) if (e.type === "shrink") ns.push(e.n); }
   ok(ns.join() === "1,2,3,4" && G.over.reason === "timeUp", "축소 알림이 네 번 차례대로 오지 않았어요", [ns, G.over]);
+}
+
+// ───── 좀비 모드 ─────
+// 모두 사람으로 두고(봇이 끼어들지 않게) 손으로 옮겨 규칙만 본다
+function zsetup(over = {}) {
+  const logic = globalThis.createGameLogic();
+  const G = logic.newGame({ seed: 5150, theme: "town", diff: "normal", mode: "zombie", balance: "even", police: 1, robbers: 3, ...over });
+  for (const a of G.agents) a.isPlayer = true;
+  while (G.phase !== "play") logic.step(G, DT);
+  G.events.length = 0;
+  return { logic, G };
+}
+{
+  const { logic, G } = zsetup();
+  ok(G.wait === logic.CFG.ZOMBIE.BAL.even.wake, "좀비가 깨어나는 시간이 판 균형을 따르지 않아요", G.wait);
+  ok(G.agents.every(a => a.look === "police" || a.look === "robber"), "생김새가 없어요");
+  const [z] = G.police, [s1, s2] = G.robbers, look1 = s1.look;
+  // 물기: 닿으면 비틀거리다 좀비 편으로
+  s1.x = z.x + 40; s1.y = z.y; z.faceA = 0; s2.x = z.x + 1200; s2.y = z.y;
+  logic.startCatch(G, z);
+  for (let t = 0; t < 0.5; t += DT) logic.step(G, DT);
+  ok(s1.state === "turning", "물렸는데 비틀거리지 않아요", s1.state);
+  ok(!logic.catchable(s1), "비틀거리는 사람을 또 물 수 있어요");
+  for (let t = 0; t < logic.CFG.ZOMBIE.TURN + 0.2; t += DT) logic.step(G, DT);
+  ok(s1.team === "police" && G.police.includes(s1) && !G.robbers.includes(s1), "2초 뒤 좀비 편으로 옮기지 않았어요", s1.team);
+  ok(z.s.catches === 1, "감염 수가 안 늘었어요", z.s.catches);
+  ok(s1.look === look1 && s1.origin === "robber", "물린 사람의 생김새나 원래 편이 바뀌었어요");
+  // 좀비도 생존자와 같이 달린다
+  ok(z.sprintSpd === logic.CFG.SPRINT.robber && z.stamSec === logic.CFG.STAMINA.robber, "좀비 달리기가 생존자와 달라요", [z.sprintSpd, z.stamSec]);
+}
+{
+  // 구조차: 생존자는 무전 때부터, 좀비는 차가 선 뒤부터 안다. 차 옆에 버티면 탄다
+  const { logic, G } = zsetup();
+  const [z] = G.police, [s1] = G.robbers;
+  const st = G.van.stops[0];
+  G.t = st.radio + 0.01; logic.step(G, DT);
+  ok(st.x !== null, "무전 때 정류장 자리가 안 정해졌어요");
+  ok(logic.dist(st, z) > 700 || logic.dist(st, z) >= Math.max(...G.van.spots.map(p => logic.dist(p, z))) - 400, "정류장이 좀비 가까이에 섰어요", logic.dist(st, z));
+  ok(viewFor(logic, G, s1).van.length >= 1, "생존자에게 무전이 안 갔어요");
+  ok(viewFor(logic, G, z).van.length === 0, "좀비가 무전을 미리 알아요");
+  G.t = st.open + 0.01; logic.step(G, DT);
+  ok(viewFor(logic, G, z).van.length >= 1, "차가 섰는데 좀비가 몰라요");
+  s1.x = st.x; s1.y = st.y;
+  for (let t = 0; t < logic.CFG.ZOMBIE.BAL.even.board + 0.2; t += DT) { s1.x = st.x; s1.y = st.y; s1.ix = s1.iy = 0; logic.step(G, DT); }
+  ok(s1.state === "escaped" && G.stats.escaped === 1, "차 옆에 버텼는데 못 탔어요", s1.state);
+  ok(!canSee(logic, G, z, s1), "탄 사람이 지도에 보여요");
+  while (!G.over) logic.step(G, DT);
+  ok(G.over.winner === "robber" && G.over.reason === "escaped", "한 명이 탔는데 생존자가 지지 않았어요", G.over);
+  ok(G.over.mvp.robber === s1.id, "먼저 탄 사람이 생존자 MVP 가 아니에요", G.over.mvp);
+}
+{
+  // 아무도 못 타면 좀비 승리
+  const { logic, G } = zsetup();
+  while (!G.over) logic.step(G, DT);
+  ok(G.over.winner === "police" && G.over.reason === "noEscape", "아무도 안 탔는데 좀비가 이기지 않았어요", G.over);
+}
+{
+  // 생존자가 한 명 남으면 정류장이 일찍 열린다
+  const { logic, G } = zsetup();
+  const [z] = G.police, [s1, s2, s3] = G.robbers;
+  for (const s of [s2, s3]) { s.x = z.x + 40; s.y = z.y; z.faceA = 0; z.catchCd = 0; z.holdT = 0; logic.startCatch(G, z); for (let t = 0; t < 0.7; t += DT) { s.x = z.x + 40; s.y = z.y; logic.step(G, DT); } z.action = null; }
+  for (let t = 0; t < 3; t += DT) logic.step(G, DT);
+  const last = G.van.stops.find(s => s.last);
+  ok(last && Math.abs(last.open - last.radio - logic.CFG.ZOMBIE.BAL.even.last) < 1e-6, "혼자 남았는데 정류장이 일찍 안 열려요", last);
+}
+{
+  // 첫 좀비 수: 판 균형 반반은 늘 한 명. 사람이 둘이면 최소 한 명은 생존자
+  const L = globalThis.createGameLogic();
+  ok([2, 4, 6, 8].every(n => L.zombieFirst(n, "even") === 1), "반반의 첫 좀비가 한 명이 아니에요");
+  ok(L.zombieFirst(2, "zomb") === 1, "두 명 판에 첫 좀비가 둘이에요");
 }
 
 console.log(`규칙 확인 ${checks}번 | 문제 ${bad}`);
