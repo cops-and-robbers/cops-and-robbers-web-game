@@ -213,13 +213,13 @@ const Scenes = (() => {
   // ───────── ③ 출동 카운팅 (dispatch_countdown.dart) ─────────
   // 출동 6초 전에 덮고 5~1, "출동!" 1.2초 뒤 1초 동안 사이렌 자리에서 열린다
   let dispatch = null;
-  const MOON = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 185 229"><defs><mask id="m"><rect width="185" height="229" fill="#fff"/><circle cx="118" cy="92" r="62" fill="#000"/></mask></defs><circle cx="88" cy="118" r="72" fill="#FFF1C2" mask="url(#m)"/><circle cx="54" cy="128" r="8" fill="#EBDDA8"/><circle cx="70" cy="166" r="5" fill="#EBDDA8"/></svg>');
+  const MOON = "data:image/svg+xml;base64,/*B64:moon-count.svg*/";
   function dispatchCountdown(team, releaseAt, z) {
     const s = S(), full = team === "police", quiet = reduce(), icon = z ? MOON : ART.siren;
     const box = h("div", (full ? "scDispatch" : "scDispatch mini") + (z ? " zomb" : ""));
     box.setAttribute("aria-live", "assertive");
     box.innerHTML = full
-      ? `<div class="scBeam"></div><div class="scSirenWrap"><span class="scGlow" style="-webkit-mask-image:url(${icon});mask-image:url(${icon})"></span><img class="scSiren" src="${icon}" alt=""><b class="scNum"></b></div>`
+      ? `<div class="scBeam"></div><div class="scSirenWrap"><span class="scGlow" style="-webkit-mask-image:url('${icon}');mask-image:url('${icon}')"></span><img class="scSiren" src="${icon}" alt=""><b class="scNum"></b></div>`
       : `<div class="scEdge"></div><div class="scPill"><img src="${icon}" alt=""><b class="scNum"></b></div>${z ? `<div class="scWakeHint">${esc(tt("zb").wakeSoon)}</div>` : ""}`;
     layer().appendChild(box);
     const num = box.querySelector(".scNum"), beam = box.querySelector(".scBeam"), glow = box.querySelector(".scGlow"), edge = box.querySelector(".scEdge"), wrap = box.querySelector(".scSirenWrap");
