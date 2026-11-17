@@ -507,14 +507,15 @@ export class Room extends DurableObject<Env> {
       duration: this.logic.CFG.DURATION,
       // 처음 들어온 사람만 시작 멈춤을 받는다. 판 중에 돌아온 사람은 남은 만큼(스냅샷의 intro)만 본다
       intro: G.intro,
-      police: G.police.length,
-      robbers: G.robbers.length,
+      // 좀비 판은 물린 사람이 편을 옮겨 지금 인원으로 다시 만들면 번호와 편이 어긋난다. 처음 인원을 보내고 지금 좀비 번호와 내 원래 편을 따로 싣는다
+      police: G.mode === "zombie" ? G.agents.filter((a: any) => a.origin === "police").length : G.police.length,
+      robbers: G.mode === "zombie" ? G.agents.filter((a: any) => a.origin === "robber").length : G.robbers.length,
       rescue: this.logic.CFG.RESCUE_SEC,
       autoEscape: this.logic.CFG.AUTO_ESCAPE,
       catchRange: this.logic.CFG.CATCH_R,
       reveal: G.revealEvery,
       shrink: !!G.shrink,
-      ...(G.mode === "zombie" ? { mode: "zombie", balance: G.balance, look: agent.look, wait: G.wait, firsts: this.firsts } : {}),
+      ...(G.mode === "zombie" ? { mode: "zombie", balance: G.balance, look: agent.look, wait: G.wait, firsts: this.firsts, origin: agent.origin, zombies: G.police.map((a: any) => a.id) } : {}),
     });
   }
 
@@ -616,8 +617,9 @@ export class Room extends DurableObject<Env> {
       at: Date.now(),
       winner,
       reason,
-      police: G.police.length,
-      robbers: G.robbers.length,
+      // 좀비 판은 물린 사람이 편을 옮겨 지금 인원으로 다시 만들면 번호와 편이 어긋난다. 처음 인원을 보내고 지금 좀비 번호와 내 원래 편을 따로 싣는다
+      police: G.mode === "zombie" ? G.agents.filter((a: any) => a.origin === "police").length : G.police.length,
+      robbers: G.mode === "zombie" ? G.agents.filter((a: any) => a.origin === "robber").length : G.robbers.length,
       humans: G.agents.filter((a: any) => a.isPlayer).length,
       scale: this.scale,
       theme: G.theme,

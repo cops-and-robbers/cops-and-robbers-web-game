@@ -397,13 +397,19 @@ function createGameLogic() {
     const zs = G.police.filter(p => p.state !== "escaped");
     const cx = zs.reduce((s, p) => s + p.x, 0) / (zs.length || 1), cy = zs.reduce((s, p) => s + p.y, 0) / (zs.length || 1);
     const taken = G.van.stops.filter(s => s !== stop && s.x !== null && (s.close === null || G.t < s.close));
-    let best = null, bs = -1;
-    for (const p of vanSpots(G)) {
-      if (G.shrink && !inZoneNow(G, p.x, p.y)) continue;
-      if (taken.some(s => dist(s, p) < CFG.ZOMBIE.STOP_GAP)) continue;
-      const sc = Math.min(Math.hypot(p.x - cx, p.y - cy), ...zs.map(z => dist(z, p)).concat([1e9])) + G.rnd() * 60;
-      if (sc > bs) { bs = sc; best = p; }
-    }
+    // 구역이 줄면 차가 서 있는 동안에도 줄어든다. 떠날 때(안 떠나면 판 끝)의 구역 안에 세워, 기다리는 생존자가 구역 밖으로 밀리지 않게 한다
+    const endK = G.shrink ? zoneK(G, stop.close ?? CFG.DURATION) : 1;
+    const pick = fits => {
+      let best = null, bs = -1;
+      for (const p of vanSpots(G)) {
+        if (!fits(p)) continue;
+        if (taken.some(s => dist(s, p) < CFG.ZOMBIE.STOP_GAP)) continue;
+        const sc = Math.min(Math.hypot(p.x - cx, p.y - cy), ...zs.map(z => dist(z, p)).concat([1e9])) + G.rnd() * 60;
+        if (sc > bs) { bs = sc; best = p; }
+      }
+      return best;
+    };
+    let best = G.shrink ? pick(p => inZoneK(G.shrink, endK, p.x, p.y)) || pick(p => inZoneNow(G, p.x, p.y)) : pick(() => true);
     best ||= vanSpots(G)[0];
     stop.x = best.x; stop.y = best.y;
   }
@@ -443,7 +449,8 @@ function createGameLogic() {
     by.s.catches++; G.stats.catches++; G.intel.delete(r.id);
     r.path = []; r.goal = null; r.vx = r.vy = 0; r.ix = r.iy = 0; r.sprint = false;
     // 문 좀비는 잠깐 멈춘다. 옆에 있던 생존자가 도망칠 틈이다
-    by.holdT = CFG.ZOMBIE.BITE_HOLD;
+    // 물기 대기도 멈춤만큼 늘려, 멈춘 채 다시 덮치지 않게 한다
+    by.holdT = CFG.ZOMBIE.BITE_HOLD; by.catchCd = Math.max(by.catchCd, CFG.ZOMBIE.BITE_HOLD);
     emit(G, "bitten", { r, by });
   }
   function turn(G, r) {
@@ -556,7 +563,7 @@ function createGameLogic() {
   }
 
   function startCatch(G, a) {
-    if (a.team !== "police" || a.action || a.catchCd > 0 || a.state !== "free") return false;
+    if (a.team !== "police" || a.action || a.catchCd > 0 || a.holdT > 0 || a.state !== "free") return false;
     // 가까운 도둑 쪽으로 몸을 던진다. 없으면 움직이던 쪽으로
     let best = null, bd = 240;
     for (const r of G.robbers) { if (!catchable(r)) continue; const d = dist(a, r); if (d < bd && lineOfSight(a, r) && sees(a, r)) { bd = d; best = r; } }

@@ -160,7 +160,12 @@ function createOnline() {
         G2.player.isPlayer = true;
         // 좀비 판: 내 생김새는 시작 신호로, 남의 생김새는 보일 때 갱신으로 받는다
         if (m.mode === "zombie" && m.look) G2.player.look = m.look;
-        if (m.mode === "zombie") G2.zOrigin = m.team;
+        // 판 중에 다시 들어왔으면 물려 편을 옮긴 사람이 있다. 처음 편으로 만든 판에서 지금 좀비를 옮기고 내 원래 편을 맞춘다
+        if (m.mode === "zombie") {
+          for (const id of m.zombies || []) if (G2.agents[id]) ZB.switchTeam(G2.agents[id], "police");
+          G2.zOrigin = m.origin || m.team;
+          G2.player.origin = G2.zOrigin;
+        }
         // 못 본 상대의 이름은 받지 않으니 진영으로 부른다
         for (const a of G2.agents) if (a !== G2.player) a.name = tt(a.team === "police" ? "cop" : "rob");
       });
