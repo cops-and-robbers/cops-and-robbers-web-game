@@ -6,6 +6,7 @@
 // 5) 시작 멈춤 동안은 시계도 사람도 움직이지 않고, 끝나면 그대로 대기가 이어진다
 // 6) 팀 MVP: 경찰은 많이 잡은 사람, 도둑은 덜 잡힌 사람. 사람이 둘 이상이면 봇은 후보가 아니다
 // 7) 좀비 모드: 물리면 비틀거리다 좀비 편, 구조차는 생존자만 먼저 알고 버티면 탄다, 한 명이라도 타야 생존자 승리, 혼자 남으면 정류장이 일찍 열린다
+// 8) 좀비 모드: 문 좀비는 멈춘 동안 다시 물지 못하고, 구역 축소 판의 정류장은 줄어든 구역 안에 선다
 import "../shared/logic.js";
 import { viewFor, canSee } from "../shared/view.js";
 
@@ -257,6 +258,31 @@ function zsetup(over = {}) {
   for (let t = 0; t < 3; t += DT) logic.step(G, DT);
   const last = G.van.stops.find(s => s.last);
   ok(last && Math.abs(last.open - last.radio - logic.CFG.ZOMBIE.BAL.even.last) < 1e-6, "혼자 남았는데 정류장이 일찍 안 열려요", last);
+}
+{
+  // 문 좀비는 멈춘 2초 동안 다시 물지 못한다(물기 대기가 멈춤보다 먼저 끝나 덮치던 것, #58)
+  const { logic, G } = zsetup();
+  const [z] = G.police, [s1, s2] = G.robbers;
+  s1.x = z.x + 40; s1.y = z.y; z.faceA = 0;
+  logic.startCatch(G, z);
+  for (let t = 0; t < 0.4; t += DT) logic.step(G, DT);
+  ok(s1.state === "turning", "물기가 안 됐어요", s1.state);
+  ok(z.catchCd >= logic.CFG.ZOMBIE.BITE_HOLD - 0.5, "물기 대기가 멈춤보다 짧아요", z.catchCd);
+  let again = false;
+  for (let t = 0; t < logic.CFG.ZOMBIE.BITE_HOLD - 0.4; t += DT) { s2.x = z.x + 40; s2.y = z.y; if (z.holdT > 0 && logic.startCatch(G, z)) again = true; z.action = null; logic.step(G, DT); }
+  ok(!again && s2.state === "free", "멈춘 동안 다시 물었어요", s2.state);
+}
+{
+  // 구역 축소 판: 정류장은 차가 떠날 때(안 떠나면 판 끝)의 구역 안에 선다(#58)
+  let outside = 0, n = 0;
+  for (const seed of [11, 22, 33, 44, 55, 66]) {
+    const logic = globalThis.createGameLogic();
+    const G = logic.newGame({ seed, theme: "town", diff: "normal", mode: "zombie", balance: "even", police: 1, robbers: 5, shrink: true });
+    for (const a of G.agents) a.isPlayer = true;
+    for (const st of G.van.stops) { G.t = st.radio + 0.01; G.phase = "play"; logic.step(G, DT); }
+    for (const st of G.van.stops) { n++; if (!logic.inZoneK(G.shrink, logic.zoneK(G, st.close ?? logic.CFG.DURATION), st.x, st.y)) outside++; }
+  }
+  ok(n > 0 && outside === 0, "정류장이 줄어든 구역 밖에 섰어요", { outside, n });
 }
 {
   // 첫 좀비 수: 판 균형 반반은 늘 한 명. 사람이 둘이면 최소 한 명은 생존자
