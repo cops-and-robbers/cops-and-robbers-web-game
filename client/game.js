@@ -857,7 +857,7 @@ function drawHud(dt) {
   if (runLatched && p.tired) { runLatched = false; sprintBtn = false; runBtn.classList.remove("down", "latched"); $("btnRunLabel").textContent = tt("run"); }
   runBtn.classList.toggle("tired", !!p.tired);
   // 잡기를 다시 쓸 수 있을 때까지 버튼 위로 시계처럼 차오른다
-  if (role === "police") $("btnCatch").style.setProperty("--cd", p.catchCd > 0 ? (1 - p.catchCd / CFG.CATCH_CD).toFixed(3) : "1");
+  if (role === "police") $("btnCatch").style.setProperty("--cd", p.catchCd > 0 ? Math.max(0, 1 - p.catchCd / CFG.CATCH_CD).toFixed(3) : "1");
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $("toast").className = ""; }
   if (missionT > 0) { missionT -= dt; if (missionT <= 0) $("mission").className = ""; }
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $("banner").className = ""; }

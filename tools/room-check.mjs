@@ -430,6 +430,7 @@ async function checkZombie(env) {
     const firsts = zs.filter(c => c.start?.team === "police");
     check(zs.every(c => c.start?.mode === "zombie" && (c.start.look === "police" || c.start.look === "robber")), "좀비 판 시작 신호에 놀이 방식과 생김새가 실려요");
     check(firsts.length === 1, `첫 좀비는 사람 중 한 명이에요 (${firsts.length})`);
+    check(zs.every(c => c.start?.origin === c.start?.team && Array.isArray(c.start?.zombies) && c.start.zombies.length === c.start.police && c.start.zombies.includes(firsts[0]?.start?.you)), "좀비 판 시작 신호에 처음 편과 지금 좀비 번호가 실려요(다시 들어온 사람의 편 맞추기)");
     check(zs.every(c => Array.isArray(c.start?.firsts) && c.start.firsts.length === 1 && c.start.firsts[0] === firsts[0]?.lobby?.players.find(p => p.id === firsts[0].lobby.you)?.name), "좀비 판 시작 신호에 뽑힌 좀비 이름이 모두에게 실려요(대기실 조명 뽑기)");
     check(zs[1].start.look === "police" && zs[2].start.look === "police", "고양이 칸에 선 사람은 고양이 모습이에요");
     await waitFor(() => zs.every(c => c.over), 40000, "좀비 판 끝");
