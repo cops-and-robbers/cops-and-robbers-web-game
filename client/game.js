@@ -353,6 +353,7 @@ function makeChar(a) {
     rig.svg.setAttribute("viewBox", `0 0 ${d.w} ${d.h}`);
     rig.svg.style.width = d.w * scale + "px"; rig.svg.style.height = d.h * scale + "px";
     rig.svg.style.left = (-(d.cx) * scale) + "px"; rig.svg.style.bottom = (-(d.h - d.ground) * scale) + "px";
+    rig.svg.style.transformOrigin = `${d.cx * scale}px ${d.ground * scale}px`; // 변신할 때 발을 기준으로 눌리고 튀어 오른다
     if (rig.parts.shadow) rig.parts.shadow.forEach(g => g.style.display = "none");
     el.append(rig.svg); views[n] = rig;
   }
@@ -465,8 +466,11 @@ function drawChar(c, dt) {
   // 물린 사람: 도둥이가 냥파로 변해 간다(client/zombie.js turning). 편이 바뀌면 syncChars 가 좀비 냥파로 바꿔 끼우고 popIn 으로 튀어 오른다
   let ms = { sx: 1, sy: 1 };
   if (a.state === "turning") ms = ZB.turning(c);
-  else { if (c.el.style.filter) c.el.style.filter = ""; if (c.popAt) ms = ZB.popIn(c); }
-  c.el.style.transform = `translate(${a.x + (c.lungeX || 0) * CS}px, ${a.y + (c.hopY || 0) * CS}px) scale(${CS * ms.sx}, ${CS * ms.sy})`;
+  else { if (c.tinted) { c.tinted = false; for (const r of Object.values(c.views)) r.svg.style.filter = ""; } if (c.popAt) ms = ZB.popIn(c); }
+  c.el.style.transform = `translate(${a.x + (c.lungeX || 0) * CS}px, ${a.y + (c.hopY || 0) * CS}px) scale(${CS})`;
+  // 눌리고 튀어 오르는 건 캐릭터 그림만. 이름표까지 늘이면 글자가 찌그러진다
+  const sq = ms.sx !== 1 || ms.sy !== 1 ? `scale(${ms.sx.toFixed(3)},${ms.sy.toFixed(3)})` : "";
+  for (const rig of Object.values(c.views)) if (rig.svg.style.transform !== sq) rig.svg.style.transform = sq;
   // 내 캐릭터는 덤불에 들어가도 비쳐 보여야 어디 있는지 안다
   c.el.style.zIndex = Math.round(a.y) + (a.isPlayer && a.inBush ? 400 : 0);
 }

@@ -52,7 +52,9 @@ const ZB = (() => {
     // turnDur: 대기실 좀비 뽑기처럼 짧게 변할 때 쓴다(ms). 없으면 판의 비틀거림 시간
     const now = performance.now(), k = Math.min(1, (now - (c.turnAt ||= now)) / (c.turnDur || (CFG.ZOMBIE.TURN || 2) * 1000));
     c.lungeX = Math.sin(now / 70) * 6 * (1 - k * 0.5);
-    c.el.style.filter = `sepia(${k * 0.7}) hue-rotate(${k * 95}deg) saturate(${1 + k * 0.8}) brightness(${1 - k * 0.05})`;
+    const tint = `sepia(${k * 0.7}) hue-rotate(${k * 95}deg) saturate(${1 + k * 0.8}) brightness(${1 - k * 0.05})`;
+    for (const r of Object.values(c.views)) r.svg.style.filter = tint; // 이름표는 물들이지 않는다
+    c.tinted = true;
     const rig = c.views[c.view], d = rig.def, dir = c.face < 0 ? -1 : 1;
     // 냄비: 머리에서 튀어 올라 돌며 옆으로 떨어진다
     const pot = cl((k - 0.12) / 0.5, 0, 1);
