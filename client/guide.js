@@ -137,7 +137,7 @@ function createGuide() {
   // ── 화면 ──
   const el = document.createElement("div");
   el.id = "guide"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-labelledby", "gTitle");
-  // 좀비 모드의 편 칩은 경찰 파랑, 도둑 초록 대신 좀비 보라, 생존자 노랑
+  // 좀비 모드의 편 칩은 경찰 파랑, 도둑 초록 대신 좀비 민트, 생존자 노랑
   const chip = team => `<span class="gChip ${set === "zombie" ? { police: "zomb", robber: "surv", all: "all" }[team] : team}">${cur().copy.team[team]}</span>`;
   el.innerHTML = `<div class="gPanel">
       <div class="gHead"><b class="gKicker">${tt("guide")}</b><span class="gCount" aria-hidden="true"></span><button class="gClose" aria-label="${tt("close")}"></button></div>

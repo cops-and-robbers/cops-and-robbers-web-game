@@ -187,10 +187,6 @@ function createLobbyScene(net) {
       await chalkCharacter(x, "robber-front", (ZX[2] + ZX[3]) / 2, 950, 290, CC.robLine, 9);
       chalkQuestion(x, 1600, 640);
     }
-    if (z) {
-      const L2 = tt("zb").lobby; x.save(); x.fillStyle = "#E6E0D3"; x.globalAlpha = .9; x.textAlign = "center"; x.font = "900 62px Pretendard, 'Noto Sans KR', sans-serif";
-      x.fillText(L2.cat, (ZX[0] + ZX[1]) / 2, ZY[0] + 96); x.fillText(L2.mouse, (ZX[2] + ZX[3]) / 2, ZY[0] + 96); x.fillText(L2.any, 1600, ZY[0] + 70); x.restore();
-    }
     const r = rng(77); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = "destination-out";
     for (let i = 0; i < 70000; i++) { x.globalAlpha = .25 + r() * .6; const sz = r() < .86 ? 1.4 : 2.6 + r() * 2; x.fillRect(r() * off.width, r() * off.height, sz, sz * (.6 + r())); }
     x.globalCompositeOperation = "source-over"; x.globalAlpha = 1;
@@ -222,31 +218,34 @@ function createLobbyScene(net) {
   let lob = null, fullEl = null, counts = {}, bumpT = 0, countN = 0, revealed = null, seatsOpen = false, sayOpen = false, moved = false, copied = false, codeDone = false, flash = false;
   const sideAt = x => x < ZX[1] ? "cop" : x > ZX[2] ? "rob" : "any";
   // 좀비 모드 공터에서 사람이 서는 자리: 가운데 둘레로 흩어 선다
-  // 모습 바꾸기: 내 칸(편이 아니라 생김새)을 바꿔 서버에 알린다. 서버는 시작할 때 이 칸으로 생김새를 정한다
-  function pickLook(side) { me.side = side; me.a.team = side === "rob" ? "robber" : "police"; morph(me, side); renderTag(me); net.send({ t: "side", side }); renderHud(); }
   // 뽑기 도중의 시점과 정리(방을 나가면 바로 걷는다)
   let spotCam = null, spotEnd = null;
-  // 대기실의 한 사람을 좀비 모습으로 바꿔 붙인다. 판이 시작되면 게임이 다시 그린다
-  function zombify(p) {
-    const a = p.a, look = (p.side === "any" ? p.flip : p.side) === "rob" ? "robber" : "police", keep = [a.team, a.look, G.mode, G.player];
-    a.team = "police"; a.look = look; G.mode = "zombie"; G.player = null;
-    try { p.zRig = makeChar(a); } finally { [a.team, a.look, G.mode, G.player] = keep; }
-    chars.push(p.zRig);
+  // 뽑힌 사람: 스포트라이트가 멈추는 동안 도둥이가 냥파로 변해 간다(판 위와 같은 연출을 0.65초로, client/zombie.js turning)
+  function startTurn(p) {
+    if (p.turning) return; p.turning = true; p.a.state = "turning";
+    for (const c of [p.rigC, p.rigR]) { c.turnAt = performance.now(); c.turnDur = 650; }
   }
+  // 그리고 좀비 냥파로 튀어 오른다. 판이 시작되면 게임이 다시 그린다
+  function zombify(p) { p.a.state = "free"; p.zRig = rig(p.a, "zcat"); p.zRig.popAt = performance.now(); ZB.sparks(p.a); }
   const lotSpot = i => { const a = i * 2.39996 + 0.6, r = 120 + (i % 4) * 70; return { x: LOT.cx + Math.cos(a) * r * 1.6, y: LOT.cy + Math.sin(a) * r * 0.7 }; };
   const zm = () => S?.mode === "zombie", ZL = () => tt("zb").lobby;
   const capOf = side => zm() ? Infinity : side === "cop" ? S.cops : side === "rob" ? S.robs : Infinity;
   const sayList = () => (zm() ? ZL().say : COPY.say);
   const here = side => [...people.values()].filter(p => p.side === side).length;
   const spotIn = (side, i = 0) => { const z = { cop: [ZX[0], ZX[1]], any: [ZX[1], ZX[2]], rob: [ZX[2], ZX[3]] }[side], cw = (z[1] - z[0] - 60) / 3, col = i % 3, row = Math.floor(i / 3); return { x: z[0] + 30 + cw * (col + .5), y: 775 + (row % 2) * 130 + (col % 2) * 14 }; };
-  // 그림은 편이 아니라 생김새(look)를 따른다. 빌려 온 캐릭터에 남은 생김새를 두면 고양이 칸에 선 사람도 쥐로 그려지니, 만드는 동안 kind 로 맞춘다
-  const rig = (a, kind) => { const t = a.team, lk = a.look, pl = G.player; a.team = kind; a.look = kind; G.player = null; const c = makeChar(a); a.team = t; a.look = lk; G.player = pl; chars.push(c); return c; };
+  // 그림 묶음(game.js VIEWS)을 골라 캐릭터를 만든다. 좀비 모드 대기실은 모두 생존자 도둥이로 서고, 뽑힌 사람만 좀비 냥파가 된다
+  const rig = (a, kind) => {
+    const keep = [a.team, G.mode, G.player], z = kind === "zcat" || kind === "zsurv";
+    a.team = kind === "police" || kind === "zcat" ? "police" : "robber"; G.mode = z ? "zombie" : "classic"; G.player = null;
+    let c; try { c = makeChar(a); } finally { [a.team, G.mode, G.player] = keep; }
+    chars.push(c); return c;
+  };
   // 가운데 사람의 회색 모습. 이름으로 정해서 모두의 화면에서 같고, 칸에 들어가기 전에는 바뀌지 않는다
   const lookOf = name => [...String(name)].reduce((h, c) => h * 31 + c.codePointAt(0) | 0, 7) & 1 ? "rob" : "cop";
   function makePerson(name, side, isBot) {
     const a = pool.pop(); a.state = "free"; a.isPlayer = true; a.ix = a.iy = 0; a.stam = 1; a.team = side === "rob" ? "robber" : "police"; a.name = name;
     G.agents.push(a);
-    const p = { a, name, side, isBot, rigC: rig(a, "police"), rigR: rig(a, "robber"), tag: document.createElement("div"), say: null, sayT: 0, go: null, morphT: 0, flip: lookOf(name) };
+    const p = { a, name, side, isBot, rigC: rig(a, zm() ? "zsurv" : "police"), rigR: rig(a, zm() ? "zsurv" : "robber"), tag: document.createElement("div"), say: null, sayT: 0, go: null, morphT: 0, flip: lookOf(name) };
     p.tag.className = "wtag"; world.append(p.tag);
     return p;
   }
@@ -287,10 +286,9 @@ function createLobbyScene(net) {
     if (!active) return;
     const st = startState(), total = S.cops + S.robs, n = people.size, alone = n === 1 && !S.bots, hostName = [...people.values()].find(p => p.hostMark)?.name || "";
     const line = !moved ? (zm() ? ZL().hint : COPY.hint) : (S.host ? "" : COPY.wait(""));
-    let h = `<div class="row1"><div class="lp code${zm() ? " zroom" : ""}">${zm() ? `<img class="zIcon" src="${ZB.url("police-front")}" alt="">` : ""}<div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}${S.shrink ? `<em class="zoneTag">${COPY.shrink}</em>` : ""}${zm() ? `<em class="zTag">${tt("modes").name.zombie}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
+    let h = `<div class="row1"><div class="lp code${zm() ? " zroom" : ""}">${zm() ? `<img class="zIcon" src="${ZB.url("zcat-front")}" alt="">` : ""}<div><small>${COPY.code}<b>${n}/${total}</b>${S.open ? `<em class="pub">${COPY.pub}</em>` : ""}${S.shrink ? `<em class="zoneTag">${COPY.shrink}</em>` : ""}${zm() ? `<em class="zTag">${tt("modes").name.zombie}</em>` : ""}</small><strong>${net.room}</strong></div><button class="icon" data-act="copycode" aria-label="${tt("copyCode")}">${codeDone ? ICON.check : ICON.copy}</button></div>
       <button class="bt ${S.host && alone ? "main" : ""}" data-act="invite">${copied ? COPY.copied : COPY.invite}</button>
       <button class="bt ic" data-act="say" aria-label="${tt("sayOpen")}" aria-expanded="${sayOpen}">${ICON.say}</button>
-      ${zm() && me ? `<button class="bt look" data-act="look" aria-label="${ZL().look}"><img src="${svgUrl(me.flip === "rob" ? "robber-front" : "police-front")}" alt="">${ZL().look}</button>` : ""}
       <button class="bt guideBt" data-act="guide" aria-label="${COPY.guide}">${ICON.guide}<span>${COPY.guide}</span></button>
       <div class="grow">${line ? `<div class="line" data-line></div>` : ""}</div>
       ${S.host ? `<button class="bt" data-act="seats" aria-expanded="${seatsOpen}">${COPY.seats}</button>` : ""}
@@ -325,7 +323,6 @@ function createLobbyScene(net) {
     if (a.startsWith("kick-")) { net.kick(a.slice(5)); return; }
     if (a === "bots") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: !S.bots }); return; }
     // 놀이 방식은 방을 만들 때만 정한다. 좀비 모드의 인원은 한 칸(cops 1 + robs 나머지)으로 보낸다
-    if (a === "look") { const side = me.flip === "rob" ? "cop" : "rob"; try { localStorage.setItem("zlook", side); } catch { /* 이번 방에서만 */ } pickLook(side); return; }
     const tot = /^tot-(-?1)$/.exec(a);
     if (tot) { if (b.getAttribute("aria-disabled") === "true") return; const n = S.cops + S.robs + Number(tot[1]); net.send({ t: "seats", cops: 1, robs: n - 1, bots: S.bots }); return; }
     if (a === "open") { net.send({ t: "seats", cops: S.cops, robs: S.robs, bots: S.bots, open: !S.open }); return; }
@@ -390,8 +387,6 @@ function createLobbyScene(net) {
           p = makePerson(info.name, info.side, false); people.set(info.id, p);
           const sp = zm() ? lotSpot(people.size - 1) : spotIn(info.side, here(info.side) - 1); p.a.x = sp.x; p.a.y = sp.y;
           if (info.id === m.you) { me = p; G.player = p.a; }
-          // 지난번에 고른 모습이 있으면 들어오자마자 그 모습으로 선다(좀비 모드)
-          if (p === me && zm() && info.side === "any" && savedLook() && savedLook() !== p.flip) later(() => me === p && pickLook(savedLook()), 0);
           if (p.a !== G.player) p.a.isPlayer = true;
         }
         p.hostMark = i === 0;
@@ -461,7 +456,7 @@ function createLobbyScene(net) {
       const reveal = () => {
         revealed = true; revealT = (performance.now() - t0) / 1000; zombify(target);
         nameEl.textContent = nameOf(target.name); box.classList.add("land");
-        burst(target.a.x, target.a.y - 50, "#9A78E0", 26); burst(target.a.x, target.a.y - 20, "#B6FF8A", 12);
+        burst(target.a.x, target.a.y - 50, "#6EB69B", 26); burst(target.a.x, target.a.y - 20, "#B6FF8A", 12);
         play("zSpot"); haptic([0, 90, 50, 160]); shake = 9;
       };
       const finish = () => { spotEnd = null; spotCam = null; zoom = z0; box.remove(); lob?.classList.remove("drawing"); };
@@ -479,6 +474,7 @@ function createLobbyScene(net) {
         // 처음 켜질 때와 멈출 때 형광등처럼 깜빡인다
         const L = t - LAND, flick = (t > 0.46 && t < 0.52) || (L > 0 && L < 0.07) || (L > 0.13 && L < 0.25);
         const on = t >= 0.4 && !flick;
+        if (t >= hops.at(-1).t && !quiet) startTurn(target);
         if (L >= 0.25 && !revealed) reveal();
         // 멈추면 화면이 좀비 쪽으로 천천히 다가가고, 끝날 때 원래대로 돌아온다
         if (revealed) { const k = Math.min(1, (t - revealT) / 0.6), back = closing ? Math.min(1, (t - closing) / 0.35) : 0; zoom = z0 * (1 + 0.38 * (1 - (1 - k) ** 3) * (1 - back)); }

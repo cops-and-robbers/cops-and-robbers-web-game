@@ -19,7 +19,8 @@ const Modes = (() => {
 
   let sheet = null, pick = null, done = null, ctx = "solo";
   function art(mode) {
-    if (mode === "zombie") return `<div class="mArt zomb"><i class="mMoon"></i><img class="mSway" src="${ZB.url("police-front")}" alt=""></div>`;
+    // 좀비 모드: 달밤에 휘청이는 좀비 냥파와 냄비를 쓴 생존자 도둥이
+    if (mode === "zombie") return `<div class="mArt zomb"><i class="mMoon"></i><img class="mSway" src="${ZB.url("zcat-front")}" alt=""><img src="${ZB.url("zsurv-front")}" alt=""></div>`;
     return `<div class="mArt classic"><img src="${svgUrl("police-front")}" alt=""><img src="${svgUrl("robber-front")}" alt=""></div>`;
   }
   function card(mode) {
