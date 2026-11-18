@@ -93,28 +93,28 @@
   @media (prefers-reduced-motion:reduce) { .scCar img, .scStage, .scGuide.fresh > div, .scOverCard.shake { animation:none; } .scCount { transition:none; } }
 
   /* 좀비 모드 장면 */
-  .scWait.zomb { background:#1A1530; }
-  .scNight { background:linear-gradient(#1A1530 0%,#3A2D5C 72%,#4C3A72 100%); }
+  .scWait.zomb { background:#141F1B; }
+  .scNight { background:linear-gradient(#141F1B 0%,#23382F 72%,#2E4A3E 100%); }
   .scNight .scMoon { position:absolute; left:6%; top:9%; width:min(9vh,64px); aspect-ratio:1; border-radius:50%; background:#FFF1C2; box-shadow:0 0 60px 18px rgba(255,241,194,.25); }
-  .scNight .scRoofs { position:absolute; left:0; right:0; bottom:20%; height:26%; background:linear-gradient(90deg,#2B2342 0 8%,transparent 8% 10%,#2B2342 10% 17%,transparent 17% 64%,#2B2342 64% 72%,transparent 72% 74%,#2B2342 74% 84%,transparent 84% 86%,#2B2342 86%); clip-path:polygon(0 30%,8% 30%,8% 0,17% 0,17% 40%,64% 40%,64% 10%,72% 10%,72% 0,84% 0,84% 25%,100% 25%,100% 100%,0 100%); }
-  .scNight .scMist { position:absolute; left:-10%; right:-10%; bottom:16%; height:12%; background:radial-gradient(ellipse at 30% 50%,rgba(185,166,232,.22),transparent 60%),radial-gradient(ellipse at 75% 60%,rgba(185,166,232,.18),transparent 60%); }
-  .scNight::after { content:""; position:absolute; left:0; right:0; bottom:0; height:20%; background:#2C2440; }
-  .scWait.zomb .scTeam { color:#C9B6FF; } .scWait.zomb .scWaitL small { color:#B3A8CF; } .scWait.zomb .scWaitL p { color:#fff; }
-  .scWait.zomb .scCount { color:#D9CCFF; text-shadow:0 0 24px rgba(154,120,224,.8); }
-  .scWait.zomb .scCard { background:rgba(30,22,52,.8); box-shadow:inset 0 0 0 1px rgba(201,182,255,.22); } .scWait.zomb .scCard small { color:#B3A8CF; } .scWait.zomb .scCard p { color:#fff; }
+  .scNight .scRoofs { position:absolute; left:0; right:0; bottom:20%; height:26%; background:linear-gradient(90deg,#1C2A24 0 8%,transparent 8% 10%,#1C2A24 10% 17%,transparent 17% 64%,#1C2A24 64% 72%,transparent 72% 74%,#1C2A24 74% 84%,transparent 84% 86%,#1C2A24 86%); clip-path:polygon(0 30%,8% 30%,8% 0,17% 0,17% 40%,64% 40%,64% 10%,72% 10%,72% 0,84% 0,84% 25%,100% 25%,100% 100%,0 100%); }
+  .scNight .scMist { position:absolute; left:-10%; right:-10%; bottom:16%; height:12%; background:radial-gradient(ellipse at 30% 50%,rgba(170,214,196,.22),transparent 60%),radial-gradient(ellipse at 75% 60%,rgba(170,214,196,.18),transparent 60%); }
+  .scNight::after { content:""; position:absolute; left:0; right:0; bottom:0; height:20%; background:#1F2D27; }
+  .scWait.zomb .scTeam { color:#A9DCC8; } .scWait.zomb .scWaitL small { color:#9DBDB0; } .scWait.zomb .scWaitL p { color:#fff; }
+  .scWait.zomb .scCount { color:#CDEFE2; text-shadow:0 0 24px rgba(110,182,155,.8); }
+  .scWait.zomb .scCard { background:rgba(18,30,25,.82); box-shadow:inset 0 0 0 1px rgba(169,220,200,.22); } .scWait.zomb .scCard small { color:#9DBDB0; } .scWait.zomb .scCard p { color:#fff; }
   .scWalk { position:absolute; bottom:0; height:120%; animation:scDrive 11s linear infinite; }
   .scWalk svg { width:100%; height:100%; display:block; }
   .scDispatch.zomb .scGlow { background:#FFD45C; }
-  .scDispatch.mini.zomb .scPill { background:rgba(24,16,40,.9); } .scDispatch.mini.zomb.go .scPill { background:#7A5BD6; }
+  .scDispatch.mini.zomb .scPill { background:rgba(16,26,22,.9); } .scDispatch.mini.zomb.go .scPill { background:#2F8A6B; }
   .scWakeHint { position:absolute; left:50%; top:calc(max(19%,74px) + 62px); transform:translateX(-50%); font-size:14px; font-weight:800; color:#fff; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.6); }
-  .scStage.zomb { background:#1B1430; } .scStage.zomb .scPillTeam { background:#7A5BD6; color:#fff; } .scStage.zomb .scMvpTx small { color:#B3A8CF; }
+  .scStage.zomb { background:#14201B; } .scStage.zomb .scPillTeam { background:#2F8A6B; color:#fff; } .scStage.zomb .scMvpTx small { color:#9DBDB0; }
   .scStage.surv .scPillTeam { background:#FFC83D; color:#3A2A00; }
   .scFly { position:absolute; width:6px; height:6px; border-radius:50%; background:#E8FF9A; box-shadow:0 0 10px 3px rgba(232,255,154,.6); }
-  .scBitten { position:absolute; inset:0; z-index:4; background:rgba(40,22,70,.74); pointer-events:none; }
+  .scBitten { position:absolute; inset:0; z-index:4; background:rgba(14,34,27,.76); pointer-events:none; }
   .scBiteRing { position:absolute; left:50%; top:42%; transform:translate(-50%,-50%); width:min(36vh,160px); aspect-ratio:1; border-radius:50%; display:grid; place-items:center; }
-  .scBiteRing::before { content:""; position:absolute; inset:0; border-radius:50%; background:conic-gradient(#B49BFF calc(var(--k,0) * 360deg), rgba(255,255,255,.15) 0); -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 7px)); mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 7px)); }
+  .scBiteRing::before { content:""; position:absolute; inset:0; border-radius:50%; background:conic-gradient(#8FD0B8 calc(var(--k,0) * 360deg), rgba(255,255,255,.15) 0); -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 7px)); mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 7px)); }
   .scBiteRing img { height:72%; }
   .scBiteTx { position:absolute; left:50%; top:calc(42% + min(18vh,80px) + 14px); transform:translateX(-50%); text-align:center; color:#fff; white-space:nowrap; }
-  .scBiteTx b { display:block; font-size:clamp(26px,9vh,40px); font-weight:900; } .scBiteTx span { font-size:clamp(13px,4vh,17px); font-weight:700; color:#D6CCF2; }
-  @media (prefers-reduced-motion:reduce) { .scWalk { animation:none; } .scWalk + .scWalk { left:70%; } .scWalk:first-child { left:12%; } }
-  .scStage.zomb .scGlowRing { opacity:.28; filter:sepia(1) hue-rotate(215deg) saturate(3); }
+  .scBiteTx b { display:block; font-size:clamp(26px,9vh,40px); font-weight:900; } .scBiteTx span { font-size:clamp(13px,4vh,17px); font-weight:700; color:#C9E9DC; }
+  @media (prefers-reduced-motion:reduce) { .scWalk { animation:none; } .scWalk:nth-child(1) { left:24%; } .scWalk:nth-child(2) { left:10%; } .scWalk:nth-child(n+3) { display:none; } }
+  .scStage.zomb .scGlowRing { opacity:.28; filter:sepia(1) hue-rotate(110deg) saturate(2.4); }
