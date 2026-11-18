@@ -350,11 +350,11 @@ const Scenes = (() => {
   function stage(box, r, quiet, s, G) {
     const police = r.team === "police", Z = G?.mode === "zombie" && tt("zb");
     // 좀비 판: 좀비 MVP 는 어두운 초록 무대에 좀비 냥파, 생존자 MVP 는 노란 무대에 생존자 도둥이
-    const look = r.team;
+    // 원형 빛은 무대 밝기를 따른다: 좀비(어두운 무대)는 어두운 초록 빛, 생존자(밝은 무대)는 노란 빛
     const icon = Z ? ZB.url(police ? "zcat-front" : "zsurv-front") : svgUrl(police ? "police-front" : "robber-front");
     const artSrc = Z ? ZB.url(police ? "zcat-front" : "zsurv-front") : ART.mvp[r.team];
     const n = h("div", "scStage " + (Z ? (police ? "dark zomb" : "light surv") : police ? "light" : "dark"));
-    n.innerHTML = `<div class="scLit"><img class="scGlowRing" src="${ART.glow[Z ? look : r.team]}" alt=""><div class="scMvpTx"><small>${esc(s.result)}</small><span class="scPillTeam">${esc(Z ? (police ? Z.mvpZ : Z.mvpS) : police ? s.mvpCop : s.mvpRob)}</span><b><img src="${icon}" alt="">${esc(r.name)}</b><p>${esc(Z ? (police ? Z.subZ : Z.subS) : police ? s.subCop : s.subRob)}</p></div></div><img class="scMvpArt" src="${artSrc}" alt=""><div class="scConfetti"></div><div class="scSpot"></div>`;
+    n.innerHTML = `<div class="scLit"><img class="scGlowRing" src="${ART.glow[Z ? (police ? "robber" : "police") : r.team]}" alt=""><div class="scMvpTx"><small>${esc(s.result)}</small><span class="scPillTeam">${esc(Z ? (police ? Z.mvpZ : Z.mvpS) : police ? s.mvpCop : s.mvpRob)}</span><b><img src="${icon}" alt="">${esc(r.name)}</b><p>${esc(Z ? (police ? Z.subZ : Z.subS) : police ? s.subCop : s.subRob)}</p></div></div><img class="scMvpArt" src="${artSrc}" alt=""><div class="scConfetti"></div><div class="scSpot"></div>`;
     box.insertBefore(n, box.firstChild);
     const lit = n.querySelector(".scLit"), art = n.querySelector(".scMvpArt"), spot = n.querySelector(".scSpot"), conf = n.querySelector(".scConfetti");
     const POP = 2050;

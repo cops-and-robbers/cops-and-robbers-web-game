@@ -83,11 +83,13 @@ export class Room extends DurableObject<Env> {
   private scale = 1;
   private timer: ReturnType<typeof setInterval> | null = null;
   private emptySince = 0;
-  private lost = new Map<string, { agentId: number; at: number }>();
+  // 끊긴 사람은 방 설정(seats)과 들어온 순서도 같이 기억한다. 혼자 하던 방에서 끊겼다 돌아오면 그 순간 방에 아무도 없어,
+  // 남은 사람에게서 설정을 읽으면 기본값(경찰과 도둑)이 붙어 판이 끝난 뒤 대기실이 경도로 바뀌었다
+  private lost = new Map<string, { agentId: number; at: number; joinedAt: number; seats: Seats }>();
   // 판 하나의 네트워크 기록. 판 결과에 이름 없이 남긴다(saveResult)
   private netLog = new Map<number, { rtt: number[]; rejoins: number }>();
   private tickGap = { last: 0, max: 0, late: 0, n: 0 };
-  private lobbyLost = new Map<string, { pid: string; joinedAt: number; side: Side; at: number }>();
+  private lobbyLost = new Map<string, { pid: string; joinedAt: number; side: Side; at: number; seats: Seats }>();
   private rates = new Map<WebSocket, Rate>();
   private colo: string | null = null;
   private counting: ReturnType<typeof setTimeout> | null = null;
@@ -335,9 +337,9 @@ export class Room extends DurableObject<Env> {
         token: msg.token,
         pid: crypto.randomUUID().slice(0, 8),
         name: agent.name,
-        joinedAt: Date.now(),
+        joinedAt: rejoin.joinedAt,
         side: agent.team === "police" ? "cop" : "rob",
-        seats: this.seats(),
+        seats: this.members().length ? this.seats() : rejoin.seats,
         agentId: rejoin.agentId,
       } satisfies Attachment);
       this.netOf(rejoin.agentId).rejoins++;
@@ -353,7 +355,8 @@ export class Room extends DurableObject<Env> {
       return;
     }
     const creating = !this.members().length && !!msg.create;
-    const seats = creating ? { ...DEFAULT_SEATS, mode: MODES.includes(msg.mode) ? msg.mode : "classic" } as Seats : this.seats();
+    const lostSeats = typeof msg.token === "string" ? this.lobbyLost.get(msg.token)?.seats : undefined;
+    const seats = creating ? { ...DEFAULT_SEATS, mode: MODES.includes(msg.mode) ? msg.mode : "classic" } as Seats : !this.members().length && lostSeats ? lostSeats : this.seats();
     if (this.counting || this.members().length >= seats.cops + seats.robs) {
       this.send(ws, { t: "error", code: this.counting ? "playing" : "full" });
       ws.close(4002, "full");
@@ -550,9 +553,9 @@ export class Room extends DurableObject<Env> {
     if (this.game && me.agentId !== undefined) {
       // 돌아올 때까지 봇이 대신한다
       this.game.agents[me.agentId].isPlayer = false;
-      this.lost.set(me.token, { agentId: me.agentId, at: Date.now() });
+      this.lost.set(me.token, { agentId: me.agentId, at: Date.now(), joinedAt: me.joinedAt, seats: me.seats });
     } else if (!this.game) {
-      this.lobbyLost.set(me.token, { pid: me.pid, joinedAt: me.joinedAt, side: me.side, at: Date.now() });
+      this.lobbyLost.set(me.token, { pid: me.pid, joinedAt: me.joinedAt, side: me.side, at: Date.now(), seats: me.seats });
       this.broadcastLobby(!!me.seats.open);
     }
   }

@@ -424,7 +424,7 @@ async function checkZombie(env) {
   await waitFor(() => zs[0].lobby.players.filter(p => p.side === "cop").length === 2, 3000, "고양이 칸 두 명");
   check(zs[0].lobby.players.filter(p => p.side === "cop").length === 2, "좀비 모드의 칸은 인원 제한 없이 생김새만 골라요");
   const play = async () => {
-    for (const c of zs) { c.start = null; c.over = null; }
+    for (const c of zs) { c.start = null; c.over = null; c.lobbyBefore = c.lobby; }
     zs[0].sendJson({ t: "start" });
     await waitFor(() => zs.every(c => c.start), 9000, "좀비 판 시작");
     const firsts = zs.filter(c => c.start?.team === "police");
@@ -435,10 +435,38 @@ async function checkZombie(env) {
     check(zs[1].start.look === "police" && zs[2].start.look === "police", "고양이 칸에 선 사람은 고양이 모습이에요");
     await waitFor(() => zs.every(c => c.over), 40000, "좀비 판 끝");
     check(zs.every(c => c.over && (c.over.winner === "police" || c.over.winner === "robber")), "좀비 판이 끝까지 돌아요");
+    await waitFor(() => zs.every(c => c.lobby && c.lobby !== c.lobbyBefore), 3000, "판 끝 대기실");
+    check(zs.every(c => c.lobby?.mode === "zombie"), `좀비 판이 끝나면 대기실도 좀비 모드예요 (${zs.map(c => c.lobby?.mode).join(",")})`);
     return firsts[0];
   };
   const a = await play();
   const b = await play();
   check(a && b && a !== b, "지난 판 첫 좀비는 다음 뽑기에서 빠져요");
   for (const c of zs) c.ws.close();
+  await checkZombieAlone(env);
+}
+
+// 혼자 봇과 하는 좀비 방에서 판 중에 끊겼다 돌아와도, 판이 끝난 뒤 대기실은 좀비 모드이고 나는 그대로 방장이다.
+// 돌아오는 순간 방에 아무도 없어 기본 설정(경찰과 도둑)이 붙던 문제(#64)
+async function checkZombieAlone(env) {
+  const code = `Y${Date.now().toString(36).slice(-6).toUpperCase()}`;
+  const host = connect(env.base, env.key, code);
+  await host.open;
+  host.sendJson({ t: "join", name: "혼자", create: true, mode: "zombie" });
+  await waitFor(() => host.lobby, 3000, "혼자 좀비 방 입장");
+  host.sendJson({ t: "seats", cops: 1, robs: 2, bots: true });
+  await waitFor(() => host.lobby?.bots, 3000, "봇 켜기");
+  host.sendJson({ t: "start" });
+  await waitFor(() => host.start, 9000, "혼자 좀비 판 시작");
+  const token = host.token;
+  host.ws.close();
+  await sleep(800);
+  const back = connect(env.base, env.key, code);
+  await back.open;
+  back.sendJson({ t: "join", token });
+  await waitFor(() => back.start, 5000, "혼자 좀비 판 다시 들어오기");
+  await waitFor(() => back.over, 40000, "혼자 좀비 판 끝");
+  await waitFor(() => back.lobby, 3000, "혼자 좀비 판 끝 대기실");
+  check(back.lobby?.mode === "zombie" && back.lobby?.host, `혼자 하던 좀비 판에서 끊겼다 돌아와도 끝난 뒤 대기실은 좀비 모드예요 (${back.lobby?.mode})`);
+  back.ws.close();
 }

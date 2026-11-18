@@ -937,6 +937,14 @@ $("rotateSkip").onclick = () => { allowPortrait = true; syncRotate(); };
 const begin = r => { start(r); syncRotate(); tryLandscape(); };
 $("again").onclick = () => (online ? online.toLobby() : begin(role));
 $("swap").onclick = () => begin(role === "police" ? "robber" : "police");
+// 처음 화면으로: 방이면 방을 나가고(net.quit), 혼자 하기면 판을 걷고 첫 화면을 연다(혼자 하기의 나가기와 같다)
+$("endHome").onclick = () => {
+  if (online) { online.quit(); return; }
+  $("end").className = "sheet"; $("hud").className = ""; Scenes.reset();
+  chars.forEach(c => c.el.remove()); chars = []; G = null; ended = false;
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  openHome();
+};
 
 function frame(dt) {
   if (!G) return;

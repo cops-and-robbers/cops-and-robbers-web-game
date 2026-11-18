@@ -59,8 +59,10 @@
   .scStage.light { background:#fff; } .scStage.dark { background:#12171F; }
   .scLit { position:absolute; inset:0; }
   /* 캐릭터 발끝이 아래 "화면을 누르면" 띠(바닥 4vh + 44px)에 가리지 않게 그 위에 세운다 */
-  .scGlowRing { position:absolute; left:34%; top:calc(50% - max(14px,4vh) / 2 - 22px); height:min(78vh,330px); translate:-50% -50%; }
-  .scMvpArt { position:absolute; left:34%; bottom:calc(max(14px,4vh) + 56px); height:min(calc(100vh - max(14px,4vh) - 56px - 56px),300px); translate:-50% 0; transform-origin:50% 100%; }
+  /* 원형 빛은 캐릭터 그림의 한가운데 뒤에 둔다. 예전에는 화면 가운데에 따로 맞춰서, 화면이 높을수록 캐릭터보다 위로 떴다(팀 피드백) */
+  .scStage { --artB:calc(max(14px,4vh) + 56px); --artH:min(calc(100vh - max(14px,4vh) - 56px - 56px),300px); }
+  .scGlowRing { position:absolute; left:34%; bottom:calc(var(--artB) + var(--artH) / 2); height:min(calc(var(--artH) * 1.12),330px); translate:-50% 50%; }
+  .scMvpArt { position:absolute; left:34%; bottom:var(--artB); height:var(--artH); translate:-50% 0; transform-origin:50% 100%; }
   .scMvpTx { position:absolute; left:58%; top:50%; transform:translateY(-50%); max-width:38%; }
   .scMvpTx small { display:block; font-size:clamp(14px,4vh,18px); font-weight:700; color:#93A2B3; }
   .scPillTeam { display:inline-block; margin-top:clamp(8px,2.4vh,14px); padding:6px 16px; border-radius:999px; font-size:clamp(14px,4vh,18px); font-weight:800; }
@@ -81,7 +83,8 @@
     .scRoleTx { left:6%; right:6%; max-width:none; } .scRoleArt { right:-6%; }
     .scRoleTx small { font-size:clamp(13px,3.6vw,16px); } .scRoleTx p { font-size:clamp(28px,9vw,44px); } .scRoleTx em { font-size:clamp(16px,5vw,22px); }
     .scWait { flex-direction:column; align-items:center; padding-top:12vh; gap:3vh; } .scWaitL, .scWaitR { max-width:420px; width:100%; flex:none; }
-    .scGlowRing { left:50%; top:auto; bottom:calc(max(14px,4vh) + 270px); translate:-50% 30%; height:min(72vw,330px); } .scMvpArt { left:50%; bottom:calc(max(14px,4vh) + 270px); height:min(48vw,240px,calc(100vh - max(14px,4vh) - 340px)); }
+    .scStage { --artB:calc(max(14px,4vh) + 270px); --artH:min(48vw,240px,calc(100vh - max(14px,4vh) - 340px)); }
+    .scGlowRing { left:50%; height:min(calc(var(--artH) * 1.25),72vw,330px); } .scMvpArt { left:50%; }
     .scMvpTx { left:8%; right:8%; top:auto; bottom:calc(max(14px,4vh) + 64px); transform:none; max-width:none; text-align:center; } .scMvpTx b { justify-content:center; }
   }
   #endMvp { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:10px; }
@@ -117,4 +120,6 @@
   .scBiteTx { position:absolute; left:50%; top:calc(42% + min(18vh,80px) + 14px); transform:translateX(-50%); text-align:center; color:#fff; white-space:nowrap; }
   .scBiteTx b { display:block; font-size:clamp(26px,9vh,40px); font-weight:900; } .scBiteTx span { font-size:clamp(13px,4vh,17px); font-weight:700; color:#C9E9DC; }
   @media (prefers-reduced-motion:reduce) { .scWalk { animation:none; } .scWalk:nth-child(1) { left:24%; } .scWalk:nth-child(2) { left:10%; } .scWalk:nth-child(n+3) { display:none; } }
-  .scStage.zomb .scGlowRing { opacity:.28; filter:sepia(1) hue-rotate(110deg) saturate(2.4); }
+  .scStage.zomb .scGlowRing { opacity:.7; }
+  /* 밝은 무대의 노란 빛은 가장자리가 흐려서 캐릭터보다 넉넉히 커야 둘레가 보인다. 좀비 냥파는 그림 칸을 가득 채워 조금 더 키운다 */
+  .scStage.light .scGlowRing { height:min(calc(var(--artH) * 1.6),480px); } .scStage.zomb .scGlowRing { height:min(calc(var(--artH) * 1.35),420px); }
