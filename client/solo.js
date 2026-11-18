@@ -25,9 +25,12 @@ function createSolo() {
     sheet.dataset.game = mode;
     const chip = q("[data-mode-chip]"); chip.hidden = false; chip.textContent = tt("modes").name[mode];
     q("#stTeamL").textContent = Z ? Z.role : TX.soloPage.team;
-    const art = { police: q('[data-role-pick="police"] .art img') };
-    if (!art.police.dataset.src) art.police.dataset.src = art.police.src;
-    art.police.src = Z ? ZB.url("police-front") : art.police.dataset.src;
+    // 좀비 모드는 좀비 냥파와 생존자 도둥이로 고정이라 고르는 칸 그림도 바꿔 끼운다
+    for (const [team, kind] of [["police", "zcat"], ["robber", "zsurv"]]) {
+      const img = q(`[data-role-pick="${team}"] .art img`); if (!img) continue;
+      if (!img.dataset.src) img.dataset.src = img.src;
+      img.src = Z ? ZB.url(`${kind}-front`) : img.dataset.src;
+    }
     q('[data-role-pick="police"] b').textContent = Z ? Z.first : tt("copName");
     q('[data-role-pick="robber"] b').textContent = Z ? Z.surv : tt("robName");
     q('[data-role-pick="random"] b').textContent = Z ? Z.random : "";

@@ -92,9 +92,9 @@ const Scenes = (() => {
     // 서버 판은 시작 신호를 받은 뒤 조금 늦게 화면이 열려 멈춤이 덜 남아 있다. 남은 멈춤 안에 끝나게 머무는 시간을 줄인다
     const hold = Math.max(300, Math.min(ROLE.hold, (introMs || 2600) - ROLE.in - ROLE.out));
     const s = S(), police = team === "police", Z = z && tt("zb");
-    // 좀비 판: 좀비는 어두운 보라 띠, 생존자는 흰 띠. 아래 줄 없이 두 줄로 끝낸다
-    const band = Z ? (police ? "#2B2438" : "#FFFFFF") : police ? "#FFFFFF" : COLOR.night, edge = Z ? (police ? "#3A3050" : "#EFE8D6") : police ? "#DCE6F2" : "#2B3440";
-    const tint = Z ? (police ? "#B49BFF" : "#C98A00") : COLOR[team], onBand = Z ? (police ? "#FFFFFF" : COLOR.ink) : police ? COLOR.ink : "#FFFFFF";
+    // 좀비 판: 좀비는 좀비 냥파 빛의 어두운 초록 띠, 생존자는 흰 띠. 아래 줄 없이 두 줄로 끝낸다
+    const band = Z ? (police ? "#1F2D28" : "#FFFFFF") : police ? "#FFFFFF" : COLOR.night, edge = Z ? (police ? "#2E4239" : "#EFE8D6") : police ? "#DCE6F2" : "#2B3440";
+    const tint = Z ? (police ? "#8FD0B8" : "#C98A00") : COLOR[team], onBand = Z ? (police ? "#FFFFFF" : COLOR.ink) : police ? COLOR.ink : "#FFFFFF";
     const title = Z ? (police ? Z.titleZ : Z.titleS) : police ? s.titleCop : s.titleRob, acc = Z ? (police ? Z.accZ : Z.accS) : police ? s.accentCop : s.accentRob;
     const role = police ? tt("cop") : tt("rob");
     const box = h("div", "scRole"); box.setAttribute("aria-hidden", "true");
@@ -103,11 +103,10 @@ const Scenes = (() => {
     const rows = [edge, band].map(c => { const g = h("div", "scStripes"); for (let i = 0; i < 7; i++) { const st = h("i"); st.style.background = c; g.appendChild(st); } bandBox.appendChild(g); return g; });
     rows[0].style.transform = "translateY(7px)";
     const lines = SPEED.map(() => { const w = h("div", "scSpeed"); const bar = h("i"); bar.style.background = band; w.appendChild(bar); box.appendChild(w); return { w, bar }; });
-    const ch = h("img", "scRoleArt"); ch.src = Z ? ZB.url(`${z.look}-front`) : ART.role[team]; ch.alt = "";
-    if (Z && !police) ch.src = svgUrl(`${z.look}-front`);
+    const ch = h("img", "scRoleArt"); ch.src = Z ? ZB.url(police ? "zcat-front" : "zsurv-front") : ART.role[team]; ch.alt = "";
     const small = Z ? (police ? Z.smallZ : Z.smallS) : theme ? `${theme} · ${s.roleLabel}` : s.roleLabel;
     const tx = h("div", "scRoleTx", `<small>${esc(small)}</small><p>${accent(title[0], acc, tint)}<br>${accent(title[1], acc, tint)}</p>${Z ? "" : `<em>${accent(s.sentence(role), role, tint)}</em>`}`);
-    tx.style.color = onBand; tx.querySelector("small").style.color = Z ? (police ? "#C9B6FF" : "#76899E") : police ? "#5F6E80" : "#A9B4C2";
+    tx.style.color = onBand; tx.querySelector("small").style.color = Z ? (police ? "#A9DCC8" : "#76899E") : police ? "#5F6E80" : "#A9B4C2";
     box.append(dim, bandBox, ch, tx);
     layer().appendChild(box);
     const total = ROLE.in + hold + ROLE.out, quiet = reduce();
@@ -163,23 +162,29 @@ const Scenes = (() => {
     box.innerHTML = Z
       ? `<div class="scWaitBg scNight"><i class="scMoon"></i><i class="scRoofs"></i><i class="scMist"></i></div>
       <div class="scCar scWalker"></div>
-      <div class="scWaitL"><div class="scTeam"><img src="${ZB.url(`${z.look}-front`)}" alt="">${esc(Z.teamZ)}</div><small>${esc(Z.timerWait)}</small><b class="scCount">00:12</b><p>${esc(Z.waitLine)}</p></div>
+      <div class="scWaitL"><div class="scTeam"><img src="${ZB.url("zcat-front")}" alt="">${esc(Z.teamZ)}</div><small>${esc(Z.timerWait)}</small><b class="scCount">00:12</b><p>${esc(Z.waitLine)}</p></div>
       <div class="scWaitR"><div class="scCard"><img src="${ART.flag}" alt=""><div><small>${esc(Z.missionLabel)}</small><p>${esc(Z.mission)}</p></div></div><div class="scCard scGuide"><img src="${ART.bulb}" alt=""><div><small></small><p></p></div></div></div>`
       : `<div class="scWaitBg" style="background-image:url(${ART.day})"></div>
       <div class="scCar"><img src="${ART.car}" alt=""></div>
       <div class="scWaitL"><div class="scTeam"><img src="${svgUrl("police-front")}" alt="">${esc(s.teamCop)}</div><small>${esc(s.waitLabel)}</small><b class="scCount">00:15</b><p>${esc(s.waitCop)}</p></div>
       <div class="scWaitR"><div class="scCard"><img src="${ART.flag}" alt=""><div><small>${esc(s.missionLabel)}</small><p>${esc(s.mission)}</p></div></div><div class="scCard scGuide"><img src="${ART.bulb}" alt=""><div><small></small><p></p></div></div></div>`;
     layer().appendChild(box);
-    // 지나가는 좀비 둘: 판의 캐릭터 엔진으로 팔을 앞으로 뻗고 발을 끄는 옆걸음(shambleSide)을 그대로 걷는다
+    // 쫓고 쫓기는 둘: 앞에서 생존자 도둥이가 냄비를 쓰고 달아나고(runSide), 바로 뒤에서 좀비 냥파가 팔을 뻗고 발을 끌며 쫓아간다(shambleSide).
+    // 판의 캐릭터 엔진을 그대로 쓴다. 두 쌍이 반 바퀴 간격으로 지나간다
     if (Z) {
-      const walkers = ["police", "robber"].map((look, i) => {
-        const rig = ZB.mountZ(`${look}-side`), d = rig.def, w = document.createElement("div");
+      const cast = [["zsurv-side", "runSide", 1.25, 1.12], ["zcat-side", "shambleSide", 0, 0.95], ["zsurv-side", "runSide", 6.75, 1.12], ["zcat-side", "shambleSide", 5.5, 0.95]];
+      const walkers = cast.map(([name, motion, ahead, size]) => {
+        const rig = CharRig.mount(ZB.svg(name), name), d = rig.def, w = document.createElement("div");
         rig.svg.setAttribute("viewBox", `0 0 ${d.w} ${d.h}`); rig.svg.style.overflow = "visible";
-        w.className = "scWalk"; w.style.aspectRatio = `${d.w} / ${d.h}`; w.style.animationDelay = `-${i * 5.5}s`; w.append(rig.svg);
+        if (rig.parts.shadow) rig.parts.shadow.forEach(g => g.style.display = "none");
+        // 두 캐릭터 몸집이 비슷해 보이게(game.js makeChar 와 같은 배율). 발끝을 같은 바닥에 맞춘다
+        const unit = (120 / 202) * (size / 0.95); // 원래 좀비 옆모습(높이 202)이 칸의 120% 였다. 그 한 칸 = unit %
+        w.className = "scWalk"; w.style.aspectRatio = `${d.w} / ${d.h}`; w.style.height = `${unit * d.h}%`; w.style.bottom = `${unit * (202 - 188) / (size / 0.95) - unit * (d.h - d.ground)}%`;
+        w.style.animationDelay = `-${ahead}s`; w.append(rig.svg);
         box.querySelector(".scWalker").append(w);
-        return { rig, mot: CharRig.MOTIONS.shambleSide(rig) };
+        return { rig, mot: CharRig.MOTIONS[motion](rig), run: motion === "runSide" };
       });
-      if (!reduce()) { let last = performance.now(); const step = now => { if (!box.isConnected) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const k of walkers) { k.mot.update(dt, { speed: 0.6 }); k.rig.updateLimbs(); } requestAnimationFrame(step); }; requestAnimationFrame(step); }
+      if (!reduce()) { let last = performance.now(); const step = now => { if (!box.isConnected) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const k of walkers) { k.mot.update(dt, { speed: k.run ? 0.9 : 0.6 }); k.rig.updateLimbs(); } requestAnimationFrame(step); }; requestAnimationFrame(step); }
       else for (const k of walkers) { k.mot.update(0.3, { speed: 0.6 }); k.rig.updateLimbs(); }
     }
     const guide = Z ? Z.guideZ(revealEvery) : s.guideCop(revealEvery), gs = box.querySelector(".scGuide small"), gp = box.querySelector(".scGuide p"), count = box.querySelector(".scCount");
@@ -244,7 +249,7 @@ const Scenes = (() => {
         const W = box.clientWidth, H = box.clientHeight, r = wrap.getBoundingClientRect(), b = box.getBoundingClientRect();
         const px = r.left - b.left + r.width / 2, py = r.top - b.top + r.height * 0.42;
         if (!quiet && intensity > 0) {
-          const red = z ? `rgba(154,120,224,${0.18 + 0.82 * intensity})` : `rgba(226,87,76,${0.18 + 0.82 * intensity})`, blue = z ? `rgba(143,224,122,${0.14 + 0.6 * intensity})` : `rgba(42,155,239,${0.18 + 0.82 * intensity})`;
+          const red = z ? `rgba(110,182,155,${0.18 + 0.82 * intensity})` : `rgba(226,87,76,${0.18 + 0.82 * intensity})`, blue = z ? `rgba(143,224,122,${0.14 + 0.6 * intensity})` : `rgba(42,155,239,${0.18 + 0.82 * intensity})`;
           beam.style.background = `conic-gradient(from ${angle}deg at ${px}px ${py}px, transparent 0deg, ${red} 13deg, transparent 26deg, transparent 180deg, ${blue} 193deg, transparent 206deg, transparent 360deg)`;
           beam.style.webkitMaskImage = beam.style.maskImage = `radial-gradient(circle at ${px}px ${py}px, #000 6%, rgba(0,0,0,.85) 30%, transparent 70%)`;
         }
@@ -265,7 +270,7 @@ const Scenes = (() => {
         box.style.opacity = String(Math.max(0, fade));
         const red = 0.15 + 0.5 * intensity * (0.5 + 0.5 * Math.sin((angle * Math.PI) / 180));
         const blue = 0.15 + 0.5 * intensity * (0.5 - 0.5 * Math.sin((angle * Math.PI) / 180));
-        edge.style.boxShadow = quiet ? "" : z ? `inset 0 0 70px -20px rgba(154,120,224,${Math.min(0.9, red + blue)})` : `inset 34px 0 60px -30px rgba(226,87,76,${red}), inset -34px 0 60px -30px rgba(42,155,239,${blue})`;
+        edge.style.boxShadow = quiet ? "" : z ? `inset 0 0 70px -20px rgba(110,182,155,${Math.min(0.9, red + blue)})` : `inset 34px 0 60px -30px rgba(226,87,76,${red}), inset -34px 0 60px -30px rgba(42,155,239,${blue})`;
         box.classList.toggle("go", go);
       }
       if (remaining < -2200) { box.remove(); dispatch = null; return false; }
@@ -287,7 +292,7 @@ const Scenes = (() => {
   function sync(G, team, themeName) {
     if (!G || G.over) return;
     if (state.game !== G) { reset(); state.game = G; }
-    const z = G.mode === "zombie" ? { look: G.player?.look || team } : null;
+    const z = G.mode === "zombie" ? {} : null;
     if (!state.banner && G.intro > 0) { state.banner = true; state.stopBanner = roleBanner(team, themeName, G.intro * 1000, z); }
     if (G.intro > 0) return;
     const left = (G.wait ?? CFG.WAIT) - G.t, now = performance.now(), release = now + left * 1000;
@@ -344,10 +349,10 @@ const Scenes = (() => {
   // 무대 하나: 어두운 무대를 조명이 훑다 가운데 멈추면 빛 원과 글이 켜지고 캐릭터가 튀어나오며 색종이가 터진다
   function stage(box, r, quiet, s, G) {
     const police = r.team === "police", Z = G?.mode === "zombie" && tt("zb");
-    // 좀비 판: 좀비 MVP 는 보라 무대에 좀비 모습, 생존자 MVP 는 노란 무대에 원래 모습. 생김새는 그 사람 것을 따른다
-    const look = G?.agents[r.id]?.look || r.team;
-    const icon = Z ? (police ? ZB.url(`${look}-front`) : svgUrl(`${look}-front`)) : svgUrl(police ? "police-front" : "robber-front");
-    const artSrc = Z ? (police ? ZB.url(`${look}-front`) : ART.mvp[look]) : ART.mvp[r.team];
+    // 좀비 판: 좀비 MVP 는 어두운 초록 무대에 좀비 냥파, 생존자 MVP 는 노란 무대에 생존자 도둥이
+    const look = r.team;
+    const icon = Z ? ZB.url(police ? "zcat-front" : "zsurv-front") : svgUrl(police ? "police-front" : "robber-front");
+    const artSrc = Z ? ZB.url(police ? "zcat-front" : "zsurv-front") : ART.mvp[r.team];
     const n = h("div", "scStage " + (Z ? (police ? "dark zomb" : "light surv") : police ? "light" : "dark"));
     n.innerHTML = `<div class="scLit"><img class="scGlowRing" src="${ART.glow[Z ? look : r.team]}" alt=""><div class="scMvpTx"><small>${esc(s.result)}</small><span class="scPillTeam">${esc(Z ? (police ? Z.mvpZ : Z.mvpS) : police ? s.mvpCop : s.mvpRob)}</span><b><img src="${icon}" alt="">${esc(r.name)}</b><p>${esc(Z ? (police ? Z.subZ : Z.subS) : police ? s.subCop : s.subRob)}</p></div></div><img class="scMvpArt" src="${artSrc}" alt=""><div class="scConfetti"></div><div class="scSpot"></div>`;
     box.insertBefore(n, box.firstChild);
@@ -403,15 +408,24 @@ const Scenes = (() => {
   }
 
   // ───────── 좀비 판: 물린 순간 ─────────
-  // 물린 사람만 2초 동안: 보라빛으로 어두워지고, 내 좀비 모습 둘레로 원이 차오른다
-  function bitten(look) {
-    const Z = tt("zb"), box = h("div", "scBitten", `<div class="scBiteRing"><img src="${ZB.url(`${look}-front`)}" alt=""></div><div class="scBiteTx"><b>${esc(Z.bitten)}</b><span>${esc(Z.bittenSub)}</span></div>`);
+  // 물린 사람만 2초 동안: 초록빛으로 어두워지고, 원이 차오르는 동안 원 안의 생존자 도둥이가 떨다가
+  // 한 바퀴 뒤집히며 좀비 냥파가 된다(판 위의 캐릭터와 같은 순서, client/zombie.js turning)
+  function bitten() {
+    const Z = tt("zb"), box = h("div", "scBitten", `<div class="scBiteRing"><img src="${ZB.url("zsurv-front")}" alt=""></div><div class="scBiteTx"><b>${esc(Z.bitten)}</b><span>${esc(Z.bittenSub)}</span></div>`);
     box.setAttribute("aria-live", "assertive");
     layer().appendChild(box);
-    const ring = box.querySelector(".scBiteRing"), quiet = reduce();
+    const ring = box.querySelector(".scBiteRing"), img = ring.querySelector("img"), quiet = reduce();
+    let turned = false;
     run(ms => {
       ring.style.setProperty("--k", String(Math.min(1, ms / 2000)));
       box.style.opacity = String(quiet ? 1 : Math.min(1, ms / 180) * (ms > 2000 ? Math.max(0, 1 - (ms - 2000) / 300) : 1));
+      // 1.15초까지 떨고, 1.15~1.35초에 납작하게 접혔다가 냥파로 펴진다
+      const flip = (ms - 1150) / 200;
+      if (!turned && flip >= 0.5) { turned = true; img.src = ZB.url("zcat-front"); }
+      if (quiet) img.style.transform = "";
+      else if (flip < 0) img.style.transform = `translateX(${Math.sin(ms / 45) * 3 * Math.min(1, ms / 600)}px)`;
+      else if (flip < 1) img.style.transform = `scale(${Math.abs(1 - 2 * flip) * 1.1 + 0.02}, ${1 - 0.25 * Math.sin(Math.PI * flip)})`;
+      else { const t = Math.min(1, (ms - 1350) / 450); img.style.transform = `scale(${1 + 0.12 * Math.sin(Math.PI * t) * (1 - t)})`; }
       if (ms > 2300) { box.remove(); return false; }
     });
   }

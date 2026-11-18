@@ -331,33 +331,35 @@ function drawBins(x, b, T, i) {
 function addTail(rig) {
   const name = rig.def.name; if (!name.endsWith("-back")) return;
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  const police = name.startsWith("police");
-  path.setAttribute("d", police ? "M92 172 C118 178 138 168 136 146 C135 136 124 134 122 142" : "M82 118 C104 128 122 122 124 104 C125 96 116 94 113 100");
-  path.setAttribute("fill", "none"); path.setAttribute("stroke", police ? "#7FC4F5" : "#6F7480"); path.setAttribute("stroke-width", police ? "13" : "6"); path.setAttribute("stroke-linecap", "round");
+  const police = name.startsWith("police"), tl = rig.def.tail;
+  path.setAttribute("d", tl ? tl.d : police ? "M92 172 C118 178 138 168 136 146 C135 136 124 134 122 142" : "M82 118 C104 128 122 122 124 104 C125 96 116 94 113 100");
+  path.setAttribute("fill", "none"); path.setAttribute("stroke", tl ? tl.color : police ? "#7FC4F5" : "#6F7480"); path.setAttribute("stroke-width", tl ? tl.w : police ? "13" : "6"); path.setAttribute("stroke-linecap", "round");
   rig.all.append(path);
 }
+// 그림 묶음: 경찰과 도둑은 편, 좀비 모드는 좀비 냥파(zcat)와 생존자 도둥이(zsurv)로 고정이다(client/zombie.js)
+const VIEWS = { police: ["police-front", "police-side", "police-back"], robber: ["robber-front", "robber-side", "robber-back", "robber-jailed"], zcat: ["zcat-front", "zcat-side", "zcat-back"], zsurv: ["zsurv-front", "zsurv-side", "zsurv-back"] };
 function makeChar(a) {
-  // 좀비 모드는 생김새(고양이, 쥐)가 편과 따로다. 좀비 편이면 좀비 그림으로 붙인다(client/zombie.js)
-  const kind = a.look || a.team, zombie = ZB.zombie(a);
+  const kind = ZB.kindOf(a), zombie = ZB.zombie(a);
   const el = document.createElement("div"); el.className = "char"; world.append(el);
   const sh = document.createElement("div"); sh.className = "shadow"; el.append(sh);
-  const base = kind === "police" ? 0.95 : 1.12; // 두 캐릭터 몸집이 비슷해 보이게
+  const base = kind === "police" || kind === "zcat" ? 0.95 : 1.12; // 두 캐릭터 몸집이 비슷해 보이게
   const views = {};
-  const names = kind === "police" ? ["police-front", "police-side", "police-back"] : ["robber-front", "robber-side", "robber-back", "robber-jailed"];
-  for (const n of names) {
-    const rig = zombie ? ZB.mountZ(n) : mount(SVGS[n], n); const d = rig.def; addTail(rig);
-    const scale = base * (n === "robber-jailed" ? 1.45 : 1);
+  let headTop = 0;
+  for (const n of VIEWS[kind]) {
+    const rig = mount(SVGS[n], n); const d = rig.def; addTail(rig);
+    // 좀비 냥파 정면은 디자이너 그림이라 원래 냥파와 크기가 달라 def.scale 로 맞춘다
+    const scale = base * (n === "robber-jailed" ? 1.45 : 1) * (d.scale || 1);
+    if (n.endsWith("-front")) headTop = -d.ground * scale;
     rig.svg.setAttribute("viewBox", `0 0 ${d.w} ${d.h}`);
     rig.svg.style.width = d.w * scale + "px"; rig.svg.style.height = d.h * scale + "px";
     rig.svg.style.left = (-(d.cx) * scale) + "px"; rig.svg.style.bottom = (-(d.h - d.ground) * scale) + "px";
     if (rig.parts.shadow) rig.parts.shadow.forEach(g => g.style.display = "none");
     el.append(rig.svg); views[n] = rig;
   }
-  const headTop = -(kind === "police" ? 200 : 145) * base;
   let tag = null;
   // 사람끼리 할 때는 상대 이름도 보여 준다. 시야 밖 상대는 캐릭터째 숨고 이름도 받지 않는다
   if (G.player && (online || a.team === G.player.team)) {
-    tag = document.createElement("div"); tag.className = "tag " + kind + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? tt("me") : nameOf(a.name); tag.style.top = (headTop - 66) + "px"; el.append(tag);
+    tag = document.createElement("div"); tag.className = "tag " + (kind === "zcat" ? "police" : kind === "zsurv" ? "robber" : kind) + (a.isPlayer ? " me" : ""); tag.textContent = a.isPlayer ? tt("me") : nameOf(a.name); tag.style.top = (headTop - 66) + "px"; el.append(tag);
   }
   const c = { a, kind, zombie, el, views, tag, face: 1, faceS: new Spring(420, 34), pop: new Spring(300, 14), view: null, prev: null, tr: 1, trMode: "fade", mot: {}, mkey: {}, phase: 0, facing: "front", want: null, wantT: 0, stillT: 0, action: null, hopY: 0, input: { x: 0, y: 0 }, hide: 0, wasVisible: false };
   c.faceS.x = 1;
@@ -460,13 +462,11 @@ function drawChar(c, dt) {
     rig.flip.setAttribute("transform", piv(d.cx, d.ground, 0, flipX * sx * (1 - pop * 0.5), 1 + pop));
   }
   c.el.style.opacity = a.inBush ? 0.6 : 1;
-  // 물린 사람: 2초 동안 좌우로 비틀거리며 색이 빠진다. 끝나면 좀비 그림으로 다시 만든다(client/zombie.js syncChars)
-  if (a.state === "turning") {
-    const k = Math.min(1, (performance.now() - (c.turnAt ||= performance.now())) / 2000);
-    c.lungeX = Math.sin(performance.now() / 70) * 6 * (1 - k * 0.5);
-    c.el.style.filter = `saturate(${1 - k * 0.7}) hue-rotate(${k * 70}deg) brightness(${1 - k * 0.1})`;
-  } else if (c.el.style.filter) c.el.style.filter = "";
-  c.el.style.transform = `translate(${a.x + (c.lungeX || 0) * CS}px, ${a.y + (c.hopY || 0) * CS}px) scale(${CS})`;
+  // 물린 사람: 도둥이가 냥파로 변해 간다(client/zombie.js turning). 편이 바뀌면 syncChars 가 좀비 냥파로 바꿔 끼우고 popIn 으로 튀어 오른다
+  let ms = { sx: 1, sy: 1 };
+  if (a.state === "turning") ms = ZB.turning(c);
+  else { if (c.el.style.filter) c.el.style.filter = ""; if (c.popAt) ms = ZB.popIn(c); }
+  c.el.style.transform = `translate(${a.x + (c.lungeX || 0) * CS}px, ${a.y + (c.hopY || 0) * CS}px) scale(${CS * ms.sx}, ${CS * ms.sy})`;
   // 내 캐릭터는 덤불에 들어가도 비쳐 보여야 어디 있는지 안다
   c.el.style.zIndex = Math.round(a.y) + (a.isPlayer && a.inBush ? 400 : 0);
 }
@@ -891,12 +891,8 @@ function showEnd() {
 let pickDiff = QS.get("diff") || "normal", pickTheme = QS.get("theme") || "random", pickShrink = QS.get("shrink") === "1";
 // 놀이 방식은 모드 카드(client/modes.js)와 혼자 하기에서 고른다. 주소(?mode=zombie)로도 열 수 있다. 좀비 판 균형은 늘 반반
 let pickMode = QS.get("mode") === "zombie" ? "zombie" : "classic";
-// 좀비 모드에서 고른 모습(고양이 cop, 쥐 rob). 대기실 "모습 바꾸기"가 남기고, 다음 방과 혼자 하기가 이어 쓴다
-const savedLook = () => { try { const v = localStorage.getItem("zlook"); return v === "cop" || v === "rob" ? v : null; } catch { return null; } };
 function start(r, seed) {
-  const zLook = pickMode === "zombie" ? savedLook() : null;
-  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: "even", ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) },
-    G2 => { if (zLook && G2.player) G2.player.look = zLook === "rob" ? "robber" : "police"; });
+  showGame(r, { role: r, seed, diff: pickDiff, intro: CFG.INTRO, theme: pickTheme === "random" ? null : pickTheme, shrink: pickShrink, reveal: QS.get("reveal") ? Number(QS.get("reveal")) : undefined, mode: pickMode === "zombie" ? "zombie" : undefined, balance: "even", ...(pickMode === "zombie" ? { police: 1, robbers: 5 } : {}) });
 }
 function showGame(r, opts, setup) {
   role = r; ended = false; lastSeenBy = false; toastT = 0; bannerT = 0; lastPip = "";

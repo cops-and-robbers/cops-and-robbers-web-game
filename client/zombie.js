@@ -2,37 +2,17 @@
 // game.js 와 같은 전역에서 돈다(빌드가 game.js 뒤에 붙인다). game.js 는 G.mode === "zombie" 일 때만 여기를 부른다
 const ZB = (() => {
   const isZ = () => G?.mode === "zombie";
-  // 좀비 모습: 피부색만 바꾸고 붕대와 꿰맨 자국을 한 겹 덧댄다. 모자, 털모자, 코는 그대로라 누구였는지 알아본다
-  const SKIN = { "#57BFFF": "#86AE8F", "#9FD6FF": "#AECBB2", "#B3DCFF": "#C3DAC3", "#0B4692": "#433C5E", "#0B4690": "#433C5E", "#FFB600": "#A99A68", "#FFE500": "#C6B984", "#FDB403": "#A99A68", "#DD7C00": "#7E7150",
-    "#007ECA": "#5F8A6B", "#6CBFFF": "#93B79A", "#85CFFF": "#A2C3A7", "#A5AAB7": "#A6BDA6", "#7D828E": "#7F9A84", "#1D232B": "#2B2536", "#9196A3": "#93AE96", "#A3A8B5": "#A3BBA4", "#7D808C": "#7E9882", "#000A12": "#241F2E" };
-  const MARKS = {
-    "police-front": '<g transform="rotate(28 140 62)"><rect x="118" y="55" width="46" height="13" rx="4" fill="#F4EFE4" stroke="#CFC6B4" stroke-width="1.2"/><path d="M126 58v7M134 58v7M142 58v7M150 58v7M158 58v7" stroke="#CFC6B4" stroke-width="1.2"/></g><g stroke="#5D4A86" stroke-width="2.2" stroke-linecap="round"><path d="M78 158l24 6"/><path d="M83 154l-2 9M91 156l-2 9M99 158l-2 9"/></g>',
-    "robber-front": '<g transform="rotate(-30 28 40)"><rect x="12" y="34" width="34" height="11" rx="4" fill="#F4EFE4" stroke="#CFC6B4" stroke-width="1.1"/><path d="M19 37v5M26 37v5M33 37v5M40 37v5" stroke="#CFC6B4" stroke-width="1.1"/></g><g stroke="#5D4A86" stroke-width="2" stroke-linecap="round"><path d="M106 92l14 8"/><path d="M109 89l-3 7M115 92l-3 7"/></g>',
-  };
-  const recolor = s => { for (const [a, b] of Object.entries(SKIN)) s = s.split(a).join(b); return s; };
+  // 생김새는 편으로 정해진다(docs/zombie.md "편과 생김새"): 좀비는 늘 좀비 냥파(zcat), 생존자는 늘 생존자 도둥이(zsurv).
+  // 그림은 캐릭터 엔진이 만든다(playground.html addZombieArt). 처음 쓸 때 한 번 만들어 둔다
+  const art = () => window.CharRig.addZombieArt(SVGS);
+  art(); // 그림 묶음(SVGS)은 이 파일보다 먼저 실린다. game.js 가 SVGS["zcat-side"] 처럼 바로 꺼내 쓰니 처음에 만들어 둔다
   const cache = new Map();
-  function svg(name) {
-    if (!cache.has(name)) cache.set(name, recolor(SVGS[name]).replace(/<\/svg>\s*$/, (MARKS[name] || "") + "</svg>"));
-    return cache.get(name);
-  }
-  const url = name => "data:image/svg+xml," + encodeURIComponent(svg(name));
-  // 엔진은 팔다리 막대를 그림 정보(DEFS)의 색으로 그린다. 좀비로 붙일 때만 잠깐 바꿔 끼운다
-  // 뒷모습은 정면 그림에서 얼굴을 지운 자리를 몸 색으로 덧칠한다(DEFS.recolor). 그 색도 같이 바꿔야 옆구리에 경찰 파랑이 남지 않는다
-  function mountZ(name) {
-    const def = window.CharRig.DEFS[name], saved = def?.limbs?.map(l => l.color), paint = def?.recolor ? { ...def.recolor } : null;
-    if (saved) def.limbs.forEach(l => l.color = recolor(l.color));
-    if (paint) for (const k in def.recolor) def.recolor[k] = recolor(def.recolor[k]);
-    let rig;
-    try { rig = mount(svg(name), name); } finally { if (saved) def.limbs.forEach((l, i) => l.color = saved[i]); if (paint) Object.assign(def.recolor, paint); }
-    // 쥐 좀비의 뒷모습은 앞으로 뻗은 손이 등 뒤에서 어색하게 삐져나와 보여서 손과 팔을 숨긴다(앞으로 뻗어 가려졌다고 본다)
-    if (name === "robber-back") {
-      for (const g of [...(rig.parts.handL || []), ...(rig.parts.handR || [])]) g.setAttribute("display", "none");
-      for (const L of rig.limbs || []) if (/^hand/.test(L.to[0])) L.el.setAttribute("display", "none");
-    }
-    return rig;
-  }
+  function svg(name) { art(); return SVGS[name]; }
+  const url = name => { if (!cache.has(name)) cache.set(name, "data:image/svg+xml," + encodeURIComponent(svg(name))); return cache.get(name); };
   const zombie = a => isZ() && a.team === "police";
-  const lookOf = a => a.look || a.team;
+  // 그림 묶음 이름(game.js VIEWS). 좀비 모드면 편이 곧 생김새다
+  const kindOf = a => isZ() ? (a.team === "police" ? "zcat" : "zsurv") : a.team;
+  const lookOf = kindOf;
 
   // ───── 편 바뀜 ─────
   // 서버 판은 갱신과 사건으로 편이 바뀐 걸 알고, 혼자 하기는 규칙이 직접 옮긴다. 어느 쪽이든 그림은 frame 이 맞춘다
@@ -43,14 +23,14 @@ const ZB = (() => {
     if (!to.includes(a)) to.push(a);
     a.team = team;
   }
-  // 생김새나 편이 그림과 다르면 다시 만든다. 좀비가 되는 순간 보라 가루가 피어오른다
+  // 편이 그림과 다르면 다시 만든다. 좀비가 되는 순간 민트빛 가루가 피어오른다
   function syncChars() {
     for (let i = 0; i < chars.length; i++) {
       const c = chars[i], a = c.a;
-      if (c.kind === lookOf(a) && !!c.zombie === zombie(a)) continue;
+      if (c.kind === kindOf(a)) continue;
       const was = c.zombie;
       c.el.remove(); chars[i] = makeChar(a);
-      if (!was && chars[i].zombie && c.el.style.display !== "none") { burst(a.x, a.y - 40, "#9A78E0", 18); burst(a.x, a.y - 20, "#C9B6FF", 8); }
+      if (!was && chars[i].zombie) { chars[i].popAt = performance.now(); chars[i].face = c.face; if (c.el.style.display !== "none") sparks(a); }
     }
     // 내가 물려 좀비가 되면 내 버튼과 칸을 좀비 것으로 바꾼다
     const p = G.player;
@@ -61,6 +41,42 @@ const ZB = (() => {
       const k = document.querySelector('#hint em[data-t="catch"]'); if (k) k.textContent = tt("zb").bite;
       lastPip = "";
     }
+  }
+
+  // ───── 도둥이가 냥파로 (docs/zombie.md "물기") ─────
+  // 물린 생존자 도둥이: 비틀거리며 민트빛으로 물들고, 쓰고 있던 냄비가 튕겨 나가 굴러떨어지고, 들고 있던 나뭇가지를 놓친다.
+  // 마지막엔 납작하게 눌렸다가(편이 바뀌면 syncChars 가 좀비 냥파로 바꿔 끼운다) 냥파가 튀어 오르며 볼트에서 불꽃이 튄다.
+  // 돌려주는 sx, sy 는 캐릭터 전체 배율(발 기준). game.js drawChar 가 모션을 돌린 다음에 불러 냄비와 가지 움직임을 덮어쓴다
+  const ease = x => x * x * (3 - 2 * x), cl = (v, a, b) => Math.max(a, Math.min(b, v));
+  function turning(c) {
+    // turnDur: 대기실 좀비 뽑기처럼 짧게 변할 때 쓴다(ms). 없으면 판의 비틀거림 시간
+    const now = performance.now(), k = Math.min(1, (now - (c.turnAt ||= now)) / (c.turnDur || (CFG.ZOMBIE.TURN || 2) * 1000));
+    c.lungeX = Math.sin(now / 70) * 6 * (1 - k * 0.5);
+    c.el.style.filter = `sepia(${k * 0.7}) hue-rotate(${k * 95}deg) saturate(${1 + k * 0.8}) brightness(${1 - k * 0.05})`;
+    const rig = c.views[c.view], d = rig.def, dir = c.face < 0 ? -1 : 1;
+    // 냄비: 머리에서 튀어 올라 돌며 옆으로 떨어진다
+    const pot = cl((k - 0.12) / 0.5, 0, 1);
+    if (pot > 0) for (const g of rig.parts.beanie || []) {
+      g.setAttribute("transform", piv(d.cx, 40, dir * 210 * ease(pot), 1, 1, dir * 80 * pot, -60 * Math.sin(Math.PI * Math.min(1, pot * 1.25)) + 70 * pot * pot));
+      g.style.opacity = String(1 - cl((pot - 0.7) / 0.3, 0, 1));
+    }
+    // 나뭇가지: 손에서 미끄러져 떨어진다(앞모습 handL 의 세 번째 조각이 가지다)
+    const drop = cl((k - 0.28) / 0.32, 0, 1), stick = rig.parts.handL?.[2];
+    if (stick && drop > 0) { stick.setAttribute("transform", piv(33, 98, -70 * ease(drop), 1, 1, -6 * drop, 40 * drop * drop)); stick.style.opacity = String(1 - cl((drop - 0.6) / 0.4, 0, 1)); }
+    // 마지막 0.45초: 바닥으로 눌린다
+    const sq = ease(cl((k - 0.78) / 0.22, 0, 1));
+    return { sx: 1 + 0.3 * sq, sy: 1 - 0.45 * sq };
+  }
+  // 방금 좀비 냥파가 된 캐릭터: 눌린 모습에서 튀어 올랐다가 자리를 잡는다(0.6초)
+  function popIn(c) {
+    const t = (performance.now() - c.popAt) / 600;
+    if (t >= 1) { c.popAt = 0; return { sx: 1, sy: 1 }; }
+    const sy = 1 - 0.45 * Math.cos(t * Math.PI * 2.5) * (1 - t) ** 2;
+    return { sx: 1 + (1 - sy) * 0.6, sy };
+  }
+  function sparks(a) {
+    for (const s of [-1, 1]) burst(a.x + s * 38, a.y - 46, "#FFE58A", 5);
+    burst(a.x, a.y - 30, "#6EB69B", 16); burst(a.x, a.y - 10, "#C9F0DF", 8);
   }
 
   // ───── 구조차 ─────
@@ -137,7 +153,7 @@ const ZB = (() => {
   }
 
   // ───── 칸과 알림 ─────
-  // 사람 수 점: 노랑은 생존자, 보라는 좀비, 테두리만 있는 노랑은 탄 사람
+  // 사람 수 점: 노랑은 생존자, 민트는 좀비, 테두리만 있는 노랑은 탄 사람
   function pips() {
     const free = online ? online.free : G.robbers.filter(r => r.state === "free").length;
     const esc = online ? G.stats.escaped || 0 : G.stats.escaped || 0, z = G.police.length;
@@ -159,10 +175,10 @@ const ZB = (() => {
     }
     if (e.type === "bitten") {
       if (e.r) { e.r.state = "turning"; chars[e.r.id] && (chars[e.r.id].turnAt = performance.now()); }
-      if (e.r === p) { play("caught"); haptic(500); shake = 12; hitStop = 0.08; Scenes.bitten(lookOf(p)); }
+      if (e.r === p) { play("caught"); haptic(500); shake = 12; hitStop = 0.08; Scenes.bitten(); }
       else if (e.by === p) { play("catch"); haptic(80); toast(Z.iInfected(nm(e.r)), "good"); }
       else { toast(Z.xInfected(nm(e.r)), p.team === "police" ? "good" : "bad"); }
-      if (e.r && (e.r === p || e.by === p || seen(e.r))) burst(e.r.x, e.r.y - 40, "#9A78E0", 14);
+      if (e.r && (e.r === p || e.by === p || seen(e.r))) burst(e.r.x, e.r.y - 40, "#6EB69B", 14);
     }
     if (e.type === "turned" && e.r) {
       switchTeam(e.r, "police"); e.r.state = "free";
@@ -190,5 +206,5 @@ const ZB = (() => {
       hero: url(`${lookOf(p)}-front`),
     };
   }
-  return { isZ, zombie, vanImage, lookOf, svg, url, mountZ, switchTeam, syncChars, drawVan, drawMini, vanCard, heart, pips, statusLine, onEvent, endText };
+  return { isZ, zombie, kindOf, turning, popIn, sparks, vanImage, lookOf, svg, url, switchTeam, syncChars, drawVan, drawMini, vanCard, heart, pips, statusLine, onEvent, endText };
 })();
