@@ -1,0 +1,9 @@
+{
+  "title": { "kind": "loop", "source": "title_2.wav", "loopStart": 3.9787, "loopEnd": 35.9901 },
+  "lobby": { "kind": "loop", "source": "lobby_4.wav", "loopStart": 13.6213, "loopEnd": 38.5541 },
+  "zlobby": { "kind": "loop", "source": "zlobby_1.wav", "loopStart": 1.6747, "loopEnd": 25.2479 },
+  "round": { "kind": "round", "source": "round_4.wav", "sync": 0 },
+  "zround": { "kind": "round", "source": "zround_1.wav", "sync": 1 },
+  "mvp": { "kind": "jingle", "source": "mvp_2.wav", "hit": 7.5, "loopStart": 9.0027, "loopEnd": 24.9722 },
+  "zmvp": { "kind": "jingle", "source": "zmvp_3.wav", "hit": 7.4, "loopStart": 9.6747, "loopEnd": 23.3844 }
+}
