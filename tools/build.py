@@ -37,6 +37,10 @@ def map_art(p):
     return {"w": vb[2], "h": vb[3], "fx": fx, "fy": fy, "shapes": shapes}
 art = {p.stem: map_art(p) for p in sorted((ROOT / "client/brand/map").glob("*.svg"))}
 out = out.replace("/*MAPART*/{}", json.dumps(art, ensure_ascii=False, separators=(",", ":")))
+# 배경 음악 곡마다 종류(loop, round, jingle)와 구간. 파일은 gateway/public/bgm 에 따로 두고(tools/bgm.py) 여기에는 숫자만 넣는다
+bgm = json.loads((ROOT / "client/brand/bgm.json").read_text(encoding="utf-8"))
+if "/*BGM*/{}" not in out: raise SystemExit("game.js 에서 /*BGM*/{} 를 못 찾음")
+out = out.replace("/*BGM*/{}", json.dumps({k: {x: y for x, y in v.items() if x != "source"} for k, v in bgm.items()}, separators=(",", ":")))
 (ROOT / "dist").mkdir(exist_ok=True)
 (ROOT / "dist/game.html").write_text(out, encoding="utf-8", newline="\n")
 # pages.dev 입구가 같은 주소에서 내려준다. 생성물이라 커밋하지 않는다
