@@ -1092,6 +1092,90 @@ function ambTick() {
     const { s, g } = amb; g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(0, now + 0.8); s.stop(now + 0.85); amb = null;
   }
 }
+// 배경 음악(docs/sound.md "배경 음악"): Flow Music 으로 만든 부드러운 칩튠 한 벌.
+// 첫 화면과 대기실은 반복 곡이다. 판은 3분짜리 한 곡을 판 시계(G.t)에 맞춰 튼다. 숨기, 출동, 남은 1분(좀비는 구조차), 마지막 5초가 곡의 구간이라
+// 늦게 들어온 사람도, 다른 탭에 다녀온 사람도 판 시계로 같은 자리를 듣는다. MVP 곡은 터지는 순간을 첫 MVP 등장에 맞춘다.
+// 파일은 커서 게임 파일에 묶지 않고 입구(gateway/public/bgm)에서 그때그때 받는다. 곡마다 종류와 구간은 client/brand/bgm.json
+const BGM = /*BGM*/{};
+// 곡마다 크기(0~1). 파일은 모두 -16 LUFS 로 맞췄다. 판 중에는 효과음이 먼저 들리게 낮춘다
+const BGM_VOL = { title: 0.5, lobby: 0.42, zlobby: 0.42, round: 0.28, zround: 0.28, mvp: 0.5, zmvp: 0.5 };
+// 다음에 올 곡을 미리 받아 둔다. 바꿀 때 기다리지 않게
+const BGM_NEXT = { title: ["lobby", "round"], lobby: ["round"], zlobby: ["zround"], round: ["mvp"], zround: ["zmvp"], mvp: ["lobby"], zmvp: ["zlobby"] };
+// 게임은 결과가 나고 5.15초 뒤(0.5 + 종료 카드 2.6 + 조명 2.05, client/scenes.js)에 첫 MVP 가 튀어나온다
+const MVP_POP = 5.15;
+const BGM_BASE = location.protocol === "file:" ? "bgm/" : "/bgm/";
+const bgmBuf = {}, bgmTry = {};
+let bgmNow = null, endedAt = 0, lastT = -1, lastTAt = 0;
+function bgmWant() {
+  if (muted || document.visibilityState === "hidden") return null;
+  if (document.body.classList.contains("lobby-mode")) return document.body.dataset.lobbyMode === "zombie" ? "zlobby" : "lobby";
+  // 판 위 상태 칸(hud)이 떠 있을 때만 판이다. 혼자 하기 시작 화면은 지도 미리보기로 G 를 만들고, 게임 방법 안내는 대본(driver)으로 판을 돌린다
+  if (!G || driver || !$("hud").classList.contains("show")) return "title";
+  const z = G.mode === "zombie";
+  if (ended) return z ? "zmvp" : "mvp";
+  // 역할 배너 동안은 판 시계가 0 에 서 있다. 앞 곡을 그대로 두고 배너가 걷히면 판 곡을 시작한다
+  if (G.intro > 0) return "hold";
+  // 판 시계가 멈추면(폰 세로 안내로 판이 멈춤) 곡도 멈춘다
+  if (performance.now() - lastTAt > 400) return null;
+  return z ? "zround" : "round";
+}
+async function bgmLoad(k) {
+  // bgmTry 는 받는 중이거나 실패한 때. 받는 중에는 다시 부르지 않고, 실패했으면 15초 뒤 다시
+  if (!k || bgmBuf[k] || performance.now() - (bgmTry[k] ?? -1e9) < 15000) return;
+  bgmTry[k] = performance.now();
+  try { bgmBuf[k] = await audio.decodeAudioData(await (await fetch(BGM_BASE + k + ".mp3")).arrayBuffer()); delete bgmTry[k]; } catch { /* 못 받으면 15초 뒤 다시 */ }
+}
+function bgmStop(fade) {
+  if (!bgmNow) return;
+  const { s, g } = bgmNow, now = audio.currentTime;
+  g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(0, now + fade); s.stop(now + fade + 0.05);
+  bgmNow = null;
+}
+// 판 곡에서 지금 들려야 할 자리(초). sync 는 곡의 출동 도약이 판의 출동(15초, 좀비 12초)에 맞게 옮기는 값
+const roundPos = k => G.t + (BGM[k].sync || 0);
+function bgmStart(k, fadeIn) {
+  ensureBus();
+  const L = BGM[k], s = audio.createBufferSource(), g = audio.createGain(), now = audio.currentTime;
+  s.buffer = bgmBuf[k];
+  let at = 0, when = now;
+  if (L.kind === "round") {
+    at = roundPos(k);
+    if (at >= s.buffer.duration - 0.3) return false; // 곡이 끝난 자리면 틀지 않는다
+  } else {
+    s.loop = true; s.loopStart = L.loopStart; s.loopEnd = Math.min(L.loopEnd, s.buffer.duration);
+    if (L.kind === "jingle") {
+      // 곡이 터지는 초(hit)를 첫 MVP 가 튀어나오는 때에 맞춘다. 늦게 받았으면 늦은 만큼 앞으로, 곡이 너무 일찍 터지면 늦게 시작한다
+      at = L.hit - MVP_POP + (endedAt ? (performance.now() - endedAt) / 1000 : 0);
+      if (at < 0) { when = now - at; at = 0; }
+      if (at >= s.loopEnd) at = L.loopStart;
+    }
+  }
+  g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(BGM_VOL[k], when + fadeIn);
+  s.connect(g); g.connect(bus); s.start(when, at);
+  bgmNow = { k, s, g, at, when };
+  return true;
+}
+function bgmTick() {
+  if (!audio) return;
+  if (ended && !endedAt) endedAt = performance.now(); else if (!ended) endedAt = 0;
+  if (G && G.t !== lastT) { lastT = G.t; lastTAt = performance.now(); }
+  const k = bgmWant();
+  if (k === "hold") return;
+  if (k) { bgmLoad(k); (BGM_NEXT[k] || []).forEach(bgmLoad); }
+  if ((bgmNow?.k ?? null) === k) {
+    // 판 곡이 판 시계에서 0.3초 넘게 어긋나면(통신으로 시계가 뛰었거나 기기가 버벅임) 그 자리로 옮긴다
+    if (k && BGM[k].kind === "round" && Math.abs(bgmNow.at + (audio.currentTime - bgmNow.when) - roundPos(k)) > 0.3) { bgmStop(0.08); bgmStart(k, 0.08); }
+    return;
+  }
+  if (!k) { bgmStop(0.4); return; }
+  if (!bgmBuf[k]) return; // 받는 동안은 앞 곡을 그대로 둔다
+  // 앞 곡에서 다음 곡으로 넘어가며 메모리를 비운다. 지금 곡과 다음 곡만 남긴다
+  const keep = new Set([k, ...(BGM_NEXT[k] || [])]);
+  for (const x of Object.keys(bgmBuf)) if (!keep.has(x) && x !== bgmNow?.k) delete bgmBuf[x];
+  const kind = BGM[k].kind;
+  bgmStop(kind === "jingle" ? 0.3 : 1.2);
+  bgmStart(k, kind === "jingle" ? 0.15 : kind === "round" ? 0.3 : 0.8);
+}
 function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); loadSounds(); } catch { audio = null; } }
 $("sound").addEventListener("pointerdown", e => { e.stopPropagation(); muted = !muted; $("sound").classList.toggle("off", muted); $("sound").setAttribute("aria-label", tt(muted ? "soundOn" : "soundOff")); });
 addEventListener("pointerdown", unlockAudio); addEventListener("keydown", unlockAudio);
@@ -1100,10 +1184,10 @@ const pick = (attr, set) => document.querySelectorAll(`[${attr}]`).forEach(b => 
 // 시작 화면 뒤에도 지도를 깔아 둔다
 G = newGame({ seed: 11, theme: "town" }); bakeMap(); bakeBushes(); bakeMini(); camX = (CFG.W - W / zoom) / 2; camY = (CFG.H - H / zoom) / 2; world.style.transform = `scale(${zoom}) translate(${-camX}px, ${-camY}px)`; G = null;
 let last = null;
-const tick = () => { const now = performance.now(); const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now; frame(dt); ambTick(); };
+const tick = () => { const now = performance.now(); const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now; frame(dt); ambTick(); bgmTick(); };
 requestAnimationFrame(function loop() { tick(); requestAnimationFrame(loop); });
 // 노션 임베드처럼 그리기 신호가 멈추는 곳에서도 게임이 돌게, 신호가 늦으면 타이머가 대신 돌린다
 setInterval(() => { if (performance.now() - (last || 0) > 40) tick(); }, 16);
 // 시험용: 정해진 시간만큼 건너뛰기
-window.__game = { start, begin, frame, L, setPick: (d, t) => { pickDiff = d; pickTheme = t; }, get G() { return G; }, keys, chars: () => chars };
+window.__game = { start, begin, frame, L, setPick: (d, t) => { pickDiff = d; pickTheme = t; }, get G() { return G; }, keys, chars: () => chars, bgm: () => bgmNow && { k: bgmNow.k, pos: bgmNow.at + (audio.currentTime - bgmNow.when), vol: bgmNow.g.gain.value } };
 if (QS.get("auto")) start(QS.get("auto"), Number(QS.get("seed") || 7));
